@@ -36,3 +36,6 @@ export { PreferenceInput } from './PreferenceInput';
 export type { PreferenceInputProps } from './PreferenceInput';
 
 export { DinerBottomNav } from './DinerBottomNav';
+
+export { RestaurantBottomNav } from './RestaurantBottomNav';
+export type { RestaurantBottomNavProps } from './RestaurantBottomNav';

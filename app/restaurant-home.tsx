@@ -1,70 +1,54 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { DinerBottomNav, ScreenContainer } from '@/components';
+import { RestaurantBottomNav, ScreenContainer } from '@/components';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 
-const RECENT_SCANS = [
-  { id: '1', title: 'The Italian Place', subtitle: '2 days ago' },
-  { id: '2', title: 'Sushi Bar', subtitle: '1 week ago' },
+const RECENT_UPLOADS = [
+  { id: '1', title: 'Dinner Menu 2024', subtitle: '3 days ago' },
+  { id: '2', title: 'Lunch Specials', subtitle: '1 week ago' },
 ];
 
-export default function DinerHomeScreen() {
+export default function RestaurantHomeScreen() {
   return (
     <View style={styles.wrapper}>
       <ScreenContainer scroll padding="xl">
-        <Text style={styles.title}>Scan a menu</Text>
+        <Text style={styles.title}>Upload your menu</Text>
         <Text style={styles.subtitle}>
-          Snap or upload to get personalized recommendations
+          {"We'll turn it into a digital menu automatically"}
         </Text>
 
         <View style={styles.card}>
-          <View style={styles.row}>
+          <Pressable style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}>
             <View style={styles.iconBox}>
-              <MaterialCommunityIcons
-                name="camera-outline"
-                size={22}
-                color={Colors.white}
-              />
+              <MaterialCommunityIcons name="camera-outline" size={22} color={Colors.white} />
             </View>
             <View style={styles.rowText}>
-              <Text style={styles.rowTitle}>Scan Menu</Text>
-              <Text style={styles.rowSubtitle}>Use your camera</Text>
+              <Text style={styles.rowTitle}>Take photo</Text>
+              <Text style={styles.rowSubtitle}>Scan your menu</Text>
             </View>
-            <MaterialCommunityIcons
-              name="chevron-right"
-              size={24}
-              color={Colors.textSecondary}
-            />
-          </View>
+            <MaterialCommunityIcons name="chevron-right" size={24} color={Colors.textSecondary} />
+          </Pressable>
 
           <View style={styles.divider} />
 
-          <View style={styles.row}>
+          <Pressable style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}>
             <View style={styles.iconBox}>
-              <MaterialCommunityIcons
-                name="image-outline"
-                size={22}
-                color={Colors.white}
-              />
+              <MaterialCommunityIcons name="image-outline" size={22} color={Colors.white} />
             </View>
             <View style={styles.rowText}>
-              <Text style={styles.rowTitle}>Upload from Photos</Text>
-              <Text style={styles.rowSubtitle}>Choose an image</Text>
+              <Text style={styles.rowTitle}>Upload menu</Text>
+              <Text style={styles.rowSubtitle}>Choose image or PDF</Text>
             </View>
-            <MaterialCommunityIcons
-              name="chevron-right"
-              size={24}
-              color={Colors.textSecondary}
-            />
-          </View>
+            <MaterialCommunityIcons name="chevron-right" size={24} color={Colors.textSecondary} />
+          </Pressable>
         </View>
 
-        <Text style={styles.sectionTitle}>Recent scans</Text>
-        {RECENT_SCANS.map((item) => (
+        <Text style={styles.sectionTitle}>Recent uploads</Text>
+        {RECENT_UPLOADS.map((item) => (
           <Pressable
             key={item.id}
-            style={({ pressed }) => [styles.recentCard, pressed && styles.recentCardPressed]}
+            style={({ pressed }) => [styles.recentCard, pressed && styles.rowPressed]}
           >
             <View style={styles.recentIcon}>
               <MaterialCommunityIcons
@@ -73,7 +57,7 @@ export default function DinerHomeScreen() {
                 color={Colors.primary}
               />
             </View>
-            <View style={styles.recentText}>
+            <View style={styles.rowText}>
               <Text style={styles.recentTitle}>{item.title}</Text>
               <Text style={styles.recentSubtitle}>{item.subtitle}</Text>
             </View>
@@ -81,7 +65,7 @@ export default function DinerHomeScreen() {
           </Pressable>
         ))}
       </ScreenContainer>
-      <DinerBottomNav activeTab="home" />
+      <RestaurantBottomNav activeTab="home" />
     </View>
   );
 }
@@ -101,7 +85,7 @@ const styles = StyleSheet.create({
     ...Typography.body,
     color: Colors.textSecondary,
     marginBottom: Spacing.xxl,
-    maxWidth: 300,
+    maxWidth: 340,
   },
   card: {
     backgroundColor: Colors.white,
@@ -118,6 +102,9 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.base,
     gap: Spacing.base,
   },
+  rowPressed: {
+    opacity: 0.85,
+  },
   iconBox: {
     width: 48,
     height: 48,
@@ -130,14 +117,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rowTitle: {
-    ...Typography.headingSmall,
-    fontSize: 20,
-    lineHeight: 34,
+    ...Typography.bodyMedium,
+    fontSize: 17,
     color: Colors.text,
   },
   rowSubtitle: {
-    ...Typography.body,
+    ...Typography.caption,
     color: Colors.textSecondary,
+    marginTop: 2,
   },
   divider: {
     height: 1,
@@ -160,9 +147,6 @@ const styles = StyleSheet.create({
     gap: Spacing.base,
     marginBottom: Spacing.base,
   },
-  recentCardPressed: {
-    opacity: 0.85,
-  },
   recentIcon: {
     width: 48,
     height: 48,
@@ -171,13 +155,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  recentText: {
-    flex: 1,
-  },
   recentTitle: {
     ...Typography.bodyMedium,
     color: Colors.text,
-    fontWeight: '600',
   },
   recentSubtitle: {
     ...Typography.caption,

@@ -9,6 +9,10 @@ export default function RootLayout() {
       <Stack.Screen name="diner-menu" options={noSwipeOptions} />
       <Stack.Screen name="diner-favorites" options={noSwipeOptions} />
       <Stack.Screen name="diner-profile" options={noSwipeOptions} />
+      <Stack.Screen name="restaurant-home" options={noSwipeOptions} />
+      <Stack.Screen name="restaurant-menu" options={noSwipeOptions} />
+      <Stack.Screen name="restaurant-highlight" options={noSwipeOptions} />
+      <Stack.Screen name="restaurant-profile" options={noSwipeOptions} />
     </Stack>
   );
 }

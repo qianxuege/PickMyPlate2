@@ -34,3 +34,5 @@ export type { PreferenceTagProps, PreferenceTagVariant } from './PreferenceTag';
 
 export { PreferenceInput } from './PreferenceInput';
 export type { PreferenceInputProps } from './PreferenceInput';
+
+export { DinerBottomNav } from './DinerBottomNav';

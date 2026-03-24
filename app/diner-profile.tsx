@@ -1,25 +1,84 @@
 import { useRouter } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { DinerBottomNav, PrimaryButton, SecondaryButton, ScreenContainer } from '@/components';
+import { DinerBottomNav, PrimaryButton, RoleModeBanner, SecondaryButton, ScreenContainer } from '@/components';
+import { useActiveRole } from '@/contexts/ActiveRoleContext';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
+import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
+
+function initialsFromUser(email: string | undefined, displayName: string | undefined): string {
+  if (displayName?.trim()) {
+    const parts = displayName.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return `${parts[0]![0] ?? ''}${parts[1]![0] ?? ''}`.toUpperCase();
+    }
+    return (parts[0]?.slice(0, 2) ?? 'U').toUpperCase();
+  }
+  const local = email?.split('@')[0] ?? 'U';
+  return local.slice(0, 2).toUpperCase();
+}
 
 export default function DinerProfileScreen() {
   const router = useRouter();
+  useGuardActiveRole('diner');
+  const { session, roles, setActiveRole, signOut } = useActiveRole();
+
+  const email = session?.user?.email ?? '';
+  const displayName =
+    typeof session?.user?.user_metadata?.display_name === 'string'
+      ? session.user.user_metadata.display_name
+      : undefined;
+  const name = displayName || email.split('@')[0] || 'Account';
+
+  const onLogout = async () => {
+    await signOut();
+    router.replace('/login');
+  };
 
   return (
     <View style={styles.wrapper}>
       <ScreenContainer scroll padding="xl">
+        <RoleModeBanner current="diner" />
         <Text style={styles.sectionHeading}>Account Information</Text>
         <View style={styles.profileRow}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>AJ</Text>
+            <Text style={styles.avatarText}>{initialsFromUser(email, displayName)}</Text>
           </View>
           <View style={styles.profileText}>
-            <Text style={styles.name}>Alex Johnson</Text>
-            <Text style={styles.email}>alex.johnson@email.com</Text>
+            <Text style={styles.name}>{name}</Text>
+            <Text style={styles.email}>{email || '—'}</Text>
           </View>
         </View>
+
+        {roles.length > 1 && (
+          <>
+            <Text style={[styles.sectionHeading, styles.sectionSpacing]}>Mode</Text>
+            <SecondaryButton
+              text="Choose diner or restaurant…"
+              onPress={() => router.push('/role-picker' as never)}
+              style={styles.accountButton}
+            />
+          </>
+        )}
+
+        {roles.includes('restaurant') && (
+          <SecondaryButton
+            text="Go to restaurant dashboard"
+            onPress={async () => {
+              await setActiveRole('restaurant');
+              router.replace('/restaurant-home');
+            }}
+            style={styles.accountButton}
+          />
+        )}
+
+        {!roles.includes('restaurant') && (
+          <SecondaryButton
+            text="Add restaurant to this account"
+            onPress={() => router.push('/add-restaurant' as never)}
+            style={styles.accountButton}
+          />
+        )}
 
         <Text style={[styles.sectionHeading, styles.sectionSpacing]}>Preferences</Text>
         <View style={styles.preferencesCard}>
@@ -50,10 +109,7 @@ export default function DinerProfileScreen() {
           onPress={() => router.push('/forgot-password')}
           style={styles.accountButton}
         />
-        <SecondaryButton
-          text="Log Out"
-          onPress={() => router.replace('/login')}
-        />
+        <SecondaryButton text="Log Out" onPress={onLogout} />
       </ScreenContainer>
       <DinerBottomNav activeTab="profile" />
     </View>

@@ -2,8 +2,10 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { PrimaryButton, RestaurantBottomNav, ScreenContainer } from '@/components';
+import { PrimaryButton, RestaurantBottomNav, RoleModeBanner, SecondaryButton, ScreenContainer } from '@/components';
+import { useActiveRole } from '@/contexts/ActiveRoleContext';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
+import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
 
 type InfoRowProps = {
   label: string;
@@ -45,10 +47,20 @@ function InfoRow({ label, value, onPress, isAction }: InfoRowProps) {
 
 export default function RestaurantProfileScreen() {
   const router = useRouter();
+  useGuardActiveRole('restaurant');
+  const { session, roles, setActiveRole, signOut } = useActiveRole();
+
+  const email = session?.user?.email ?? 'owner@kumoramen.com';
+
+  const onLogout = async () => {
+    await signOut();
+    router.replace('/login');
+  };
 
   return (
     <View style={styles.wrapper}>
       <ScreenContainer scroll padding="xl">
+        <RoleModeBanner current="restaurant" />
         <Text style={styles.title}>Profile</Text>
         <Text style={styles.subtitle}>Manage your restaurant and account</Text>
 
@@ -66,6 +78,36 @@ export default function RestaurantProfileScreen() {
 
         <View style={styles.headerDivider} />
 
+        {roles.length > 1 && (
+          <>
+            <Text style={styles.sectionCaps}>MODE</Text>
+            <SecondaryButton
+              text="Choose diner or restaurant…"
+              onPress={() => router.push('/role-picker' as never)}
+              style={styles.modeButton}
+            />
+          </>
+        )}
+
+        {roles.includes('diner') && (
+          <SecondaryButton
+            text="Go to diner home"
+            onPress={async () => {
+              await setActiveRole('diner');
+              router.replace('/diner-home');
+            }}
+            style={styles.modeButton}
+          />
+        )}
+
+        {!roles.includes('diner') && (
+          <SecondaryButton
+            text="Add diner profile to this account"
+            onPress={() => router.push('/add-diner-role' as never)}
+            style={styles.modeButton}
+          />
+        )}
+
         <Text style={styles.sectionCaps}>RESTAURANT INFO</Text>
         <View style={styles.card}>
           <InfoRow label="Restaurant Name" value="Kumo Ramen House" onPress={() => {}} />
@@ -81,7 +123,7 @@ export default function RestaurantProfileScreen() {
 
         <Text style={[styles.sectionCaps, styles.accountCaps]}>ACCOUNT</Text>
         <View style={styles.card}>
-          <InfoRow label="Email" value="owner@kumoramen.com" onPress={() => {}} />
+          <InfoRow label="Email" value={email} onPress={() => {}} />
           <View style={styles.rowDivider} />
           <InfoRow
             label=""
@@ -91,7 +133,7 @@ export default function RestaurantProfileScreen() {
           />
         </View>
 
-        <PrimaryButton text="Log Out" onPress={() => router.replace('/login')} />
+        <PrimaryButton text="Log Out" onPress={onLogout} />
       </ScreenContainer>
       <RestaurantBottomNav activeTab="profile" />
     </View>
@@ -155,6 +197,9 @@ const styles = StyleSheet.create({
   },
   accountCaps: {
     marginTop: Spacing.xxl,
+  },
+  modeButton: {
+    marginBottom: Spacing.base,
   },
   card: {
     backgroundColor: Colors.white,

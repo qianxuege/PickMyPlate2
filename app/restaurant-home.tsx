@@ -1,8 +1,9 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { RestaurantBottomNav, ScreenContainer } from '@/components';
+import { RestaurantBottomNav, RoleModeBanner, ScreenContainer } from '@/components';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
+import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
 
 const RECENT_UPLOADS = [
   { id: '1', title: 'Dinner Menu 2024', subtitle: '3 days ago' },
@@ -10,9 +11,12 @@ const RECENT_UPLOADS = [
 ];
 
 export default function RestaurantHomeScreen() {
+  useGuardActiveRole('restaurant');
+
   return (
     <View style={styles.wrapper}>
       <ScreenContainer scroll padding="xl">
+        <RoleModeBanner current="restaurant" />
         <Text style={styles.title}>Upload your menu</Text>
         <Text style={styles.subtitle}>
           {"We'll turn it into a digital menu automatically"}

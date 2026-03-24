@@ -1,12 +1,16 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { DinerBottomNav, ScreenContainer } from '@/components';
+import { DinerBottomNav, RoleModeBanner, ScreenContainer } from '@/components';
 import { Colors, Spacing, Typography } from '@/constants/theme';
+import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
 
 export default function DinerMenuScreen() {
+  useGuardActiveRole('diner');
+
   return (
     <View style={styles.wrapper}>
       <ScreenContainer scroll padding="xl">
+        <RoleModeBanner current="diner" />
         <Text style={styles.title}>Menu</Text>
         <Text style={styles.subtitle}>Menu scans and uploaded menus will appear here.</Text>
       </ScreenContainer>

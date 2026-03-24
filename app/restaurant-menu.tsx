@@ -1,12 +1,16 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { RestaurantBottomNav, ScreenContainer } from '@/components';
+import { RestaurantBottomNav, RoleModeBanner, ScreenContainer } from '@/components';
 import { Colors, Spacing, Typography } from '@/constants/theme';
+import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
 
 export default function RestaurantMenuScreen() {
+  useGuardActiveRole('restaurant');
+
   return (
     <View style={styles.wrapper}>
       <ScreenContainer scroll padding="xl">
+        <RoleModeBanner current="restaurant" />
         <Text style={styles.title}>Menu</Text>
         <Text style={styles.subtitle}>
           Your published menu and categories will appear here after you upload.

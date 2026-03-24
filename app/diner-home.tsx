@@ -1,8 +1,9 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { DinerBottomNav, ScreenContainer } from '@/components';
+import { DinerBottomNav, RoleModeBanner, ScreenContainer } from '@/components';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
+import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
 
 const RECENT_SCANS = [
   { id: '1', title: 'The Italian Place', subtitle: '2 days ago' },
@@ -10,9 +11,12 @@ const RECENT_SCANS = [
 ];
 
 export default function DinerHomeScreen() {
+  useGuardActiveRole('diner');
+
   return (
     <View style={styles.wrapper}>
       <ScreenContainer scroll padding="xl">
+        <RoleModeBanner current="diner" />
         <Text style={styles.title}>Scan a menu</Text>
         <Text style={styles.subtitle}>
           Snap or upload to get personalized recommendations

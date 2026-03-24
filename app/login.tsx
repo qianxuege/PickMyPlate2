@@ -1,6 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
   Divider,
@@ -11,9 +12,45 @@ import {
   SecondaryButton,
 } from '@/components';
 import { Colors, Dimensions, Spacing, Typography } from '@/constants/theme';
+import { navigateAfterAuth } from '@/lib/auth-navigation';
+import { supabase } from '@/lib/supabase';
+import { fetchUserRoles } from '@/lib/user-roles';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const onLogin = async () => {
+    const trimmed = email.trim();
+    if (!trimmed || !password) {
+      Alert.alert('Missing info', 'Enter email and password.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: trimmed,
+        password,
+      });
+      if (error) {
+        Alert.alert('Sign in failed', error.message);
+        return;
+      }
+      const uid = data.user?.id;
+      if (!uid) {
+        Alert.alert('Sign in failed', 'No user id returned.');
+        return;
+      }
+      const roles = await fetchUserRoles(uid);
+      await navigateAfterAuth({ router, roles });
+    } catch (e) {
+      Alert.alert('Sign in failed', e instanceof Error ? e.message : 'Unknown error');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <ScreenContainer scroll padding="xl">
@@ -31,6 +68,8 @@ export default function LoginScreen() {
           keyboardType="email-address"
           autoCapitalize="none"
           autoComplete="email"
+          value={email}
+          onChangeText={setEmail}
         />
         <View>
           <InputField
@@ -39,6 +78,8 @@ export default function LoginScreen() {
             secureTextEntry
             autoComplete="password"
             containerStyle={styles.passwordField}
+            value={password}
+            onChangeText={setPassword}
           />
           <Pressable onPress={() => router.push('/forgot-password')}>
             <Text style={styles.forgotPassword}>Forgot password?</Text>
@@ -47,7 +88,7 @@ export default function LoginScreen() {
       </View>
 
       <View style={styles.buttons}>
-        <PrimaryButton text="Log In" onPress={() => {}} />
+        <PrimaryButton text="Log In" onPress={onLogin} loading={loading} disabled={loading} />
         <SecondaryButton
           text="Continue with Google"
           onPress={() => {}}

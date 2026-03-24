@@ -16,6 +16,25 @@ An Expo app for exploring restaurant menus and discovering dishes. Built with a 
    npm start
    ```
 
+3. **Supabase + Expo Go — email confirmation**
+
+   **Why Chrome on iOS often fails:** In-app browsers and **Google Chrome** on iPhone frequently **block** jumping from a web page to a custom app URL (`pickmyplate://`). Mail may not list **Expo Go** as an option because the OS treats the link as a browser job first.
+
+   **Try first:** In Mail, **long-press** the confirm link → **Open in Safari** (not Chrome). Safari usually allows the handoff to `pickmyplate://` so **Expo Go** can open.
+
+   **Reliable approach — HTTPS bridge (recommended):**
+
+   1. Host the static file `public/auth-callback-bridge.html` on any **https** URL (e.g. [GitHub Pages](https://pages.github.com/), Netlify Drop, Cloudflare Pages). Example final URL:  
+      `https://YOURNAME.github.io/YOUR_REPO/auth-callback-bridge.html`
+   2. Supabase → **Authentication → URL Configuration**
+      - **Site URL:** that full `https://…/auth-callback-bridge.html` URL (no wildcards).
+      - **Redirect URLs:** add the same `https://…` URL **and** `pickmyplate://**` (and `pickmyplate://auth/callback` if you like).
+   3. Request a **new** confirmation email. Flow: email → opens **https** page → page redirects to `pickmyplate://auth/callback#access_token=…` → **AuthDeepLinkHandler** in the app calls `setSession`.
+
+   **Local-only (same Wi‑Fi, fiddly):** `npm run web`, then temporarily set Site URL to `http://YOUR_LAN_IP:8081/auth-callback-bridge.html` and add it under Redirect URLs — only works if the phone can reach your PC.
+
+   **Dev shortcut:** disable **Confirm email** under **Authentication → Providers → Email** so you don’t depend on the link.
+
 ## Design System
 
 Design tokens and reusable components live in `constants/theme.ts` and `components/`. All screens should use these—no duplicated styles.
@@ -80,6 +99,8 @@ export default function LoginScreen() {
 ## Documentation
 
 - **[Diner personalization & smart preference tags](docs/diner-personalization.md)** — onboarding flow, rule-based tag parsing, and Supabase schema (`diner_*` tables, diner-only RLS).
+- **[Restaurant owner: login, registration, profile](docs/restaurant-owner.md)** — auth vs `restaurants` / `restaurant_cuisine_types`, restaurant-only RLS.
+- **[Dual diner + restaurant accounts](docs/account-roles.md)** — `user_roles`, role picker, and switching after login.
 
 ## Project Structure
 

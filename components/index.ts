@@ -42,3 +42,5 @@ export { DinerBottomNav } from './DinerBottomNav';
 
 export { RestaurantBottomNav } from './RestaurantBottomNav';
 export type { RestaurantBottomNavProps } from './RestaurantBottomNav';
+
+export { RoleModeBanner } from './RoleModeBanner';

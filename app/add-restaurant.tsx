@@ -13,9 +13,7 @@ import {
 } from '@/components';
 import { useActiveRole } from '@/contexts/ActiveRoleContext';
 import { Colors, Spacing, Typography } from '@/constants/theme';
-import { navigateAfterAuth } from '@/lib/auth-navigation';
-import { upsertRestaurantForOwner } from '@/lib/restaurant-setup';
-import { supabase } from '@/lib/supabase';
+import { ensureRestaurantRole, upsertRestaurantForOwner } from '@/lib/restaurant-setup';
 
 const CUISINE_OPTIONS = [
   'Italian',
@@ -30,10 +28,11 @@ const CUISINE_OPTIONS = [
   'Korean',
 ];
 
-export default function RestaurantRegistration2Screen() {
+export default function AddRestaurantScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { refreshRoles } = useActiveRole();
+  const { refreshRoles, setActiveRole } = useActiveRole();
+  const [name, setName] = useState('');
   const [cuisines, setCuisines] = useState<string[]>([]);
   const [location, setLocation] = useState('');
   const [loading, setLoading] = useState(false);
@@ -47,23 +46,20 @@ export default function RestaurantRegistration2Screen() {
   };
 
   const onContinue = async () => {
+    if (!name.trim()) {
+      Alert.alert('Restaurant name', 'Enter your restaurant name.');
+      return;
+    }
     setLoading(true);
     try {
-      const { data: userData, error: userErr } = await supabase.auth.getUser();
-      const user = userData?.user;
-      if (userErr || !user) {
-        Alert.alert('Session required', 'Sign in again to finish setup.', [
-          { text: 'OK', onPress: () => router.replace('/login') },
-        ]);
+      const { error: roleErr } = await ensureRestaurantRole();
+      if (roleErr) {
+        Alert.alert('Could not add restaurant access', roleErr.message);
         return;
       }
 
-      const name =
-        (typeof user.user_metadata?.display_name === 'string' && user.user_metadata.display_name) ||
-        'My Restaurant';
-
       const { error } = await upsertRestaurantForOwner({
-        name,
+        name: name.trim(),
         cuisineNames: cuisines,
         locationShort: location.trim() || undefined,
       });
@@ -73,8 +69,9 @@ export default function RestaurantRegistration2Screen() {
         return;
       }
 
-      const roles = await refreshRoles();
-      await navigateAfterAuth({ router, roles });
+      await refreshRoles();
+      await setActiveRole('restaurant');
+      router.replace('/restaurant-home');
     } catch (e) {
       Alert.alert('Error', e instanceof Error ? e.message : 'Unknown error');
     } finally {
@@ -92,9 +89,14 @@ export default function RestaurantRegistration2Screen() {
       />
       <ScreenContainer scroll padding="xl" backgroundColor="transparent">
         <View style={{ height: insets.top + 36 }} />
-        <Text style={styles.title}>Tell us about Your Restaurant</Text>
+        <Text style={styles.title}>Add your restaurant</Text>
+        <Text style={styles.lead}>
+          Use the same account as your diner profile. You can switch between diner and restaurant anytime.
+        </Text>
 
-        <Text style={styles.sectionLabel}>Cuisine Type</Text>
+        <InputField label="Restaurant name" placeholder="Your restaurant name" value={name} onChangeText={setName} />
+
+        <Text style={styles.sectionLabel}>Cuisine type</Text>
         <View style={styles.pillRow}>
           {CUISINE_OPTIONS.map((opt) => (
             <PreferencePill
@@ -117,7 +119,7 @@ export default function RestaurantRegistration2Screen() {
         </View>
 
         <PrimaryButton
-          text="Continue"
+          text="Save & continue"
           onPress={onContinue}
           loading={loading}
           disabled={loading}
@@ -135,8 +137,13 @@ const styles = StyleSheet.create({
   title: {
     ...Typography.heading,
     color: Colors.text,
-    marginBottom: Spacing.xxxl,
+    marginBottom: Spacing.sm,
     textAlign: 'left',
+  },
+  lead: {
+    ...Typography.body,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xl,
   },
   sectionLabel: {
     ...Typography.bodyMedium,

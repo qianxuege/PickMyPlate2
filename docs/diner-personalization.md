@@ -28,18 +28,21 @@ For deeper UI tokens (colors, chip styles), see the main [README](../README.md) 
 
 ## Database (diner vs restaurant)
 
-Restaurant staff use the same `profiles` table but with `role = 'restaurant'`. **All personalization rows are scoped to diners:**
+Restaurant staff use the same `profiles` row but **without** a diner row in `user_roles`. **All personalization rows are scoped to diners:**
 
 - Tables are keyed by `profile_id` → `profiles.id`.
-- **Row Level Security** allows access only when `public.is_diner(auth.uid())` is true (i.e. `profiles.role = 'diner'`) and `profile_id = auth.uid()`.
+- **Row Level Security** allows access only when `public.is_diner(auth.uid())` is true (user has a **`user_roles`** row with `role = 'diner'`) and `profile_id = auth.uid()`.
 
-So restaurant owners (`role = 'restaurant'`) cannot read or write these rows. Table names are prefixed with **`diner_`** so the domain is obvious in SQL and dashboards.
+Users with **both** diner and restaurant roles can access diner tables when authenticated as themselves. Table names are prefixed with **`diner_`** so the domain is obvious in SQL and dashboards.
+
+See also [account roles](account-roles.md) for `user_roles` and dual-mode UX.
 
 ### Table overview
 
 | Table | Purpose |
 | ----- | ------- |
-| `profiles` | Existing: `role` ∈ `diner` \| `restaurant` \| `admin`. |
+| `profiles` | One row per user; roles live in `user_roles`. |
+| `user_roles` | `(user_id, role)`; `is_diner` / `is_restaurant` read from here. |
 | `cuisines` | Reference list (slug, name, emoji). |
 | `diner_preferences` | One row per diner: spice, budget, onboarding/skip flags, optional raw notes. |
 | `diner_dietary_preferences` | One row per selected dietary chip. |

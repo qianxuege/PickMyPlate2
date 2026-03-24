@@ -77,6 +77,10 @@ export default function LoginScreen() {
 }
 ```
 
+## Documentation
+
+- **[Diner personalization & smart preference tags](docs/diner-personalization.md)** — onboarding flow, rule-based tag parsing, and Supabase schema (`diner_*` tables, diner-only RLS).
+
 ## Project Structure
 
 ```
@@ -95,10 +99,14 @@ PickMyPlate2/
 │   └── index.ts
 ├── constants/
 │   └── theme.ts            # Design tokens
+├── docs/                   # Feature / architecture notes
+├── lib/                    # Supabase client, parsers, etc.
 ├── hooks/
 │   ├── use-color-scheme.ts
 │   ├── use-color-scheme.web.ts
 │   └── use-theme-color.ts
+├── supabase/
+│   └── migrations/         # Postgres schema + RLS
 ├── UserInterfaces/         # Wireframes & assets
 └── app-example/            # Starter reference (excluded from build)
 ```

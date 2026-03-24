@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import {
+  Alert,
   Pressable,
   StyleSheet,
   Text,
@@ -21,14 +22,28 @@ import {
 } from '@/components';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 import {
+  type BudgetTier,
+  DIETARY_OPTIONS,
+  fetchDinerPreferences,
+  savePersonalizationFormPrefs,
+  spiceDbToLabel,
+} from '@/lib/diner-preferences';
+import { getErrorMessage } from '@/lib/error-message';
+import {
   type ParsedSmartTag,
   type SmartTagCategory,
   normalizeTagKey,
   parsePreferenceText,
 } from '@/lib/parseSmartPreferences';
 
-const DIETARY_OPTIONS = ['Vegetarian', 'Vegan', 'Gluten-free', 'Dairy-free'];
 const SPICE_OPTIONS = ['Mild', 'Medium', 'Spicy'];
+
+const BUDGET_TIERS: { tier: BudgetTier; hint: string }[] = [
+  { tier: '$', hint: 'Budget-friendly' },
+  { tier: '$$', hint: 'Moderate' },
+  { tier: '$$$', hint: 'Upscale' },
+  { tier: '$$$$', hint: 'Special occasion' },
+];
 
 type CuisineItem = { name: string; emoji: string };
 
@@ -73,6 +88,9 @@ export default function DinerPersonalizationScreen() {
   const insets = useSafeAreaInsets();
   const [dietary, setDietary] = useState<string[]>([]);
   const [spice, setSpice] = useState<string | null>(null);
+  const [budgetTier, setBudgetTier] = useState<BudgetTier | null>(null);
+  const [prefsLoading, setPrefsLoading] = useState(true);
+  const [continueLoading, setContinueLoading] = useState(false);
   const [cuisines, setCuisines] = useState<string[]>([]);
   const [cuisinesExpanded, setCuisinesExpanded] = useState(false);
   const [cuisineQuery, setCuisineQuery] = useState('');
@@ -88,6 +106,41 @@ export default function DinerPersonalizationScreen() {
     const id = setTimeout(() => setDebouncedDraft(draftText), 320);
     return () => clearTimeout(id);
   }, [draftText]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const snap = await fetchDinerPreferences();
+        if (cancelled) return;
+        if (!snap) {
+          return;
+        }
+        const bt = snap.budget_tier;
+        if (bt === '$' || bt === '$$' || bt === '$$$' || bt === '$$$$') {
+          setBudgetTier(bt);
+        }
+        const sl = spiceDbToLabel(snap.spice_level);
+        if (sl) setSpice(sl);
+        setDietary(snap.dietaryKeys);
+        setCuisines(snap.cuisineNames);
+        setSmartTags(
+          snap.smartTags.map((t) => ({
+            id: t.id,
+            label: t.label,
+            category: t.category,
+          }))
+        );
+      } catch {
+        /* keep local defaults */
+      } finally {
+        if (!cancelled) setPrefsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const liveParsed = useMemo(() => parsePreferenceText(debouncedDraft), [debouncedDraft]);
 
@@ -211,6 +264,24 @@ export default function DinerPersonalizationScreen() {
                 selected={spice === opt}
                 onPress={() => toggleSingle(opt, spice, setSpice)}
               />
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Typical budget when dining out? 💵</Text>
+          <Text style={styles.sectionSubtitle}>Per person, including tax & tip</Text>
+          <View style={styles.budgetGrid}>
+            {BUDGET_TIERS.map(({ tier, hint }) => (
+              <View key={tier} style={styles.budgetCell}>
+                <PreferencePill
+                  label={tier}
+                  selected={budgetTier === tier}
+                  onPress={() => setBudgetTier(budgetTier === tier ? null : tier)}
+                  style={styles.budgetPill}
+                />
+                <Text style={styles.budgetHint}>{hint}</Text>
+              </View>
             ))}
           </View>
         </View>
@@ -342,8 +413,33 @@ export default function DinerPersonalizationScreen() {
 
         <View style={styles.bottomSpacer} />
 
-        <PrimaryButton text="Continue" onPress={() => router.replace('/diner-home')} />
-        <Pressable onPress={() => router.replace('/diner-home')} style={styles.skipButton}>
+        <PrimaryButton
+          text="Continue"
+          loading={continueLoading}
+          disabled={prefsLoading}
+          onPress={async () => {
+            setContinueLoading(true);
+            try {
+              await savePersonalizationFormPrefs({
+                budgetTier,
+                spiceLabel: spice,
+                dietaryKeys: dietary,
+                cuisineNames: cuisines,
+                smartTags: smartTags.map(({ category, label }) => ({ category, label })),
+              });
+              router.replace('/diner-home');
+            } catch (e) {
+              Alert.alert('Could not save preferences', getErrorMessage(e));
+            } finally {
+              setContinueLoading(false);
+            }
+          }}
+        />
+        <Pressable
+          onPress={() => router.replace('/diner-home')}
+          disabled={continueLoading}
+          style={styles.skipButton}
+        >
           <Text style={styles.skipText}>Skip for now</Text>
         </Pressable>
       </ScreenContainer>
@@ -476,6 +572,26 @@ const styles = StyleSheet.create({
     ...Typography.small,
     color: Colors.textSecondary,
     marginTop: Spacing.base,
+  },
+  budgetGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.md,
+    marginTop: Spacing.xs,
+  },
+  budgetCell: {
+    width: '47%',
+    marginBottom: Spacing.sm,
+  },
+  budgetPill: {
+    width: '100%',
+    justifyContent: 'center',
+  },
+  budgetHint: {
+    ...Typography.small,
+    color: Colors.textSecondary,
+    marginTop: Spacing.xs,
+    textAlign: 'center',
   },
   bottomSpacer: {
     height: Spacing.xxl,

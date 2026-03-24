@@ -1,9 +1,12 @@
+import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { DinerBottomNav, PrimaryButton, RoleModeBanner, SecondaryButton, ScreenContainer } from '@/components';
 import { useActiveRole } from '@/contexts/ActiveRoleContext';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
+import { fetchDinerPreferences, spiceDbToLabel } from '@/lib/diner-preferences';
 import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
 
 function initialsFromUser(email: string | undefined, displayName: string | undefined): string {
@@ -22,6 +25,55 @@ export default function DinerProfileScreen() {
   const router = useRouter();
   useGuardActiveRole('diner');
   const { session, roles, setActiveRole, signOut } = useActiveRole();
+  const [tasteDisplay, setTasteDisplay] = useState('—');
+  const [dietaryDisplay, setDietaryDisplay] = useState('—');
+  const [budgetDisplay, setBudgetDisplay] = useState('—');
+  const [cuisineDisplay, setCuisineDisplay] = useState('—');
+  const [tagsDisplay, setTagsDisplay] = useState('—');
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      (async () => {
+        const clear = () => {
+          setTasteDisplay('—');
+          setDietaryDisplay('—');
+          setBudgetDisplay('—');
+          setCuisineDisplay('—');
+          setTagsDisplay('—');
+        };
+        try {
+          const snap = await fetchDinerPreferences();
+          if (cancelled) return;
+          if (!snap) {
+            clear();
+            return;
+          }
+          setTasteDisplay(spiceDbToLabel(snap.spice_level) ?? '—');
+          setDietaryDisplay(
+            snap.dietaryKeys.length > 0 ? snap.dietaryKeys.join(', ') : '—'
+          );
+          const bt = snap.budget_tier;
+          setBudgetDisplay(
+            bt === '$' || bt === '$$' || bt === '$$$' || bt === '$$$$' ? bt : '—'
+          );
+          setCuisineDisplay(
+            snap.cuisineNames.length > 0 ? snap.cuisineNames.join(', ') : '—'
+          );
+          setTagsDisplay(
+            snap.smartTags.length > 0
+              ? snap.smartTags.map((t) => t.label).join(', ')
+              : '—'
+          );
+        } catch {
+          if (!cancelled) clear();
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [])
+  );
 
   const email = session?.user?.email ?? '';
   const displayName =
@@ -76,17 +128,27 @@ export default function DinerProfileScreen() {
         <View style={styles.preferencesCard}>
           <View style={styles.prefRow}>
             <Text style={styles.prefLabel}>Taste:</Text>
-            <Text style={styles.prefValue}>Mild Spicy</Text>
+            <Text style={styles.prefValue}>{tasteDisplay}</Text>
           </View>
           <View style={styles.prefDivider} />
           <View style={styles.prefRow}>
             <Text style={styles.prefLabel}>Dietary:</Text>
-            <Text style={styles.prefValue}>No cilantro, Loves desserts</Text>
+            <Text style={styles.prefValue}>{dietaryDisplay}</Text>
           </View>
           <View style={styles.prefDivider} />
           <View style={styles.prefRow}>
             <Text style={styles.prefLabel}>Budget:</Text>
-            <Text style={styles.prefValue}>$$</Text>
+            <Text style={styles.prefValue}>{budgetDisplay}</Text>
+          </View>
+          <View style={styles.prefDivider} />
+          <View style={styles.prefRow}>
+            <Text style={styles.prefLabel}>Cuisines:</Text>
+            <Text style={styles.prefValue}>{cuisineDisplay}</Text>
+          </View>
+          <View style={styles.prefDivider} />
+          <View style={styles.prefRow}>
+            <Text style={styles.prefLabel}>Other preferences:</Text>
+            <Text style={styles.prefValue}>{tagsDisplay}</Text>
           </View>
         </View>
         <PrimaryButton

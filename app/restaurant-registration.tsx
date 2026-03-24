@@ -38,7 +38,7 @@ export default function RestaurantRegistrationScreen() {
         if (msg.includes('already') || msg.includes('registered')) {
           Alert.alert(
             'Account already exists',
-            'Log in with this email, then open Profile → “Add restaurant” to link a venue to your account.',
+            'This email is already registered. Sign in with your password to continue.',
             [
               { text: 'Cancel', style: 'cancel' },
               { text: 'Log in', onPress: () => router.replace('/login') },

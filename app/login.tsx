@@ -13,6 +13,7 @@ import {
 } from '@/components';
 import { Colors, Dimensions, Spacing, Typography } from '@/constants/theme';
 import { navigateAfterAuth } from '@/lib/auth-navigation';
+import { getErrorMessage } from '@/lib/error-message';
 import { supabase } from '@/lib/supabase';
 import { fetchUserRoles } from '@/lib/user-roles';
 
@@ -44,9 +45,18 @@ export default function LoginScreen() {
         return;
       }
       const roles = await fetchUserRoles(uid);
+      if (roles.length === 0) {
+        await supabase.auth.signOut();
+        Alert.alert(
+          'Could not load your account',
+          'Sign-in worked, but no diner or restaurant role was found. If you manage your own Supabase project, apply the latest migrations (including user_roles). Otherwise try creating your account again.',
+        );
+        return;
+      }
       await navigateAfterAuth({ router, roles });
     } catch (e) {
-      Alert.alert('Sign in failed', e instanceof Error ? e.message : 'Unknown error');
+      if (__DEV__) console.warn('[login]', e);
+      Alert.alert('Sign in failed', getErrorMessage(e));
     } finally {
       setLoading(false);
     }

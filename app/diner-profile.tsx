@@ -72,14 +72,6 @@ export default function DinerProfileScreen() {
           />
         )}
 
-        {!roles.includes('restaurant') && (
-          <SecondaryButton
-            text="Add restaurant to this account"
-            onPress={() => router.push('/add-restaurant' as never)}
-            style={styles.accountButton}
-          />
-        )}
-
         <Text style={[styles.sectionHeading, styles.sectionSpacing]}>Preferences</Text>
         <View style={styles.preferencesCard}>
           <View style={styles.prefRow}>

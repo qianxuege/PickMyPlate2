@@ -35,6 +35,44 @@ An Expo app for exploring restaurant menus and discovering dishes. Built with a 
 
    **Dev shortcut:** disable **Confirm email** under **Authentication → Providers → Email** so you don’t depend on the link.
 
+## Supabase database
+
+Schema and RLS live in `supabase/migrations/`. The app reads **`EXPO_PUBLIC_SUPABASE_URL`** and **`EXPO_PUBLIC_SUPABASE_KEY`** from `.env` (see `lib/supabase.ts`), so you choose **local** or **cloud** by which values you put there—not by which CLI command you run.
+
+### Local stack (does not touch cloud)
+
+- **`npm run supabase:start`** runs `supabase start`: starts the full Supabase stack in **Docker** on your machine (Postgres, Auth, Studio, etc.) and applies migrations to that **local** database.
+- Data is **only in those containers**. Starting or resetting locally **does not change** your hosted Supabase project.
+- After start, run **`npm run supabase:status`** and copy the API URL and anon key into `.env` for local development.
+- **`npm run supabase:db:reset`** wipes the local DB and reapplies migrations (useful when iterating on schema).
+- **`npm run supabase:stop`** stops the local stack.
+
+Requires [Docker](https://docs.docker.com/get-docker/) running and the [Supabase CLI](https://supabase.com/docs/guides/cli) (the repo includes the `supabase` dev dependency; `npx supabase …` works too).
+
+**Troubleshooting `Cannot connect to the Docker daemon`:** Open **Docker Desktop** from Applications and wait until it reports **Docker is running** (whale icon in the menu bar). Confirm with `docker ps` (should list containers or print an empty table, not a connection error). If it still fails, fully **Quit Docker Desktop** (menu bar → Docker → Quit) and start it again; avoid running `supabase start` until the daemon is up. You can skip local Docker entirely by using a **hosted** Supabase project and `npm run supabase:db:push` instead.
+
+### Hosted project (Supabase Cloud)
+
+To apply the same migrations to a **remote** project:
+
+```bash
+npx supabase login
+npx supabase link --project-ref YOUR_PROJECT_REF
+npm run supabase:db:push
+```
+
+`YOUR_PROJECT_REF` is the id in the dashboard URL: `https://supabase.com/dashboard/project/<project-ref>`.
+
+Use that project’s **Project URL** and **anon public** key in `.env` when you want the app to talk to cloud.
+
+### Other npm scripts
+
+| Script | Purpose |
+| ------ | ------- |
+| `supabase:link` | Link CLI to a remote project (`supabase link`) |
+| `supabase:db:push` | Push local migrations to the linked remote database |
+| `supabase:migration:new` | Create a new empty migration file |
+
 ## Design System
 
 Design tokens and reusable components live in `constants/theme.ts` and `components/`. All screens should use these—no duplicated styles.

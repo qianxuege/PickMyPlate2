@@ -90,22 +90,15 @@ export default function RestaurantProfileScreen() {
         )}
 
         {roles.includes('diner') && (
-          <SecondaryButton
-            text="Go to diner home"
+          <Pressable
             onPress={async () => {
               await setActiveRole('diner');
               router.replace('/diner-home');
             }}
-            style={styles.modeButton}
-          />
-        )}
-
-        {!roles.includes('diner') && (
-          <SecondaryButton
-            text="Add diner profile to this account"
-            onPress={() => router.push('/add-diner-role' as never)}
-            style={styles.modeButton}
-          />
+            style={({ pressed }) => [styles.switchDinerLink, pressed && styles.switchDinerLinkPressed]}
+          >
+            <Text style={styles.switchDinerText}>Switch to diner view</Text>
+          </Pressable>
         )}
 
         <Text style={styles.sectionCaps}>RESTAURANT INFO</Text>
@@ -200,6 +193,21 @@ const styles = StyleSheet.create({
   },
   modeButton: {
     marginBottom: Spacing.base,
+  },
+  switchDinerLink: {
+    alignSelf: 'flex-start',
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.xs,
+    marginBottom: Spacing.sm,
+  },
+  switchDinerLinkPressed: {
+    opacity: 0.7,
+  },
+  switchDinerText: {
+    ...Typography.caption,
+    fontSize: 13,
+    color: Colors.primary,
+    fontWeight: '600',
   },
   card: {
     backgroundColor: Colors.white,

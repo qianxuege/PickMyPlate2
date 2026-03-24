@@ -32,6 +32,9 @@ export type { PreferencePillProps } from './PreferencePill';
 export { PreferenceTag } from './PreferenceTag';
 export type { PreferenceTagProps, PreferenceTagVariant } from './PreferenceTag';
 
+export { SmartPreferenceTag } from './SmartPreferenceTag';
+export type { SmartPreferenceTagProps } from './SmartPreferenceTag';
+
 export { PreferenceInput } from './PreferenceInput';
 export type { PreferenceInputProps } from './PreferenceInput';
 

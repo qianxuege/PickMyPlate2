@@ -1,7 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -10,28 +17,84 @@ import {
   PreferencePill,
   PrimaryButton,
   ScreenContainer,
+  SmartPreferenceTag,
 } from '@/components';
-import { Colors, Spacing, Typography } from '@/constants/theme';
+import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
+import {
+  type ParsedSmartTag,
+  type SmartTagCategory,
+  normalizeTagKey,
+  parsePreferenceText,
+} from '@/lib/parseSmartPreferences';
 
 const DIETARY_OPTIONS = ['Vegetarian', 'Vegan', 'Gluten-free', 'Dairy-free'];
-const COMFORT_OPTIONS = ['Play it safe', 'I want to be adventurous'];
 const SPICE_OPTIONS = ['Mild', 'Medium', 'Spicy'];
-const CUISINE_OPTIONS = ['Chinese', 'Italian', 'Indian', 'American', 'Mexican', 'Thai'];
-const POPULAR_PREFERENCES = [
-  "I don't like cilantro",
-  'I love spicy food',
-  'I have a peanut allergy',
+
+type CuisineItem = { name: string; emoji: string };
+
+const CUISINES_INITIAL: CuisineItem[] = [
+  { name: 'Chinese', emoji: '🍜' },
+  { name: 'Italian', emoji: '🍕' },
+  { name: 'Indian', emoji: '🍛' },
+  { name: 'American', emoji: '🍔' },
+  { name: 'Mexican', emoji: '🌮' },
+  { name: 'Thai', emoji: '🌶️' },
 ];
+
+const CUISINES_EXTRA: CuisineItem[] = [
+  { name: 'Japanese', emoji: '🍣' },
+  { name: 'Korean', emoji: '🥘' },
+  { name: 'Vietnamese', emoji: '🍲' },
+  { name: 'French', emoji: '🥐' },
+  { name: 'Greek', emoji: '🫒' },
+  { name: 'Spanish', emoji: '🥘' },
+  { name: 'Mediterranean', emoji: '🫑' },
+  { name: 'Middle Eastern', emoji: '🧆' },
+  { name: 'Brazilian', emoji: '🥩' },
+  { name: 'Ethiopian', emoji: '🍛' },
+];
+
+const ALL_CUISINES: CuisineItem[] = [...CUISINES_INITIAL, ...CUISINES_EXTRA];
+
+type StoredSmartTag = ParsedSmartTag & { id: string };
+
+const POPULAR: { phrase: string; label: string; category: SmartTagCategory }[] = [
+  { phrase: 'No cilantro', label: 'No Cilantro', category: 'dislike' },
+  { phrase: 'Loves spicy', label: 'Loves Spicy Food', category: 'like' },
+  { phrase: 'Vegetarian-friendly', label: 'Vegetarian-friendly', category: 'preference' },
+];
+
+function cuisineLabel(item: CuisineItem) {
+  return `${item.emoji} ${item.name}`;
+}
 
 export default function DinerPersonalizationScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [dietary, setDietary] = useState<string[]>([]);
-  const [comfort, setComfort] = useState<string | null>(null);
   const [spice, setSpice] = useState<string | null>(null);
   const [cuisines, setCuisines] = useState<string[]>([]);
-  const [showMoreCuisines, setShowMoreCuisines] = useState(false);
-  const [addedPreferences, setAddedPreferences] = useState<string[]>([]);
+  const [cuisinesExpanded, setCuisinesExpanded] = useState(false);
+  const [cuisineQuery, setCuisineQuery] = useState('');
+  const [smartTags, setSmartTags] = useState<StoredSmartTag[]>([]);
+  const [draftText, setDraftText] = useState('');
+  const [debouncedDraft, setDebouncedDraft] = useState('');
+  const [pulseIds, setPulseIds] = useState<Set<string>>(new Set());
+  const [showAddedHint, setShowAddedHint] = useState(false);
+  const pulseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const addedHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedDraft(draftText), 320);
+    return () => clearTimeout(id);
+  }, [draftText]);
+
+  const liveParsed = useMemo(() => parsePreferenceText(debouncedDraft), [debouncedDraft]);
+
+  const previewTags = useMemo(() => {
+    const committed = new Set(smartTags.map((t) => normalizeTagKey(t.label, t.category)));
+    return liveParsed.filter((t) => !committed.has(normalizeTagKey(t.label, t.category)));
+  }, [liveParsed, smartTags]);
 
   const toggleMulti = (value: string, selected: string[], setSelected: (v: string[]) => void) => {
     if (selected.includes(value)) {
@@ -49,17 +112,67 @@ export default function DinerPersonalizationScreen() {
     setSelected(selected === value ? null : value);
   };
 
-  const handleAddPreference = (value: string) => {
-    if (value && !addedPreferences.includes(value)) {
-      setAddedPreferences([...addedPreferences, value]);
+  const flashNewTags = (ids: string[]) => {
+    if (ids.length === 0) return;
+    setPulseIds(new Set(ids));
+    if (pulseTimerRef.current) clearTimeout(pulseTimerRef.current);
+    pulseTimerRef.current = setTimeout(() => setPulseIds(new Set()), 1100);
+    setShowAddedHint(true);
+    if (addedHintTimerRef.current) clearTimeout(addedHintTimerRef.current);
+    addedHintTimerRef.current = setTimeout(() => setShowAddedHint(false), 1000);
+  };
+
+  const commitParsed = (parsed: ParsedSmartTag[]) => {
+    if (parsed.length === 0) return;
+    const newIds: string[] = [];
+    setSmartTags((prev) => {
+      const keys = new Set(prev.map((t) => normalizeTagKey(t.label, t.category)));
+      const next = [...prev];
+      for (const p of parsed) {
+        const key = normalizeTagKey(p.label, p.category);
+        if (keys.has(key)) continue;
+        keys.add(key);
+        const id = `${key}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        newIds.push(id);
+        next.push({ ...p, id });
+      }
+      if (newIds.length) {
+        queueMicrotask(() => flashNewTags(newIds));
+      }
+      return next;
+    });
+  };
+
+  const handleSmartSubmit = (text: string) => {
+    const parsed = parsePreferenceText(text);
+    if (parsed.length) {
+      commitParsed(parsed);
+      setDraftText('');
     }
   };
 
-  const handlePopularPress = (pref: string) => {
-    if (!addedPreferences.includes(pref)) {
-      setAddedPreferences([...addedPreferences, pref]);
-    }
+  const removeSmartTag = (id: string) => {
+    setSmartTags((prev) => prev.filter((t) => t.id !== id));
   };
+
+  const addPopular = (item: (typeof POPULAR)[0]) => {
+    commitParsed([{ label: item.label, category: item.category }]);
+  };
+
+  const visibleCuisines = useMemo(() => {
+    const q = cuisineQuery.trim().toLowerCase();
+    const base = cuisinesExpanded ? ALL_CUISINES : CUISINES_INITIAL;
+    if (!q) return base;
+    return base.filter((c) => c.name.toLowerCase().includes(q));
+  }, [cuisinesExpanded, cuisineQuery]);
+
+  const inputPlaceholder =
+    smartTags.length > 0
+      ? 'Add another preference...'
+      : 'e.g. I have a peanut allergy, I love desserts…';
+
+  const helperDynamic =
+    smartTags.length > 0 ? 'Add more preferences or continue' : null;
 
   return (
     <View style={styles.wrapper}>
@@ -71,8 +184,8 @@ export default function DinerPersonalizationScreen() {
       />
       <ScreenContainer scroll padding="xl" backgroundColor="transparent">
         <View style={{ height: insets.top + 36 }} />
-        <Text style={styles.title}>Personalize your experience</Text>
-        <Text style={styles.subtitle}>Tell us what you love — and what to avoid</Text>
+        <Text style={styles.title}>What are you craving? 🍜</Text>
+        <Text style={styles.subtitle}>We’ll use this to personalize your experience</Text>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Any dietary preferences?</Text>
@@ -83,20 +196,6 @@ export default function DinerPersonalizationScreen() {
                 label={opt}
                 selected={dietary.includes(opt)}
                 onPress={() => toggleMulti(opt, dietary, setDietary)}
-              />
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Comfort food or something new?</Text>
-          <View style={styles.pillRow}>
-            {COMFORT_OPTIONS.map((opt) => (
-              <PreferencePill
-                key={opt}
-                label={opt}
-                selected={comfort === opt}
-                onPress={() => toggleSingle(opt, comfort, setComfort)}
               />
             ))}
           </View>
@@ -118,51 +217,132 @@ export default function DinerPersonalizationScreen() {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>What cuisines do you enjoy?</Text>
-          <View style={styles.pillRow}>
-            {CUISINE_OPTIONS.map((opt) => (
-              <PreferencePill
-                key={opt}
-                label={opt}
-                selected={cuisines.includes(opt)}
-                onPress={() => toggleMulti(opt, cuisines, setCuisines)}
+          <Text style={styles.cuisineCount}>
+            Cuisine Interests ({cuisines.length} selected)
+          </Text>
+
+          {cuisinesExpanded && (
+            <Animated.View entering={FadeIn.duration(220)} style={styles.searchWrap}>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search cuisines…"
+                placeholderTextColor={Colors.textPlaceholder}
+                value={cuisineQuery}
+                onChangeText={setCuisineQuery}
+                returnKeyType="search"
               />
+            </Animated.View>
+          )}
+
+          <View style={styles.cuisineGrid}>
+            {visibleCuisines.map((item) => (
+              <View key={item.name} style={styles.cuisineCell}>
+                <PreferencePill
+                  label={cuisineLabel(item)}
+                  selected={cuisines.includes(item.name)}
+                  onPress={() => toggleMulti(item.name, cuisines, setCuisines)}
+                  style={styles.cuisinePill}
+                />
+              </View>
             ))}
           </View>
-          <Pressable onPress={() => setShowMoreCuisines(!showMoreCuisines)} style={styles.showMore}>
-            <Text style={styles.showMoreText}>Show more ↓</Text>
+          <Pressable
+            onPress={() => {
+              setCuisinesExpanded(!cuisinesExpanded);
+              if (cuisinesExpanded) setCuisineQuery('');
+            }}
+            style={styles.showMore}
+          >
+            <Text style={styles.showMoreText}>
+              {cuisinesExpanded ? 'Show less ↑' : 'Show more ↓'}
+            </Text>
           </Pressable>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Anything else we should know? ✨</Text>
+          <Text style={styles.sectionTitle}>Tell us anything else ✨</Text>
           <Text style={styles.sectionSubtitle}>
-            Tell us about allergies, dislikes, or what you love
+            We’ll automatically understand your preferences
           </Text>
+
           <PreferenceInput
-            placeholder="e.g. I have a peanut allergy, I love..."
-            onSubmit={handleAddPreference}
+            placeholder={inputPlaceholder}
+            value={draftText}
+            onChangeText={setDraftText}
+            onSubmit={handleSmartSubmit}
+            multiline
           />
-          <Text style={styles.popularLabel}>Popular preferences:</Text>
-          <View style={styles.pillRow}>
-            {POPULAR_PREFERENCES.map((pref) => (
-              <PreferencePill
-                key={pref}
-                label={pref}
-                selected={addedPreferences.includes(pref)}
-                onPress={() => handlePopularPress(pref)}
-              />
-            ))}
-          </View>
+
+          {draftText.trim().length > 0 && previewTags.length > 0 && (
+            <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(160)}>
+              <Text style={styles.detectedLabel}>Understanding as you type</Text>
+              <View style={styles.tagWrap}>
+                {previewTags.map((t, idx) => (
+                  <View key={`${t.category}-${t.label}-${idx}`} style={styles.previewTag}>
+                    <Text style={styles.previewTagEmoji}>
+                      {t.category === 'allergy'
+                        ? '🚫'
+                        : t.category === 'dislike'
+                          ? '❌'
+                          : t.category === 'like'
+                            ? '❤️'
+                            : '⭐'}
+                    </Text>
+                    <Text style={styles.previewTagText}>{t.label}</Text>
+                  </View>
+                ))}
+              </View>
+            </Animated.View>
+          )}
+
+          {showAddedHint && (
+            <Animated.Text entering={FadeIn.duration(180)} style={styles.addedBadge}>
+              Added
+            </Animated.Text>
+          )}
+
+          {smartTags.length > 0 && (
+            <View style={styles.tagWrap}>
+              {smartTags.map((t) => (
+                <SmartPreferenceTag
+                  key={t.id}
+                  label={t.label}
+                  category={t.category}
+                  onRemove={() => removeSmartTag(t.id)}
+                  showNewHighlight={pulseIds.has(t.id)}
+                />
+              ))}
+            </View>
+          )}
+
+          {smartTags.length === 0 && !draftText.trim() && (
+            <>
+              <Text style={styles.popularLabel}>Popular preferences</Text>
+              <View style={styles.pillRow}>
+                {POPULAR.map((p) => (
+                  <PreferencePill
+                    key={p.phrase}
+                    label={p.phrase}
+                    selected={smartTags.some(
+                      (t) => normalizeTagKey(t.label, t.category) === normalizeTagKey(p.label, p.category)
+                    )}
+                    onPress={() => addPopular(p)}
+                    showCheckWhenSelected={false}
+                  />
+                ))}
+              </View>
+            </>
+          )}
+
+          {helperDynamic && <Text style={styles.dynamicHelper}>{helperDynamic}</Text>}
           <Text style={styles.aiDisclaimer}>
-            We'll use AI to turn this into smarter recommendations
+            We’ll use AI to turn this into smarter recommendations
           </Text>
         </View>
 
-        <PrimaryButton
-          text="Continue"
-          onPress={() => router.replace('/diner-home')}
-          style={styles.continueButton}
-        />
+        <View style={styles.bottomSpacer} />
+
+        <PrimaryButton text="Continue" onPress={() => router.replace('/diner-home')} />
         <Pressable onPress={() => router.replace('/diner-home')} style={styles.skipButton}>
           <Text style={styles.skipText}>Skip for now</Text>
         </Pressable>
@@ -191,12 +371,29 @@ const styles = StyleSheet.create({
   sectionTitle: {
     ...Typography.bodyMedium,
     color: Colors.text,
-    marginBottom: Spacing.base,
+    marginBottom: Spacing.sm,
   },
   sectionSubtitle: {
     ...Typography.caption,
     color: Colors.textSecondary,
     marginBottom: Spacing.base,
+  },
+  cuisineCount: {
+    ...Typography.small,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.md,
+  },
+  cuisineGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  cuisineCell: {
+    width: '48%',
+  },
+  cuisinePill: {
+    width: '100%',
+    justifyContent: 'center',
   },
   pillRow: {
     flexDirection: 'row',
@@ -208,26 +405,85 @@ const styles = StyleSheet.create({
     marginTop: Spacing.base,
   },
   showMoreText: {
-    ...Typography.caption,
+    ...Typography.captionMedium,
     color: Colors.primary,
+  },
+  searchWrap: {
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  searchInput: {
+    borderWidth: 1,
+    borderColor: Colors.chipBorder,
+    borderRadius: BorderRadius.base,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.md,
+    ...Typography.body,
+    color: Colors.text,
+    backgroundColor: Colors.white,
+  },
+  detectedLabel: {
+    ...Typography.small,
+    color: Colors.textSecondary,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
+  tagWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: Spacing.md,
+  },
+  previewTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.smartInputTint,
+    borderWidth: 1,
+    borderColor: Colors.chipBorder,
+    opacity: 0.92,
+  },
+  previewTagEmoji: {
+    fontSize: 12,
+  },
+  previewTagText: {
+    ...Typography.small,
+    color: Colors.chipText,
+    fontWeight: '500',
+    maxWidth: 200,
+  },
+  addedBadge: {
+    ...Typography.small,
+    color: Colors.primary,
+    fontWeight: '600',
+    marginTop: Spacing.sm,
   },
   popularLabel: {
     ...Typography.caption,
     color: Colors.textSecondary,
-    marginTop: Spacing.base,
+    marginTop: Spacing.lg,
     marginBottom: Spacing.sm,
+  },
+  dynamicHelper: {
+    ...Typography.small,
+    color: Colors.textSecondary,
+    marginTop: Spacing.base,
   },
   aiDisclaimer: {
     ...Typography.small,
     color: Colors.textSecondary,
     marginTop: Spacing.base,
   },
-  continueButton: {
-    marginTop: Spacing.base,
+  bottomSpacer: {
+    height: Spacing.xxl,
   },
   skipButton: {
     alignSelf: 'center',
     marginTop: Spacing.base,
+    marginBottom: Spacing.xxl,
   },
   skipText: {
     ...Typography.caption,

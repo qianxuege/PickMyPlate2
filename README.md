@@ -13,7 +13,7 @@ An Expo app for exploring restaurant menus and discovering dishes. Built with a 
 2. Start the app
 
    ```bash
-   npx start
+   npm start
    ```
 
 ## Design System
@@ -24,15 +24,15 @@ Design tokens and reusable components live in `constants/theme.ts` and `componen
 
 **Colors**
 
-| Token | Value | Usage |
-|-------|-------|-------|
-| `primary` | `#FF6A3D` | Buttons, links, accents |
-| `background` | `#FFFFFF` | Screen background |
-| `text` | `#101828` | Headings, labels |
-| `textSecondary` | `#667085` | Body, subtitles |
-| `textPlaceholder` | `#A0AEC0` | Input placeholders |
-| `error` | `#E53E3E` | Error text, validation |
-| `border` | `#D0D5DD` | Input borders, dividers |
+| Token             | Value     | Usage                   |
+| ----------------- | --------- | ----------------------- |
+| `primary`         | `#FF6A3D` | Buttons, links, accents |
+| `background`      | `#FFFFFF` | Screen background       |
+| `text`            | `#101828` | Headings, labels        |
+| `textSecondary`   | `#667085` | Body, subtitles         |
+| `textPlaceholder` | `#A0AEC0` | Input placeholders      |
+| `error`           | `#E53E3E` | Error text, validation  |
+| `border`          | `#D0D5DD` | Input borders, dividers |
 
 **Spacing** (`xs` 4 → `xxxl` 40)
 
@@ -42,14 +42,14 @@ Design tokens and reusable components live in `constants/theme.ts` and `componen
 
 ### UI Components
 
-| Component | Props | Description |
-|-----------|-------|-------------|
-| `PrimaryButton` | `text`, `onPress`, `style`, `disabled`, `loading` | Orange primary CTA |
-| `SecondaryButton` | `text`, `onPress`, `style`, `disabled`, `loading`, `icon` | Outlined secondary action |
-| `InputField` | `label`, `error`, `placeholder`, `style`, `inputStyle`, `containerStyle` + `TextInput` props | Labeled input with optional error |
-| `ScreenContainer` | `children`, `scroll`, `padding`, `backgroundColor`, `centered` | Screen layout with safe area |
-| `ErrorText` | `text` or `children`, `style` | Red error message |
-| `Divider` | `text`, `style` | Horizontal divider, optional "OR" text |
+| Component         | Props                                                                                        | Description                            |
+| ----------------- | -------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `PrimaryButton`   | `text`, `onPress`, `style`, `disabled`, `loading`                                            | Orange primary CTA                     |
+| `SecondaryButton` | `text`, `onPress`, `style`, `disabled`, `loading`, `icon`                                    | Outlined secondary action              |
+| `InputField`      | `label`, `error`, `placeholder`, `style`, `inputStyle`, `containerStyle` + `TextInput` props | Labeled input with optional error      |
+| `ScreenContainer` | `children`, `scroll`, `padding`, `backgroundColor`, `centered`                               | Screen layout with safe area           |
+| `ErrorText`       | `text` or `children`, `style`                                                                | Red error message                      |
+| `Divider`         | `text`, `style`                                                                              | Horizontal divider, optional "OR" text |
 
 **Usage**
 
@@ -60,13 +60,15 @@ import {
   PrimaryButton,
   ScreenContainer,
   SecondaryButton,
-} from '@/components';
-import { Colors, Spacing, Typography } from '@/constants/theme';
+} from "@/components";
+import { Colors, Spacing, Typography } from "@/constants/theme";
 
 export default function LoginScreen() {
   return (
     <ScreenContainer scroll padding="xl">
-      <Text style={[Typography.heading, { color: Colors.text }]}>PickMyPlate</Text>
+      <Text style={[Typography.heading, { color: Colors.text }]}>
+        PickMyPlate
+      </Text>
       <InputField label="Email" placeholder="your@email.com" />
       <PrimaryButton text="Log In" onPress={() => {}} />
       <Divider text="OR" />

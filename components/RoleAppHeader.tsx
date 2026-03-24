@@ -1,11 +1,16 @@
-import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from "expo-router";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { useActiveRole } from '@/contexts/ActiveRoleContext';
-import { useRoleSwitchToast } from '@/contexts/RoleSwitchToastContext';
-import { BorderRadius, Spacing, Typography } from '@/constants/theme';
-import { dinerRoleTheme, getRoleTheme, restaurantRoleTheme, type RoleTheme } from '@/constants/role-theme';
-import type { AppRole } from '@/lib/app-role';
+import {
+  dinerRoleTheme,
+  getRoleTheme,
+  restaurantRoleTheme,
+  type RoleTheme,
+} from "@/constants/role-theme";
+import { BorderRadius, Spacing, Typography } from "@/constants/theme";
+import { useActiveRole } from "@/contexts/ActiveRoleContext";
+import { useRoleSwitchToast } from "@/contexts/RoleSwitchToastContext";
+import type { AppRole } from "@/lib/app-role";
 
 type RoleAppHeaderProps = {
   /** Which shell this screen belongs to */
@@ -17,18 +22,18 @@ export function RoleAppHeader({ mode }: RoleAppHeaderProps) {
   const { roles, setActiveRole } = useActiveRole();
   const { showRoleSwitchToast } = useRoleSwitchToast();
 
-  const dual = roles.includes('diner') && roles.includes('restaurant');
+  const dual = roles.includes("diner") && roles.includes("restaurant");
   const theme = getRoleTheme(mode);
 
   const onSwitch = async (target: AppRole) => {
     if (target === mode) return;
     await setActiveRole(target);
-    if (target === 'diner') {
-      router.replace('/diner-home');
-      showRoleSwitchToast('Switched to Diner mode');
+    if (target === "diner") {
+      router.replace("/diner-home");
+      showRoleSwitchToast("Switched to Diner mode");
     } else {
-      router.replace('/restaurant-home');
-      showRoleSwitchToast('Switched to Restaurant mode');
+      router.replace("/restaurant-home");
+      showRoleSwitchToast("Switched to Restaurant mode");
     }
   };
 
@@ -48,7 +53,7 @@ export function RoleAppHeader({ mode }: RoleAppHeaderProps) {
 }
 
 function ModeBadge({ mode, theme }: { mode: AppRole; theme: RoleTheme }) {
-  const isDiner = mode === 'diner';
+  const isDiner = mode === "diner";
   return (
     <View
       style={[
@@ -65,14 +70,16 @@ function ModeBadge({ mode, theme }: { mode: AppRole; theme: RoleTheme }) {
             },
       ]}
     >
-      <Text style={[styles.badgeEmoji]}>{isDiner ? '😋' : '🍽️'}</Text>
+      <Text style={[styles.badgeEmoji]}>{isDiner ? "🍴" : "🍽️"}</Text>
       <Text
         style={[
           styles.badgeLabel,
-          isDiner ? { color: theme.badgeOutlineText } : { color: theme.badgeFilledText },
+          isDiner
+            ? { color: theme.badgeOutlineText }
+            : { color: theme.badgeFilledText },
         ]}
       >
-        {isDiner ? 'Diner mode' : 'Restaurant mode'}
+        {isDiner ? "Diner mode" : "Restaurant mode"}
       </Text>
     </View>
   );
@@ -92,17 +99,20 @@ function SegmentedRoleSwitch({
   return (
     <View style={styles.segmentTrack}>
       <Pressable
-        onPress={() => onSelect('diner')}
+        onPress={() => onSelect("diner")}
         style={({ pressed }) => [
           styles.segmentCell,
-          active === 'diner' && { backgroundColor: dinerTheme.primary },
+          active === "diner" && { backgroundColor: dinerTheme.primary },
           pressed && styles.segmentPressed,
         ]}
       >
         <Text
           style={[
             styles.segmentLabel,
-            { color: active === 'diner' ? '#FFFFFF' : dinerTheme.segmentInactiveText },
+            {
+              color:
+                active === "diner" ? "#FFFFFF" : dinerTheme.segmentInactiveText,
+            },
           ]}
           numberOfLines={1}
         >
@@ -110,17 +120,24 @@ function SegmentedRoleSwitch({
         </Text>
       </Pressable>
       <Pressable
-        onPress={() => onSelect('restaurant')}
+        onPress={() => onSelect("restaurant")}
         style={({ pressed }) => [
           styles.segmentCell,
-          active === 'restaurant' && { backgroundColor: restaurantTheme.primary },
+          active === "restaurant" && {
+            backgroundColor: restaurantTheme.primary,
+          },
           pressed && styles.segmentPressed,
         ]}
       >
         <Text
           style={[
             styles.segmentLabel,
-            { color: active === 'restaurant' ? '#FFFFFF' : restaurantTheme.segmentInactiveText },
+            {
+              color:
+                active === "restaurant"
+                  ? "#FFFFFF"
+                  : restaurantTheme.segmentInactiveText,
+            },
           ]}
           numberOfLines={1}
         >
@@ -133,33 +150,33 @@ function SegmentedRoleSwitch({
 
 const styles = StyleSheet.create({
   topRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: Spacing.md,
   },
   badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     paddingVertical: 6,
     paddingHorizontal: Spacing.md,
     borderRadius: BorderRadius.full,
-    maxWidth: '52%',
+    maxWidth: "52%",
   },
   badgeEmoji: {
     fontSize: 14,
   },
   badgeLabel: {
     ...Typography.captionMedium,
-    fontWeight: '700',
+    fontWeight: "700",
     letterSpacing: 0.2,
-    textTransform: 'capitalize',
+    textTransform: "capitalize",
   },
   segmentTrack: {
-    flexDirection: 'row',
+    flexDirection: "row",
     borderRadius: BorderRadius.md,
-    backgroundColor: '#F2F4F7',
+    backgroundColor: "#F2F4F7",
     padding: 3,
     gap: 3,
     minWidth: 168,
@@ -170,14 +187,14 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     paddingHorizontal: Spacing.sm,
     borderRadius: BorderRadius.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   segmentPressed: {
     opacity: 0.88,
   },
   segmentLabel: {
     ...Typography.small,
-    fontWeight: '700',
+    fontWeight: "700",
   },
 });

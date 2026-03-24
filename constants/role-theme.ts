@@ -46,7 +46,7 @@ export const restaurantRoleTheme: RoleTheme = {
   primary: '#059669',
   primaryLight: '#ECFDF5',
   primaryDark: '#047857',
-  screenBackground: '#F6FBF9',
+  screenBackground: '#FFFFFF',
   headerBackground: '#FFFFFF',
   headerBorder: '#D1FAE5',
   badgeFilledBg: '#059669',

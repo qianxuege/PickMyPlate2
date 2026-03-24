@@ -3,7 +3,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { RestaurantBottomNav } from '@/components/RestaurantBottomNav';
 import { RoleAppHeader } from '@/components/RoleAppHeader';
-import { Spacing } from '@/constants/theme';
+import { Colors, Spacing } from '@/constants/theme';
 import { restaurantRoleTheme } from '@/constants/role-theme';
 
 type RestaurantTab = 'home' | 'menu' | 'highlight' | 'profile';
@@ -11,9 +11,11 @@ type RestaurantTab = 'home' | 'menu' | 'highlight' | 'profile';
 type RestaurantTabScreenLayoutProps = {
   activeTab: RestaurantTab;
   children: React.ReactNode;
+  /** Sticky area above bottom nav (e.g. Save Changes in profile edit mode) */
+  stickyFooter?: React.ReactNode;
 };
 
-export function RestaurantTabScreenLayout({ activeTab, children }: RestaurantTabScreenLayoutProps) {
+export function RestaurantTabScreenLayout({ activeTab, children, stickyFooter }: RestaurantTabScreenLayoutProps) {
   const insets = useSafeAreaInsets();
   const t = restaurantRoleTheme;
 
@@ -35,6 +37,7 @@ export function RestaurantTabScreenLayout({ activeTab, children }: RestaurantTab
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView
+          style={styles.scroll}
           contentContainerStyle={[
             styles.scrollContent,
             { paddingBottom: insets.bottom + Spacing.xxl },
@@ -44,6 +47,19 @@ export function RestaurantTabScreenLayout({ activeTab, children }: RestaurantTab
         >
           {children}
         </ScrollView>
+        {stickyFooter ? (
+          <View
+            style={[
+              styles.stickyFooter,
+              {
+                paddingBottom: Math.max(insets.bottom, Spacing.sm),
+                borderTopColor: Colors.borderLight,
+              },
+            ]}
+          >
+            {stickyFooter}
+          </View>
+        ) : null}
       </KeyboardAvoidingView>
       <RestaurantBottomNav activeTab={activeTab} />
     </View>
@@ -57,6 +73,9 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
   },
+  scroll: {
+    flex: 1,
+  },
   headerChrome: {
     paddingHorizontal: Spacing.xl,
     paddingBottom: Spacing.md,
@@ -65,5 +84,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
     paddingTop: Spacing.xl,
     flexGrow: 1,
+  },
+  stickyFooter: {
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    backgroundColor: Colors.white,
   },
 });

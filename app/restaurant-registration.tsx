@@ -1,24 +1,33 @@
-import { StyleSheet, Text } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { PrimaryButton, ScreenContainer } from '@/components';
+import { BackButton, PrimaryButton, ScreenContainer } from '@/components';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 
 export default function RestaurantRegistrationScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   return (
-    <ScreenContainer scroll padding="xl">
+    <View style={styles.wrapper}>
+      <BackButton />
+      <ScreenContainer scroll padding="xl">
+      <View style={{ height: insets.top + 36 }} />
       <Text style={styles.heading}>Join as a Restaurant Owner</Text>
       <Text style={styles.subtitle}>
         Create an account to upload menus and grow your business.
       </Text>
       <PrimaryButton text="Back" onPress={() => router.back()} />
     </ScreenContainer>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    flex: 1,
+  },
   heading: {
     ...Typography.heading,
     color: Colors.text,

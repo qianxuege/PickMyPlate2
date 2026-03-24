@@ -17,6 +17,8 @@ export const Colors = {
   borderLight: '#E2E8F0',
   errorBackground: '#FEF3F2',
   primaryLight: '#FFF0EB',
+  tagPositiveBg: '#FFF5F0',
+  tagNegativeBg: '#F3F4F6',
   white: '#FFFFFF',
 } as const;
 

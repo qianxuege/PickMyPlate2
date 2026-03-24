@@ -1,8 +1,8 @@
-# Welcome to your Expo app 👋
+# PickMyPlate
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+An Expo app for exploring restaurant menus and discovering dishes. Built with a centralized design system based on wireframes in `UserInterfaces/`.
 
-## Get started
+## Get Started
 
 1. Install dependencies
 
@@ -16,35 +16,92 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    npx start
    ```
 
-In the output, you'll find options to open the app in a
+## Design System
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+Design tokens and reusable components live in `constants/theme.ts` and `components/`. All screens should use these—no duplicated styles.
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+### Theme (`constants/theme.ts`)
 
-## Get a fresh project
+**Colors**
 
-When you're ready, run:
+| Token | Value | Usage |
+|-------|-------|-------|
+| `primary` | `#FF6A3D` | Buttons, links, accents |
+| `background` | `#FFFFFF` | Screen background |
+| `text` | `#101828` | Headings, labels |
+| `textSecondary` | `#667085` | Body, subtitles |
+| `textPlaceholder` | `#A0AEC0` | Input placeholders |
+| `error` | `#E53E3E` | Error text, validation |
+| `border` | `#D0D5DD` | Input borders, dividers |
 
-```bash
-npm run reset-project
+**Spacing** (`xs` 4 → `xxxl` 40)
+
+**Border radius** (`sm` 8 → `base` 12 → `full`)
+
+**Typography** — `heading`, `headingSmall`, `body`, `bodyMedium`, `caption`, `label`, `button`, `small`
+
+### UI Components
+
+| Component | Props | Description |
+|-----------|-------|-------------|
+| `PrimaryButton` | `text`, `onPress`, `style`, `disabled`, `loading` | Orange primary CTA |
+| `SecondaryButton` | `text`, `onPress`, `style`, `disabled`, `loading`, `icon` | Outlined secondary action |
+| `InputField` | `label`, `error`, `placeholder`, `style`, `inputStyle`, `containerStyle` + `TextInput` props | Labeled input with optional error |
+| `ScreenContainer` | `children`, `scroll`, `padding`, `backgroundColor`, `centered` | Screen layout with safe area |
+| `ErrorText` | `text` or `children`, `style` | Red error message |
+| `Divider` | `text`, `style` | Horizontal divider, optional "OR" text |
+
+**Usage**
+
+```tsx
+import {
+  Divider,
+  InputField,
+  PrimaryButton,
+  ScreenContainer,
+  SecondaryButton,
+} from '@/components';
+import { Colors, Spacing, Typography } from '@/constants/theme';
+
+export default function LoginScreen() {
+  return (
+    <ScreenContainer scroll padding="xl">
+      <Text style={[Typography.heading, { color: Colors.text }]}>PickMyPlate</Text>
+      <InputField label="Email" placeholder="your@email.com" />
+      <PrimaryButton text="Log In" onPress={() => {}} />
+      <Divider text="OR" />
+    </ScreenContainer>
+  );
+}
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## Project Structure
 
-## Learn more
+```
+PickMyPlate2/
+├── app/                    # Expo Router screens
+│   ├── _layout.tsx
+│   └── index.tsx
+├── assets/
+├── components/             # Reusable UI (design system)
+│   ├── PrimaryButton.tsx
+│   ├── SecondaryButton.tsx
+│   ├── InputField.tsx
+│   ├── ScreenContainer.tsx
+│   ├── ErrorText.tsx
+│   ├── Divider.tsx
+│   └── index.ts
+├── constants/
+│   └── theme.ts            # Design tokens
+├── hooks/
+│   ├── use-color-scheme.ts
+│   ├── use-color-scheme.web.ts
+│   └── use-theme-color.ts
+├── UserInterfaces/         # Wireframes & assets
+└── app-example/            # Starter reference (excluded from build)
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+## Learn More
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- [Expo documentation](https://docs.expo.dev/)
+- [Expo Router](https://docs.expo.dev/router/introduction/)

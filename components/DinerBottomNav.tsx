@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { dinerRoleTheme } from '@/constants/role-theme';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 
 type DinerTab = 'home' | 'menu' | 'favorites' | 'profile';
@@ -23,6 +24,8 @@ const TABS: Array<{
   { key: 'profile', label: 'Profile', icon: 'account-outline', route: '/diner-profile' },
 ];
 
+const accent = dinerRoleTheme.primary;
+
 export function DinerBottomNav({ activeTab }: DinerBottomNavProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -36,9 +39,11 @@ export function DinerBottomNav({ activeTab }: DinerBottomNavProps) {
             <MaterialCommunityIcons
               name={tab.icon}
               size={24}
-              color={isActive ? Colors.primary : Colors.textSecondary}
+              color={isActive ? accent : Colors.textSecondary}
             />
-            <Text style={[styles.label, isActive && styles.activeLabel]}>{tab.label}</Text>
+            <Text style={[styles.label, isActive && styles.activeLabel]} numberOfLines={1}>
+              {tab.label}
+            </Text>
           </Pressable>
         );
       })}
@@ -49,7 +54,7 @@ export function DinerBottomNav({ activeTab }: DinerBottomNavProps) {
 const styles = StyleSheet.create({
   container: {
     borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
+    borderTopColor: dinerRoleTheme.cardAccentBorder,
     backgroundColor: Colors.white,
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -59,14 +64,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.xs,
-    minWidth: 70,
+    flex: 1,
+    minWidth: 0,
   },
   label: {
     ...Typography.small,
     color: Colors.textSecondary,
   },
   activeLabel: {
-    color: Colors.primary,
+    color: accent,
     fontWeight: '600',
   },
 });

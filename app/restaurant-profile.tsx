@@ -2,10 +2,14 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { PrimaryButton, RestaurantBottomNav, RoleModeBanner, SecondaryButton, ScreenContainer } from '@/components';
+import { PrimaryButton, RestaurantTabScreenLayout } from '@/components';
 import { useActiveRole } from '@/contexts/ActiveRoleContext';
+import { restaurantRoleTheme } from '@/constants/role-theme';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
+import { useOwnedRestaurantName } from '@/hooks/use-owned-restaurant-name';
 import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
+
+const t = restaurantRoleTheme;
 
 type InfoRowProps = {
   label: string;
@@ -48,9 +52,11 @@ function InfoRow({ label, value, onPress, isAction }: InfoRowProps) {
 export default function RestaurantProfileScreen() {
   const router = useRouter();
   useGuardActiveRole('restaurant');
-  const { session, roles, setActiveRole, signOut } = useActiveRole();
+  const { session, signOut } = useActiveRole();
+  const restaurantName = useOwnedRestaurantName();
 
-  const email = session?.user?.email ?? 'owner@kumoramen.com';
+  const email = session?.user?.email ?? '—';
+  const displayName = restaurantName ?? 'Your restaurant';
 
   const onLogout = async () => {
     await signOut();
@@ -58,85 +64,60 @@ export default function RestaurantProfileScreen() {
   };
 
   return (
-    <View style={styles.wrapper}>
-      <ScreenContainer scroll padding="xl">
-        <RoleModeBanner current="restaurant" />
-        <Text style={styles.title}>Profile</Text>
-        <Text style={styles.subtitle}>Manage your restaurant and account</Text>
+    <RestaurantTabScreenLayout activeTab="profile">
+      <Text style={styles.title}>Profile</Text>
+      <Text style={styles.subtitle}>Manage your restaurant and account</Text>
 
-        <View style={styles.headerDivider} />
+      <View style={styles.headerDivider} />
 
-        <View style={styles.summaryRow}>
-          <View style={styles.summaryIcon}>
-            <MaterialCommunityIcons name="storefront-outline" size={26} color={Colors.primary} />
-          </View>
-          <View style={styles.summaryText}>
-            <Text style={styles.restaurantName}>Kumo Ramen House</Text>
-            <Text style={styles.cuisineLine}>Japanese • Ramen</Text>
-          </View>
+      <View style={styles.summaryRow}>
+        <View style={[styles.summaryIcon, { backgroundColor: t.primaryLight }]}>
+          <MaterialCommunityIcons name="storefront-outline" size={26} color={t.primary} />
         </View>
-
-        <View style={styles.headerDivider} />
-
-        {roles.length > 1 && (
-          <>
-            <Text style={styles.sectionCaps}>MODE</Text>
-            <SecondaryButton
-              text="Choose diner or restaurant…"
-              onPress={() => router.push('/role-picker' as never)}
-              style={styles.modeButton}
-            />
-          </>
-        )}
-
-        {roles.includes('diner') && (
-          <Pressable
-            onPress={async () => {
-              await setActiveRole('diner');
-              router.replace('/diner-home');
-            }}
-            style={({ pressed }) => [styles.switchDinerLink, pressed && styles.switchDinerLinkPressed]}
-          >
-            <Text style={styles.switchDinerText}>Switch to diner view</Text>
-          </Pressable>
-        )}
-
-        <Text style={styles.sectionCaps}>RESTAURANT INFO</Text>
-        <View style={styles.card}>
-          <InfoRow label="Restaurant Name" value="Kumo Ramen House" onPress={() => {}} />
-          <View style={styles.rowDivider} />
-          <InfoRow label="Address" value="123 Ramen Street, Tokyo" onPress={() => {}} />
-          <View style={styles.rowDivider} />
-          <InfoRow label="Phone Number" value="(555) 123-4567" onPress={() => {}} />
-          <View style={styles.rowDivider} />
-          <InfoRow label="Hours of Operation" value="Mon-Fri: 11am - 10pm" onPress={() => {}} />
-          <View style={styles.rowDivider} />
-          <InfoRow label="Website" value="www.kumoramen.com" onPress={() => {}} />
+        <View style={styles.summaryText}>
+          <Text style={styles.restaurantName}>{displayName}</Text>
+          <Text style={styles.cuisineLine}>Owner dashboard</Text>
         </View>
+      </View>
 
-        <Text style={[styles.sectionCaps, styles.accountCaps]}>ACCOUNT</Text>
-        <View style={styles.card}>
-          <InfoRow label="Email" value={email} onPress={() => {}} />
-          <View style={styles.rowDivider} />
-          <InfoRow
-            label=""
-            value="Change Password"
-            isAction
-            onPress={() => router.push('/forgot-password')}
-          />
-        </View>
+      <View style={styles.headerDivider} />
 
-        <PrimaryButton text="Log Out" onPress={onLogout} />
-      </ScreenContainer>
-      <RestaurantBottomNav activeTab="profile" />
-    </View>
+      <Text style={styles.sectionCaps}>RESTAURANT INFO</Text>
+      <View style={[styles.card, { borderColor: t.cardAccentBorder }]}>
+        <InfoRow label="Restaurant Name" value={displayName} onPress={() => {}} />
+        <View style={styles.rowDivider} />
+        <InfoRow label="Address" value="123 Ramen Street, Tokyo" onPress={() => {}} />
+        <View style={styles.rowDivider} />
+        <InfoRow label="Phone Number" value="(555) 123-4567" onPress={() => {}} />
+        <View style={styles.rowDivider} />
+        <InfoRow label="Hours of Operation" value="Mon-Fri: 11am - 10pm" onPress={() => {}} />
+        <View style={styles.rowDivider} />
+        <InfoRow label="Website" value="www.kumoramen.com" onPress={() => {}} />
+      </View>
+
+      <Text style={[styles.sectionCaps, styles.accountCaps]}>ACCOUNT</Text>
+      <View style={[styles.card, { borderColor: t.cardAccentBorder }]}>
+        <InfoRow label="Email" value={email} onPress={() => {}} />
+        <View style={styles.rowDivider} />
+        <InfoRow
+          label=""
+          value="Change Password"
+          isAction
+          onPress={() => router.push('/forgot-password')}
+        />
+      </View>
+
+      <PrimaryButton
+        text="Log Out"
+        onPress={onLogout}
+        accentColor={t.primary}
+        accentShadowRgb={t.shadowRgb}
+      />
+    </RestaurantTabScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  wrapper: {
-    flex: 1,
-  },
   title: {
     ...Typography.heading,
     color: Colors.text,
@@ -162,7 +143,6 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: BorderRadius.base,
-    backgroundColor: Colors.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -191,28 +171,9 @@ const styles = StyleSheet.create({
   accountCaps: {
     marginTop: Spacing.xxl,
   },
-  modeButton: {
-    marginBottom: Spacing.base,
-  },
-  switchDinerLink: {
-    alignSelf: 'flex-start',
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.xs,
-    marginBottom: Spacing.sm,
-  },
-  switchDinerLinkPressed: {
-    opacity: 0.7,
-  },
-  switchDinerText: {
-    ...Typography.caption,
-    fontSize: 13,
-    color: Colors.primary,
-    fontWeight: '600',
-  },
   card: {
     backgroundColor: Colors.white,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
     borderRadius: BorderRadius.base,
     overflow: 'hidden',
     marginBottom: Spacing.xxl,

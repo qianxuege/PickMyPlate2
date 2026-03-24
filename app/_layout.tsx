@@ -2,12 +2,14 @@ import { Stack } from "expo-router";
 
 import { AuthDeepLinkHandler } from "@/components/AuthDeepLinkHandler";
 import { ActiveRoleProvider } from "@/contexts/ActiveRoleContext";
+import { RoleSwitchToastProvider } from "@/contexts/RoleSwitchToastContext";
 
 const noSwipeOptions = { gestureEnabled: false, animation: 'none' as const };
 
 export default function RootLayout() {
   return (
     <ActiveRoleProvider>
+    <RoleSwitchToastProvider>
     <AuthDeepLinkHandler />
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="role-picker" options={noSwipeOptions} />
@@ -22,6 +24,7 @@ export default function RootLayout() {
       <Stack.Screen name="restaurant-highlight" options={noSwipeOptions} />
       <Stack.Screen name="restaurant-profile" options={noSwipeOptions} />
     </Stack>
+    </RoleSwitchToastProvider>
     </ActiveRoleProvider>
   );
 }

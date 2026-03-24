@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -33,6 +33,7 @@ const CUISINE_OPTIONS = [
 export default function RestaurantRegistration2Screen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{ restaurantName?: string | string[] }>();
   const { refreshRoles } = useActiveRole();
   const [cuisines, setCuisines] = useState<string[]>([]);
   const [location, setLocation] = useState('');
@@ -58,7 +59,15 @@ export default function RestaurantRegistration2Screen() {
         return;
       }
 
+      const paramName = params.restaurantName;
+      const fromParam =
+        typeof paramName === 'string'
+          ? paramName.trim()
+          : Array.isArray(paramName) && typeof paramName[0] === 'string'
+            ? paramName[0].trim()
+            : '';
       const name =
+        fromParam ||
         (typeof user.user_metadata?.display_name === 'string' && user.user_metadata.display_name) ||
         'My Restaurant';
 

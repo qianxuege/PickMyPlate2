@@ -43,4 +43,6 @@ export { DinerBottomNav } from './DinerBottomNav';
 export { RestaurantBottomNav } from './RestaurantBottomNav';
 export type { RestaurantBottomNavProps } from './RestaurantBottomNav';
 
-export { RoleModeBanner } from './RoleModeBanner';
+export { DinerTabScreenLayout } from './DinerTabScreenLayout';
+export { RestaurantTabScreenLayout } from './RestaurantTabScreenLayout';
+export { RoleAppHeader } from './RoleAppHeader';

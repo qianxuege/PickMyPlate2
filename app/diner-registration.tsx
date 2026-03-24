@@ -4,12 +4,15 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BackButton, InputField, PrimaryButton, ScreenContainer } from '@/components';
+import { useActiveRole } from '@/contexts/ActiveRoleContext';
 import { Colors, Spacing, Typography } from '@/constants/theme';
+import { isDuplicateEmailSignupError, linkDinerToExistingAccount } from '@/lib/link-account';
 import { supabase } from '@/lib/supabase';
 
 export default function DinerRegistrationScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { refreshRoles } = useActiveRole();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -34,6 +37,50 @@ export default function DinerRegistrationScreen() {
         },
       });
       if (error) {
+        if (isDuplicateEmailSignupError(error)) {
+          Alert.alert(
+            'Link to your existing account?',
+            'This email already has an account. Sign in with the same password to add diner access to it.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Link account',
+                onPress: async () => {
+                  setLoading(true);
+                  try {
+                    const result = await linkDinerToExistingAccount(trimmedEmail, password);
+                    if (result.status === 'auth_failed') {
+                      Alert.alert(
+                        'Could not sign in',
+                        'Check that you are using the password for this email. If you forgot it, use Forgot password on the login screen.'
+                      );
+                      return;
+                    }
+                    if (result.status === 'role_failed') {
+                      Alert.alert('Could not add diner access', result.message);
+                      return;
+                    }
+                    if (result.status === 'already_diner') {
+                      Alert.alert(
+                        'Already a diner',
+                        'This account already has diner access. Sign in to continue.',
+                        [{ text: 'OK', onPress: () => router.replace('/login') }]
+                      );
+                      return;
+                    }
+                    await refreshRoles();
+                    router.replace('/diner-personalization/1');
+                  } catch (e) {
+                    Alert.alert('Error', e instanceof Error ? e.message : 'Unknown error');
+                  } finally {
+                    setLoading(false);
+                  }
+                },
+              },
+            ]
+          );
+          return;
+        }
         Alert.alert('Could not create account', error.message);
         return;
       }

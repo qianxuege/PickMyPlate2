@@ -25,7 +25,7 @@ Diner preferences are created by **`user_roles_create_diner_preferences`** when 
 - **Login** loads roles from `user_roles`, then routes: single role → that home; dual + saved mode in AsyncStorage → that home; dual + no saved mode → **`/role-picker`**.
 - **Active mode** is client state (`ActiveRoleContext`) + `@pickmyplate/active_app_role` in AsyncStorage.
 - **Guards** on diner/restaurant tab screens redirect if the wrong mode is active or if the user lacks that role.
-- **`RoleModeBanner`** on home (and profile) offers a one-tap switch when the user has both roles.
+- **Tab shells** (diner / restaurant) use a **sticky header**: mode badge (orange outline = Diner, green filled = Restaurant) and a **segmented Diner | Restaurant** toggle when the user has both roles. **Diner** UI uses the orange brand palette; **restaurant** uses a green palette (tabs, CTAs, cards). Switching shows a short toast. The bottom nav no longer includes a role switch.
 - **Add the other role while logged in**: Diner profile → “Add restaurant” → **`/add-restaurant`**. Restaurant profile → “Add diner profile” → **`/add-diner-role`** (inserts `user_roles` + optional restaurant setup).
 
 Duplicate **sign-up** with an existing email still fails at Auth; users should **log in** and add the second role from profile.

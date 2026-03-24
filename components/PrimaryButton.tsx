@@ -16,6 +16,10 @@ export type PrimaryButtonProps = PressableProps & {
   style?: StyleProp<ViewStyle>;
   disabled?: boolean;
   loading?: boolean;
+  /** Override brand orange (e.g. role shell primary) */
+  accentColor?: string;
+  /** RGB for shadow tint, e.g. "255, 106, 61" */
+  accentShadowRgb?: string;
 };
 
 export function PrimaryButton({
@@ -24,14 +28,22 @@ export function PrimaryButton({
   style,
   disabled = false,
   loading = false,
+  accentColor,
+  accentShadowRgb,
   ...rest
 }: PrimaryButtonProps) {
+  const bg = accentColor ?? Colors.primary;
+  const shadowTint = accentShadowRgb ?? '255, 106, 61';
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled || loading}
       style={({ pressed }) => [
         styles.button,
+        {
+          backgroundColor: bg,
+          shadowColor: `rgb(${shadowTint})`,
+        },
         pressed && styles.pressed,
         disabled && styles.disabled,
         style,

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Opening PickMyPlate…</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        padding: 1.5rem;
+        max-width: 28rem;
+        margin: 2rem auto;
+        line-height: 1.5;
+      }
+    </style>
+  </head>
+  <body>
+    <p><strong>Opening the app…</strong></p>
+    <p id="msg">If nothing happens, open this link in <strong>Safari</strong> (not Chrome), or see README troubleshooting.</p>
+    <script>
+      (function () {
+        var hash = window.location.hash || "";
+        var scheme = "pickmyplate://auth/callback";
+        if (!hash || hash.indexOf("access_token") === -1) {
+          document.getElementById("msg").textContent =
+            "Missing tokens. Use the latest confirmation link from your email.";
+          return;
+        }
+        document.getElementById("msg").textContent =
+          "Redirecting to the PickMyPlate app…";
+        window.location.replace(scheme + hash);
+      })();
+    </script>
+  </body>
+</html>

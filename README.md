@@ -2,82 +2,83 @@
 
 An Expo app for exploring restaurant menus and discovering dishes. Built with a centralized design system based on wireframes in `UserInterfaces/`.
 
-## Get Started
+## Run the app
 
-1. Install dependencies
+### Prerequisites
 
-   ```bash
-   npm install
-   ```
+- **Node.js** (LTS) and **npm**
+- **Expo Go** on your phone ([iOS](https://apps.apple.com/app/expo-go/id982107779) / [Android](https://play.google.com/store/apps/details?id=host.exp.exponent)) if you want to test on a device
+- For **iOS Simulator**: Xcode (macOS)
+- For **Android Emulator**: Android Studio with a virtual device
 
-2. Start the app
-
-   ```bash
-   npm start
-   ```
-
-3. **Supabase + Expo Go — email confirmation**
-
-   **Why Chrome on iOS often fails:** In-app browsers and **Google Chrome** on iPhone frequently **block** jumping from a web page to a custom app URL (`pickmyplate://`). Mail may not list **Expo Go** as an option because the OS treats the link as a browser job first.
-
-   **Try first:** In Mail, **long-press** the confirm link → **Open in Safari** (not Chrome). Safari usually allows the handoff to `pickmyplate://` so **Expo Go** can open.
-
-   **Reliable approach — HTTPS bridge (recommended):**
-
-   1. Host the static file `public/auth-callback-bridge.html` on any **https** URL (e.g. [GitHub Pages](https://pages.github.com/), Netlify Drop, Cloudflare Pages). Example final URL:  
-      `https://YOURNAME.github.io/YOUR_REPO/auth-callback-bridge.html`
-   2. Supabase → **Authentication → URL Configuration**
-      - **Site URL:** that full `https://…/auth-callback-bridge.html` URL (no wildcards).
-      - **Redirect URLs:** add the same `https://…` URL **and** `pickmyplate://**` (and `pickmyplate://auth/callback` if you like).
-   3. Request a **new** confirmation email. Flow: email → opens **https** page → page redirects to `pickmyplate://auth/callback#access_token=…` → **AuthDeepLinkHandler** in the app calls `setSession`.
-
-   **Local-only (same Wi‑Fi, fiddly):** `npm run web`, then temporarily set Site URL to `http://YOUR_LAN_IP:8081/auth-callback-bridge.html` and add it under Redirect URLs — only works if the phone can reach your PC.
-
-   **Dev shortcut:** disable **Confirm email** under **Authentication → Providers → Email** so you don’t depend on the link.
-
-## Supabase database
-
-Schema and RLS live in `supabase/migrations/`. The app reads **`EXPO_PUBLIC_SUPABASE_URL`** and **`EXPO_PUBLIC_SUPABASE_KEY`** from `.env` (see `lib/supabase.ts`), so you choose **local** or **cloud** by which values you put there—not by which CLI command you run.
-
-### Local stack (does not touch cloud)
-
-- **`npm run supabase:start`** runs `supabase start`: starts the full Supabase stack in **Docker** on your machine (Postgres, Auth, Studio, etc.) and applies migrations to that **local** database.
-- Data is **only in those containers**. Starting or resetting locally **does not change** your hosted Supabase project.
-- After start, run **`npm run supabase:status`** and copy the API URL and anon key into `.env` for local development.
-- **`npm run supabase:db:reset`** wipes the local DB and reapplies migrations (useful when iterating on schema).
-- **`npm run supabase:stop`** stops the local stack.
-
-Requires [Docker](https://docs.docker.com/get-docker/) running and the [Supabase CLI](https://supabase.com/docs/guides/cli) (the repo includes the `supabase` dev dependency; `npx supabase …` works too).
-
-**Troubleshooting `Cannot connect to the Docker daemon`:** Open **Docker Desktop** from Applications and wait until it reports **Docker is running** (whale icon in the menu bar). Confirm with `docker ps` (should list containers or print an empty table, not a connection error). If it still fails, fully **Quit Docker Desktop** (menu bar → Docker → Quit) and start it again; avoid running `supabase start` until the daemon is up. You can skip local Docker entirely by using a **hosted** Supabase project and `npm run supabase:db:push` instead.
-
-### Hosted project (Supabase Cloud)
-
-To apply the same migrations to a **remote** project:
+### Install and start
 
 ```bash
-npx supabase login
-npx supabase link --project-ref YOUR_PROJECT_REF
-npm run supabase:db:push
+npm install
+npm start
 ```
 
-`YOUR_PROJECT_REF` is the id in the dashboard URL: `https://supabase.com/dashboard/project/<project-ref>`.
+This starts the Expo dev server (Metro). A QR code and shortcuts appear in the terminal; you can also use the Dev Tools page that opens in the browser.
 
-Use that project’s **Project URL** and **anon public** key in `.env` when you want the app to talk to cloud.
+### Expo Go (physical device)
+
+1. Install **Expo Go** on your phone.
+2. Ensure the phone and computer are on the **same Wi‑Fi** (or run `npx expo start --tunnel` if they are not).
+3. **iPhone:** open the **Camera** app and scan the QR code → open in Expo Go.  
+   **Android:** open **Expo Go** and use **Scan QR code**.
+4. The project loads in Expo Go. If the bundle fails to load, check the firewall and that Metro is reachable from the phone.
+
+### iOS Simulator (macOS)
+
+1. Install **Xcode** from the App Store and open it once to finish setup.
+2. Run `npm start`, then press **`i`** in the terminal to open the iOS Simulator, or choose **Run on iOS simulator** from the Dev Tools UI.
+
+### Android Emulator
+
+1. Install **Android Studio**, create a virtual device (AVD), and start the emulator.
+2. Run `npm start`, then press **`a`** in the terminal to install and launch the app on the emulator, or choose **Run on Android device/emulator** from the Dev Tools UI.
+
+### Environment
+
+Create a `.env` file in the project root (see `.env.example` if present) with your **hosted** Supabase project values:
+
+- `EXPO_PUBLIC_SUPABASE_URL`
+- `EXPO_PUBLIC_SUPABASE_KEY` (anon / public key)
+
+Restart the dev server after changing `.env`.
+
+## Supabase (cloud)
+
+Schema and RLS live in `supabase/migrations/`. This project is intended to use **Supabase Cloud** (not a local Docker stack).
+
+1. Create a project at [supabase.com](https://supabase.com).
+2. Install the CLI and link your project, then push migrations:
+
+   ```bash
+   npx supabase login
+   npx supabase link --project-ref YOUR_PROJECT_REF
+   npm run supabase:db:push
+   ```
+
+   `YOUR_PROJECT_REF` is in the dashboard URL: `https://supabase.com/dashboard/project/<project-ref>`.
+
+3. In the Supabase dashboard → **Project Settings → API**, copy the **Project URL** and **anon public** key into `.env` as `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_KEY`.
+
+The app reads these in `lib/supabase.ts`.
 
 ### Other npm scripts
 
 | Script | Purpose |
 | ------ | ------- |
 | `supabase:link` | Link CLI to a remote project (`supabase link`) |
-| `supabase:db:push` | Push local migrations to the linked remote database |
-| `supabase:migration:new` | Create a new empty migration file |
+| `supabase:db:push` | Push migrations to the linked remote database |
+| `supabase:migration:new` | Create a new empty migration file under `supabase/migrations/` |
 
-## Design System
+## Design system
 
 Design tokens and reusable components live in `constants/theme.ts` and `components/`. All screens should use these—no duplicated styles.
 
-### Theme (`constants/theme.ts`)
+### Global theme (`constants/theme.ts`)
 
 **Colors**
 
@@ -91,17 +92,26 @@ Design tokens and reusable components live in `constants/theme.ts` and `componen
 | `error`           | `#E53E3E` | Error text, validation  |
 | `border`          | `#D0D5DD` | Input borders, dividers |
 
-**Spacing** (`xs` 4 → `xxxl` 40)
+**Spacing** (`xs` 4 → `xxxl` 40) · **Border radius** (`sm` 8 → `base` 12 → `full`) · **Typography** — `heading`, `headingSmall`, `body`, `bodyMedium`, `caption`, `label`, `button`, `small`
 
-**Border radius** (`sm` 8 → `base` 12 → `full`)
+### Role themes (`constants/role-theme.ts`)
 
-**Typography** — `heading`, `headingSmall`, `body`, `bodyMedium`, `caption`, `label`, `button`, `small`
+Users can be a **diner**, a **restaurant owner**, or both. The app uses two shell palettes so each mode feels distinct:
+
+| Role | Theme object | Primary | Screen feel |
+| ---- | ------------ | ------- | ----------- |
+| **Diner** | `dinerRoleTheme` | Orange `#FF6A3D` (matches global brand) | Warm off-white background (`#FFFCFA`), orange tabs/CTAs/cards where the diner shell applies |
+| **Restaurant** | `restaurantRoleTheme` | Green `#059669` | **White** background, mint-tinted accents (`primaryLight`, borders), green active tabs and primary buttons |
+
+**Where it shows up:** `DinerTabScreenLayout` / `RestaurantTabScreenLayout`, `DinerBottomNav` / `RestaurantBottomNav`, `RoleAppHeader` (badges and segmented **Diner | Restaurant** switch), and role-colored `PrimaryButton` usage (`accentColor` / `accentShadowRgb`) on profile and similar screens.
+
+Shared screens (e.g. login) use the global `Colors` from `theme.ts`. See `docs/account-roles.md` for dual-role behavior.
 
 ### UI Components
 
 | Component         | Props                                                                                        | Description                            |
 | ----------------- | -------------------------------------------------------------------------------------------- | -------------------------------------- |
-| `PrimaryButton`   | `text`, `onPress`, `style`, `disabled`, `loading`                                            | Orange primary CTA                     |
+| `PrimaryButton`   | `text`, `onPress`, … optional `accentColor`, `accentShadowRgb` for role-colored CTAs         | Primary filled button                  |
 | `SecondaryButton` | `text`, `onPress`, `style`, `disabled`, `loading`, `icon`                                    | Outlined secondary action              |
 | `InputField`      | `label`, `error`, `placeholder`, `style`, `inputStyle`, `containerStyle` + `TextInput` props | Labeled input with optional error      |
 | `ScreenContainer` | `children`, `scroll`, `padding`, `backgroundColor`, `centered`                               | Screen layout with safe area           |
@@ -157,7 +167,8 @@ PickMyPlate2/
 │   ├── Divider.tsx
 │   └── index.ts
 ├── constants/
-│   └── theme.ts            # Design tokens
+│   ├── theme.ts            # Global design tokens
+│   └── role-theme.ts       # Diner vs restaurant shell colors
 ├── docs/                   # Feature / architecture notes
 ├── lib/                    # Supabase client, parsers, etc.
 ├── hooks/

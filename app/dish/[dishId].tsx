@@ -423,9 +423,6 @@ export default function DishDetailScreen() {
                     />
                   ))}
                 </View>
-                <Text style={styles.metaLabel}>
-                  {detail.spiceLevel > 0 ? 'Spice level' : 'Mild or not specified'}
-                </Text>
               </View>
 
               <View style={styles.tagWrap}>
@@ -622,15 +619,10 @@ const styles = StyleSheet.create({
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
   },
   flameRow: {
     flexDirection: 'row',
     gap: 2,
-  },
-  metaLabel: {
-    ...Typography.caption,
-    color: FIG.sub,
   },
   tagWrap: {
     flexDirection: 'row',

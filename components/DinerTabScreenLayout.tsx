@@ -13,7 +13,7 @@ type DinerTabScreenLayoutProps = {
   activeTab: DinerTab;
   children: React.ReactNode;
   /** Figma diner menu: back + centered title + search; replaces mode badge header */
-  menuHeader?: { title: string };
+  menuHeader?: { title: string; scanId?: string; restaurantName?: string };
 };
 
 export function DinerTabScreenLayout({ activeTab, children, menuHeader }: DinerTabScreenLayoutProps) {
@@ -32,7 +32,15 @@ export function DinerTabScreenLayout({ activeTab, children, menuHeader }: DinerT
           },
         ]}
       >
-        {menuHeader ? <DinerMenuTitleBar title={menuHeader.title} /> : <RoleAppHeader mode="diner" />}
+        {menuHeader ? (
+          <DinerMenuTitleBar
+            title={menuHeader.title}
+            scanId={menuHeader.scanId}
+            restaurantName={menuHeader.restaurantName}
+          />
+        ) : (
+          <RoleAppHeader mode="diner" />
+        )}
       </View>
       <KeyboardAvoidingView
         style={styles.flex}

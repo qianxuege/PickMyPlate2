@@ -10,14 +10,8 @@ import { Colors, Spacing, Typography } from '@/constants/theme';
 import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
 import type { DinerPreferenceSnapshot } from '@/lib/diner-preferences';
 import { fetchDinerPreferences, spiceDbToLabel } from '@/lib/diner-preferences';
-import {
-  assembleParsedMenu,
-  type DinerMenuSectionRow,
-  type DinerScannedDishRow,
-  type ParsedMenu,
-  type ParsedMenuItem,
-} from '@/lib/menu-scan-schema';
-import { supabase } from '@/lib/supabase';
+import { fetchParsedMenuForScan } from '@/lib/fetch-parsed-menu-for-scan';
+import type { ParsedMenu, ParsedMenuItem } from '@/lib/menu-scan-schema';
 
 /** Figma Diner Menu 1 tokens */
 const FIG = {
@@ -62,45 +56,12 @@ export default function DinerMenuScreen() {
         setLoading(true);
 
         const prefSnap = await fetchDinerPreferences();
-
-        const { data: scanRow, error: scanErr } = await supabase
-          .from('diner_menu_scans')
-          .select('restaurant_name')
-          .eq('id', scanId)
-          .maybeSingle();
-        if (scanErr) throw scanErr;
-        if (!scanRow) throw new Error('Scan not found');
-
-        const { data: sections, error: secErr } = await supabase
-          .from('diner_menu_sections')
-          .select('id, scan_id, title, sort_order')
-          .eq('scan_id', scanId)
-          .order('sort_order', { ascending: true });
-        if (secErr) throw secErr;
-
-        const sectionIds = (sections ?? []).map((s: DinerMenuSectionRow) => s.id);
-        let dishes: DinerScannedDishRow[] = [];
-        if (sectionIds.length > 0) {
-          const { data: dishRows, error: dishErr } = await supabase
-            .from('diner_scanned_dishes')
-            .select(
-              'id, section_id, sort_order, name, description, price_amount, price_currency, price_display, spice_level, tags, ingredients, image_url'
-            )
-            .in('section_id', sectionIds)
-            .order('sort_order', { ascending: true });
-          if (dishErr) throw dishErr;
-          dishes = (dishRows ?? []) as DinerScannedDishRow[];
-        }
-
-        const assembled = assembleParsedMenu(
-          scanRow.restaurant_name ?? null,
-          (sections ?? []) as DinerMenuSectionRow[],
-          dishes
-        );
+        const fetched = await fetchParsedMenuForScan(scanId);
+        if (!fetched.ok) throw new Error(fetched.error);
 
         if (cancelled) return;
         setPrefs(prefSnap);
-        setMenu(assembled);
+        setMenu(fetched.menu);
       } catch (e) {
         if (cancelled) return;
         setError(e instanceof Error ? e.message : 'Failed to load menu');
@@ -291,7 +252,14 @@ export default function DinerMenuScreen() {
   }
 
   return (
-    <DinerTabScreenLayout activeTab="menu" menuHeader={{ title: loading ? 'Menu' : headerTitle }}>
+    <DinerTabScreenLayout
+      activeTab="menu"
+      menuHeader={{
+        title: loading ? 'Menu' : headerTitle,
+        scanId,
+        restaurantName: headerTitle,
+      }}
+    >
       {loading ? (
         <View style={styles.loading}>
           <ActivityIndicator color={FIG.orange} />

@@ -10,10 +10,25 @@ const CIRCLE_BG = '#F3F4F6';
 
 type DinerMenuTitleBarProps = {
   title: string;
+  /** When set, search opens in-menu dish search for this scan. */
+  scanId?: string;
+  /** Passed through to dish detail / search context. */
+  restaurantName?: string;
 };
 
-export function DinerMenuTitleBar({ title }: DinerMenuTitleBarProps) {
+export function DinerMenuTitleBar({ title, scanId, restaurantName }: DinerMenuTitleBarProps) {
   const router = useRouter();
+
+  const onSearch = () => {
+    if (!scanId?.trim()) return;
+    router.push({
+      pathname: '/diner-search',
+      params: {
+        scanId: scanId.trim(),
+        restaurantName: restaurantName?.trim() || title,
+      },
+    });
+  };
 
   const onBack = () => {
     if (router.canGoBack()) {
@@ -39,12 +54,14 @@ export function DinerMenuTitleBar({ title }: DinerMenuTitleBarProps) {
         </Text>
       </View>
       <Pressable
+        onPress={onSearch}
         style={({ pressed }) => [styles.circleBtn, pressed && styles.circleBtnPressed]}
         accessibilityRole="button"
-        accessibilityLabel="Search"
-        disabled
+        accessibilityLabel="Search dishes in this menu"
+        accessibilityState={{ disabled: !scanId?.trim() }}
+        disabled={!scanId?.trim()}
       >
-        <MaterialCommunityIcons name="magnify" size={18} color={FG} />
+        <MaterialCommunityIcons name="magnify" size={18} color={scanId?.trim() ? FG : '#9CA3AF'} />
       </Pressable>
     </View>
   );

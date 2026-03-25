@@ -169,6 +169,14 @@ export default function DinerMenuProcessingScreen() {
       return;
     }
 
+    if (api.debug?.mock) {
+      failAndHome(
+        'Menu parser is in mock mode',
+        'The backend is returning demo menu data instead of your scanned menu. Disable MOCK_MENU_PARSE in backend/.env before testing real scans.'
+      );
+      return;
+    }
+
     const validated = validateParsedMenu(api.menu);
     if (!validated.ok) {
       failAndHome('Invalid menu data', validated.error);

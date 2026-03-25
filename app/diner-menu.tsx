@@ -1,8 +1,8 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { DinerTabScreenLayout } from '@/components/DinerTabScreenLayout';
 import { MenuFilterChip } from '@/components/MenuFilterChip';
@@ -10,8 +10,13 @@ import { Colors, Spacing, Typography } from '@/constants/theme';
 import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
 import type { DinerPreferenceSnapshot } from '@/lib/diner-preferences';
 import { fetchDinerPreferences, spiceDbToLabel } from '@/lib/diner-preferences';
-import type { DinerMenuSectionRow, DinerScannedDishRow, ParsedMenu } from '@/lib/menu-scan-schema';
-import { assembleParsedMenu, type ParsedMenuItem } from '@/lib/menu-scan-schema';
+import {
+  assembleParsedMenu,
+  type DinerMenuSectionRow,
+  type DinerScannedDishRow,
+  type ParsedMenu,
+  type ParsedMenuItem,
+} from '@/lib/menu-scan-schema';
 import { supabase } from '@/lib/supabase';
 
 /** Figma Diner Menu 1 tokens */
@@ -36,6 +41,7 @@ const PRICE_SYMBOL: Record<string, string> = {
 
 export default function DinerMenuScreen() {
   useGuardActiveRole('diner');
+  const router = useRouter();
   const params = useLocalSearchParams<{ scanId?: string | string[] }>();
   const scanIdRaw = params.scanId;
   const scanId = Array.isArray(scanIdRaw) ? scanIdRaw[0] : scanIdRaw;
@@ -220,7 +226,20 @@ export default function DinerMenuScreen() {
   };
 
   const DishCard = ({ dish }: { dish: ParsedMenuItem }) => (
-    <View style={styles.dishCard}>
+    <Pressable
+      accessibilityRole="button"
+      onPress={() =>
+        router.push({
+          pathname: '/dish/[dishId]',
+          params: {
+            dishId: dish.id,
+            scanId,
+            restaurantName: headerTitle,
+          },
+        })
+      }
+      style={({ pressed }) => [styles.dishCard, pressed && styles.dishCardPressed]}
+    >
       <View style={styles.dishRow}>
         <LinearGradient
           colors={['#FFEDD4', '#FFF7ED']}
@@ -257,7 +276,7 @@ export default function DinerMenuScreen() {
           </View>
         </View>
       </View>
-    </View>
+    </Pressable>
   );
 
   const headerTitle = menu?.restaurant_name?.trim() || 'Menu';
@@ -444,6 +463,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 12,
     paddingBottom: 12,
+  },
+  dishCardPressed: {
+    opacity: 0.9,
   },
   dishRow: {
     flexDirection: 'row',

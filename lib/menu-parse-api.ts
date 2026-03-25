@@ -15,6 +15,9 @@ function getMenuApiBaseUrl(): string {
 export type ParseMenuApiSuccess = {
   ok: true;
   menu: unknown;
+  debug?: {
+    mock?: boolean;
+  };
 };
 
 export type ParseMenuApiFailure = {
@@ -110,7 +113,11 @@ export async function requestMenuParse(params: {
     (json as { ok: unknown }).ok === true &&
     'menu' in json
   ) {
-    return { ok: true, menu: (json as { menu: unknown }).menu };
+    const debug =
+      'debug' in json && typeof (json as { debug?: unknown }).debug === 'object'
+        ? ((json as { debug?: { mock?: boolean } }).debug ?? undefined)
+        : undefined;
+    return { ok: true, menu: (json as { menu: unknown }).menu, debug };
   }
 
   if (

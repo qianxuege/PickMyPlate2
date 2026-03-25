@@ -1,0 +1,11 @@
+# PickMyPlate Flask API — OCR / LLM pipeline will extend this file.
+flask>=3.0,<4
+python-dotenv>=1.0
+flask-cors>=4.0
+httpx>=0.27
+PyJWT>=2.8
+cryptography>=42.0
+supabase>=2.10
+google-cloud-vision>=3.7,<4
+Pillow>=10,<12
+google-cloud-aiplatform>=1.64,<2

@@ -28,6 +28,13 @@
     "plugins": [
       "expo-router",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "PickMyPlate needs access to your photos to upload a menu image.",
+          "cameraPermission": "PickMyPlate needs camera access to scan a menu."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",

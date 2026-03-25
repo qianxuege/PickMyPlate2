@@ -2,18 +2,21 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 're
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DinerBottomNav } from '@/components/DinerBottomNav';
+import { DinerMenuTitleBar } from '@/components/DinerMenuTitleBar';
 import { RoleAppHeader } from '@/components/RoleAppHeader';
-import { Spacing } from '@/constants/theme';
 import { dinerRoleTheme } from '@/constants/role-theme';
+import { Spacing } from '@/constants/theme';
 
 type DinerTab = 'home' | 'menu' | 'favorites' | 'profile';
 
 type DinerTabScreenLayoutProps = {
   activeTab: DinerTab;
   children: React.ReactNode;
+  /** Figma diner menu: back + centered title + search; replaces mode badge header */
+  menuHeader?: { title: string };
 };
 
-export function DinerTabScreenLayout({ activeTab, children }: DinerTabScreenLayoutProps) {
+export function DinerTabScreenLayout({ activeTab, children, menuHeader }: DinerTabScreenLayoutProps) {
   const insets = useSafeAreaInsets();
   const t = dinerRoleTheme;
 
@@ -22,13 +25,14 @@ export function DinerTabScreenLayout({ activeTab, children }: DinerTabScreenLayo
       <View
         style={[
           styles.headerChrome,
+          menuHeader ? styles.headerChromeMenu : null,
           {
-            paddingTop: insets.top + Spacing.md,
-            backgroundColor: t.headerBackground,
+            paddingTop: menuHeader ? insets.top : insets.top + Spacing.md,
+            backgroundColor: '#FFFFFF',
           },
         ]}
       >
-        <RoleAppHeader mode="diner" />
+        {menuHeader ? <DinerMenuTitleBar title={menuHeader.title} /> : <RoleAppHeader mode="diner" />}
       </View>
       <KeyboardAvoidingView
         style={styles.flex}
@@ -36,7 +40,7 @@ export function DinerTabScreenLayout({ activeTab, children }: DinerTabScreenLayo
       >
         <ScrollView
           contentContainerStyle={[
-            styles.scrollContent,
+            menuHeader ? styles.scrollContentMenu : styles.scrollContent,
             { paddingBottom: insets.bottom + Spacing.xxl },
           ]}
           keyboardShouldPersistTaps="handled"
@@ -61,9 +65,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
     paddingBottom: Spacing.md,
   },
+  headerChromeMenu: {
+    paddingHorizontal: 0,
+    paddingBottom: 0,
+  },
   scrollContent: {
     paddingHorizontal: Spacing.xl,
     paddingTop: Spacing.xl,
+    flexGrow: 1,
+  },
+  /** Figma diner menu body: 16px horizontal, 12px top */
+  scrollContentMenu: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
     flexGrow: 1,
   },
 });

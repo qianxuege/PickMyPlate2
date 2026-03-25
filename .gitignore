@@ -42,3 +42,6 @@ app-example
 # generated native folders
 /ios
 /android
+
+# UI design files
+PickMyPlate_UI/

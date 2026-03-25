@@ -44,6 +44,9 @@ Create a `.env` file in the project root (see `.env.example` if present) with yo
 
 - `EXPO_PUBLIC_SUPABASE_URL`
 - `EXPO_PUBLIC_SUPABASE_KEY` (anon / public key)
+- `EXPO_PUBLIC_MENU_API_URL` — base URL of the Flask API **without** a trailing slash (e.g. `http://192.168.1.10:8080`). On a **physical device**, use your computer’s **LAN IP**, not `localhost`. The simulator can use `http://127.0.0.1:8080`.
+
+Apply migrations so the **`menu-uploads`** Storage bucket and policies exist (`npm run supabase:db:push`).
 
 Restart the dev server after changing `.env`.
 
@@ -65,6 +68,12 @@ Schema and RLS live in `supabase/migrations/`. This project is intended to use *
 3. In the Supabase dashboard → **Project Settings → API**, copy the **Project URL** and **anon public** key into `.env` as `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_KEY`.
 
 The app reads these in `lib/supabase.ts`.
+
+### Flask backend (menu OCR / LLM)
+
+See **`backend/README.md`**. Quick start: `cd backend`, create a venv, `pip install -r requirements.txt`, `cp .env.example .env`, `python app.py` (port **8080** by default). With `MOCK_MENU_PARSE=1`, `POST /v1/parse-menu` returns a static `ParsedMenu` JSON.
+
+**Diner flow:** Home → camera or photo library → upload to Storage → **Processing** screen → Flask parse → save rows to `diner_menu_scans` / sections / dishes → **Menu** tab shows the new `scanId` (full menu UI comes next).
 
 ### Other npm scripts
 
@@ -149,6 +158,7 @@ export default function LoginScreen() {
 - **[Diner personalization & smart preference tags](docs/diner-personalization.md)** — onboarding flow, rule-based tag parsing, and Supabase schema (`diner_*` tables, diner-only RLS).
 - **[Restaurant owner: login, registration, profile](docs/restaurant-owner.md)** — auth vs `restaurants` / `restaurant_cuisine_types`, restaurant-only RLS.
 - **[Dual diner + restaurant accounts](docs/account-roles.md)** — `user_roles`, role picker, and switching after login.
+- **Diner menu scans** — `lib/menu-scan-schema.ts` defines the `ParsedMenu` API contract and `assembleParsedMenu` for DB-backed menus. Tables: `diner_menu_scans`, `diner_menu_sections`, `diner_scanned_dishes`, `diner_favorite_dishes` (see `supabase/migrations/`).
 
 ## Project Structure
 

@@ -23,11 +23,18 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
+const isServer = typeof window === "undefined";
+const noopStorage = {
+  getItem: async () => null,
+  setItem: async (_key: string, _value: string) => {},
+  removeItem: async (_key: string) => {},
+};
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    storage: AsyncStorage,
-    autoRefreshToken: true,
-    persistSession: true,
+    storage: isServer ? noopStorage : AsyncStorage,
+    autoRefreshToken: !isServer,
+    persistSession: !isServer,
     detectSessionInUrl: false,
   },
 });

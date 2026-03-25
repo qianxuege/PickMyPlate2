@@ -16,6 +16,7 @@ export default function RootLayout() {
       <Stack.Screen name="add-restaurant" options={noSwipeOptions} />
       <Stack.Screen name="add-diner-role" options={noSwipeOptions} />
       <Stack.Screen name="diner-home" options={noSwipeOptions} />
+      <Stack.Screen name="diner-menu-processing" options={noSwipeOptions} />
       <Stack.Screen name="diner-menu" options={noSwipeOptions} />
       <Stack.Screen name="diner-favorites" options={noSwipeOptions} />
       <Stack.Screen name="diner-profile" options={noSwipeOptions} />

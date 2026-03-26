@@ -4,7 +4,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import { DinerTabScreenLayout } from '@/components/DinerTabScreenLayout';
 import { MenuFilterChip } from '@/components/MenuFilterChip';
@@ -12,6 +20,7 @@ import { Colors, Spacing, Typography } from '@/constants/theme';
 import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
 import type { DinerPreferenceSnapshot } from '@/lib/diner-preferences';
 import { fetchDinerPreferences, spiceDbToLabel } from '@/lib/diner-preferences';
+import { fetchFavoritedDishIds, toggleDishFavorite } from '@/lib/diner-favorites';
 import { fetchParsedMenuForScan } from '@/lib/fetch-parsed-menu-for-scan';
 import type { ParsedMenu, ParsedMenuItem } from '@/lib/menu-scan-schema';
 
@@ -47,6 +56,38 @@ export default function DinerMenuScreen() {
   const [loading, setLoading] = useState(Boolean(scanId));
   const [error, setError] = useState<string | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      void (async () => {
+        try {
+          const ids = await fetchFavoritedDishIds();
+          if (!cancelled) setFavoriteIds(ids);
+        } catch {
+          /* ignore */
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [])
+  );
+
+  const handleToggleFavorite = useCallback(async (dishId: string) => {
+    try {
+      const next = await toggleDishFavorite(dishId);
+      setFavoriteIds((prev) => {
+        const n = new Set(prev);
+        if (next) n.add(dishId);
+        else n.delete(dishId);
+        return n;
+      });
+    } catch (e) {
+      Alert.alert('Favorites', e instanceof Error ? e.message : 'Could not update favorite.');
+    }
+  }, []);
 
   const loadMenu = useCallback(async () => {
     if (!scanId) return;
@@ -147,63 +188,76 @@ export default function DinerMenuScreen() {
     );
   };
 
-  const DishCard = ({ dish }: { dish: ParsedMenuItem }) => (
-    <Pressable
-      accessibilityRole="button"
-      onPress={() =>
-        router.push({
-          pathname: '/dish/[dishId]',
-          params: {
-            dishId: dish.id,
-            scanId,
-            restaurantName: headerTitle,
-          },
-        })
-      }
-      style={({ pressed }) => [styles.dishCard, pressed && styles.dishCardPressed]}
-    >
-      <View style={styles.dishRow}>
-        {dish.image_url ? (
-          <Image source={{ uri: dish.image_url }} contentFit="cover" style={styles.dishImage} />
-        ) : (
-          <LinearGradient
-            colors={['#FFEDD4', '#FFF7ED']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.dishImageGradient}
-          >
-            <Text style={styles.dishEmoji} accessibilityLabel="Dish placeholder">
-              🍽️
-            </Text>
-          </LinearGradient>
-        )}
+  const DishCard = ({ dish }: { dish: ParsedMenuItem }) => {
+    const favorited = favoriteIds.has(dish.id);
+    return (
+      <View style={styles.dishCard}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() =>
+            router.push({
+              pathname: '/dish/[dishId]',
+              params: {
+                dishId: dish.id,
+                scanId,
+                restaurantName: headerTitle,
+              },
+            })
+          }
+          style={({ pressed }) => [styles.dishCardHit, pressed && styles.dishCardPressed]}
+        >
+          <View style={styles.dishRow}>
+            {dish.image_url ? (
+              <Image source={{ uri: dish.image_url }} contentFit="cover" style={styles.dishImage} />
+            ) : (
+              <LinearGradient
+                colors={['#FFEDD4', '#FFF7ED']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.dishImageGradient}
+              >
+                <Text style={styles.dishEmoji} accessibilityLabel="Dish placeholder">
+                  🍽️
+                </Text>
+              </LinearGradient>
+            )}
 
-        <View style={styles.dishTextCol}>
-          <View style={styles.dishTitleRow}>
-            <Text style={styles.dishName} numberOfLines={1}>
-              {dish.name}
-            </Text>
-            <View pointerEvents="none" style={styles.heartIcon}>
-              <MaterialCommunityIcons name="heart-outline" size={20} color={FIG.heart} />
+            <View style={styles.dishTextCol}>
+              <Text style={[styles.dishName, styles.dishNameWithHeartPad]} numberOfLines={1}>
+                {dish.name}
+              </Text>
+
+              {dish.description ? (
+                <Text style={styles.dishDesc} numberOfLines={2}>
+                  {dish.description}
+                </Text>
+              ) : (
+                <View style={styles.dishDescSpacer} />
+              )}
+
+              <View style={styles.dishBottomRow}>
+                <Text style={styles.dishPrice}>{formatPrice(dish)}</Text>
+                {renderSpiceFlames(dish.spice_level)}
+              </View>
             </View>
           </View>
-
-          {dish.description ? (
-            <Text style={styles.dishDesc} numberOfLines={2}>
-              {dish.description}
-            </Text>
-          ) : (
-            <View style={styles.dishDescSpacer} />
-          )}
-
-          <View style={styles.dishBottomRow}>
-            <Text style={styles.dishPrice}>{formatPrice(dish)}</Text>
-            {renderSpiceFlames(dish.spice_level)}
-          </View>
-        </View>
+        </Pressable>
+        <Pressable
+          hitSlop={10}
+          onPress={() => void handleToggleFavorite(dish.id)}
+          style={({ pressed }) => [styles.dishHeartFab, pressed && styles.dishHeartFabPressed]}
+          accessibilityRole="button"
+          accessibilityLabel={favorited ? 'Remove from favorites' : 'Add to favorites'}
+        >
+          <MaterialCommunityIcons
+            name={favorited ? 'heart' : 'heart-outline'}
+            size={20}
+            color={favorited ? FIG.orange : FIG.heart}
+          />
+        </Pressable>
       </View>
-    </Pressable>
-  );
+    );
+  };
 
   const headerTitle = menu?.restaurant_name?.trim() || 'Menu';
 
@@ -367,16 +421,29 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   dishCard: {
+    position: 'relative',
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     borderWidth: 1,
     borderColor: FIG.border,
+  },
+  dishCardHit: {
     paddingVertical: 12,
     paddingHorizontal: 12,
     paddingBottom: 12,
+    borderRadius: 16,
   },
   dishCardPressed: {
     opacity: 0.9,
+  },
+  dishHeartFab: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    padding: 4,
+  },
+  dishHeartFabPressed: {
+    opacity: 0.75,
   },
   dishRow: {
     flexDirection: 'row',
@@ -405,22 +472,15 @@ const styles = StyleSheet.create({
     minWidth: 0,
     gap: 4,
   },
-  dishTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
   dishName: {
-    flex: 1,
     fontSize: 15,
     lineHeight: 19,
     fontWeight: '700',
     letterSpacing: -0.234,
     color: FIG.text,
   },
-  heartIcon: {
-    marginTop: -1,
+  dishNameWithHeartPad: {
+    paddingRight: 36,
   },
   dishDesc: {
     fontSize: 13,

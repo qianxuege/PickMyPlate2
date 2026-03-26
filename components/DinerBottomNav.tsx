@@ -34,10 +34,12 @@ export function DinerBottomNav({ activeTab }: DinerBottomNavProps) {
     <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, Spacing.sm) }]}>
       {TABS.map((tab) => {
         const isActive = tab.key === activeTab;
+        const iconName =
+          tab.key === 'favorites' && isActive ? 'heart' : tab.icon;
         return (
           <Pressable key={tab.key} style={styles.tab} onPress={() => router.replace(tab.route)}>
             <MaterialCommunityIcons
-              name={tab.icon}
+              name={iconName}
               size={24}
               color={isActive ? accent : Colors.textSecondary}
             />

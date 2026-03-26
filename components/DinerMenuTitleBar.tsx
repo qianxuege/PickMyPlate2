@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { type Href, useRouter } from 'expo-router';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Spacing } from '@/constants/theme';
@@ -21,13 +21,11 @@ export function DinerMenuTitleBar({ title, scanId, restaurantName }: DinerMenuTi
 
   const onSearch = () => {
     if (!scanId?.trim()) return;
-    router.push({
-      pathname: '/diner-search',
-      params: {
-        scanId: scanId.trim(),
-        restaurantName: restaurantName?.trim() || title,
-      },
+    const q = new URLSearchParams({
+      scanId: scanId.trim(),
+      restaurantName: restaurantName?.trim() || title,
     });
+    router.push(`/diner-search?${q.toString()}` as Href);
   };
 
   const onBack = () => {
@@ -57,11 +55,14 @@ export function DinerMenuTitleBar({ title, scanId, restaurantName }: DinerMenuTi
         onPress={onSearch}
         style={({ pressed }) => [styles.circleBtn, pressed && styles.circleBtnPressed]}
         accessibilityRole="button"
-        accessibilityLabel="Search dishes in this menu"
-        accessibilityState={{ disabled: !scanId?.trim() }}
+        accessibilityLabel="Search"
         disabled={!scanId?.trim()}
       >
-        <MaterialCommunityIcons name="magnify" size={18} color={scanId?.trim() ? FG : '#9CA3AF'} />
+        <MaterialCommunityIcons
+          name="magnify"
+          size={18}
+          color={scanId?.trim() ? FG : `${FG}55`}
+        />
       </Pressable>
     </View>
   );

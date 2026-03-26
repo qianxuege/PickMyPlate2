@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -18,6 +19,7 @@ import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
 import { generateDishImage } from '@/lib/dish-image-api';
 import type { DinerPreferenceSnapshot } from '@/lib/diner-preferences';
 import { fetchDinerPreferences, spiceDbToLabel } from '@/lib/diner-preferences';
+import { isDishFavorited, toggleDishFavorite } from '@/lib/diner-favorites';
 import type { DinerScannedDishRow } from '@/lib/menu-scan-schema';
 import { supabase } from '@/lib/supabase';
 
@@ -319,6 +321,13 @@ export default function DishDetailScreen() {
           summary,
           description: typedRow.description,
         });
+
+        try {
+          const fav = await isDishFavorited(typedRow.id);
+          if (!cancelled) setFavorite(fav);
+        } catch {
+          if (!cancelled) setFavorite(false);
+        }
       } catch (e) {
         if (cancelled) return;
         setError(e instanceof Error ? e.message : 'Failed to load dish.');
@@ -450,7 +459,19 @@ export default function DishDetailScreen() {
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={favorite ? 'Remove from favorites' : 'Add to favorites'}
-                  onPress={() => setFavorite((prev) => !prev)}
+                  onPress={() => {
+                    void (async () => {
+                      try {
+                        const next = await toggleDishFavorite(detail.id);
+                        setFavorite(next);
+                      } catch (err) {
+                        Alert.alert(
+                          'Favorites',
+                          err instanceof Error ? err.message : 'Could not update favorite.'
+                        );
+                      }
+                    })();
+                  }}
                   style={({ pressed }) => [
                     styles.favoriteButton,
                     favorite && styles.favoriteButtonActive,

@@ -1,7 +1,9 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { DinerTabScreenLayout } from '@/components/DinerTabScreenLayout';
@@ -52,68 +54,63 @@ export default function DinerMenuScreen() {
   const [error, setError] = useState<string | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
-  useEffect(() => {
+  const loadMenu = useCallback(async () => {
     if (!scanId) return;
+    try {
+      setError(null);
+      setLoading(true);
 
-    let cancelled = false;
-    (async () => {
-      try {
-        setError(null);
-        setLoading(true);
+      const prefSnap = await fetchDinerPreferences();
 
-        const prefSnap = await fetchDinerPreferences();
+      const { data: scanRow, error: scanErr } = await supabase
+        .from('diner_menu_scans')
+        .select('restaurant_name')
+        .eq('id', scanId)
+        .maybeSingle();
+      if (scanErr) throw scanErr;
+      if (!scanRow) throw new Error('Scan not found');
 
-        const { data: scanRow, error: scanErr } = await supabase
-          .from('diner_menu_scans')
-          .select('restaurant_name')
-          .eq('id', scanId)
-          .maybeSingle();
-        if (scanErr) throw scanErr;
-        if (!scanRow) throw new Error('Scan not found');
+      const { data: sections, error: secErr } = await supabase
+        .from('diner_menu_sections')
+        .select('id, scan_id, title, sort_order')
+        .eq('scan_id', scanId)
+        .order('sort_order', { ascending: true });
+      if (secErr) throw secErr;
 
-        const { data: sections, error: secErr } = await supabase
-          .from('diner_menu_sections')
-          .select('id, scan_id, title, sort_order')
-          .eq('scan_id', scanId)
+      const sectionIds = (sections ?? []).map((s: DinerMenuSectionRow) => s.id);
+      let dishes: DinerScannedDishRow[] = [];
+      if (sectionIds.length > 0) {
+        const { data: dishRows, error: dishErr } = await supabase
+          .from('diner_scanned_dishes')
+          .select(
+            'id, section_id, sort_order, name, description, price_amount, price_currency, price_display, spice_level, tags, ingredients, image_url'
+          )
+          .in('section_id', sectionIds)
           .order('sort_order', { ascending: true });
-        if (secErr) throw secErr;
-
-        const sectionIds = (sections ?? []).map((s: DinerMenuSectionRow) => s.id);
-        let dishes: DinerScannedDishRow[] = [];
-        if (sectionIds.length > 0) {
-          const { data: dishRows, error: dishErr } = await supabase
-            .from('diner_scanned_dishes')
-            .select(
-              'id, section_id, sort_order, name, description, price_amount, price_currency, price_display, spice_level, tags, ingredients, image_url'
-            )
-            .in('section_id', sectionIds)
-            .order('sort_order', { ascending: true });
-          if (dishErr) throw dishErr;
-          dishes = (dishRows ?? []) as DinerScannedDishRow[];
-        }
-
-        const assembled = assembleParsedMenu(
-          scanRow.restaurant_name ?? null,
-          (sections ?? []) as DinerMenuSectionRow[],
-          dishes
-        );
-
-        if (cancelled) return;
-        setPrefs(prefSnap);
-        setMenu(assembled);
-      } catch (e) {
-        if (cancelled) return;
-        setError(e instanceof Error ? e.message : 'Failed to load menu');
-      } finally {
-        if (cancelled) return;
-        setLoading(false);
+        if (dishErr) throw dishErr;
+        dishes = (dishRows ?? []) as DinerScannedDishRow[];
       }
-    })();
 
-    return () => {
-      cancelled = true;
-    };
+      const assembled = assembleParsedMenu(
+        scanRow.restaurant_name ?? null,
+        (sections ?? []) as DinerMenuSectionRow[],
+        dishes
+      );
+
+      setPrefs(prefSnap);
+      setMenu(assembled);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load menu');
+    } finally {
+      setLoading(false);
+    }
   }, [scanId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadMenu();
+    }, [loadMenu])
+  );
 
   const availableTags = useMemo(() => {
     if (!prefs) return [];
@@ -241,16 +238,20 @@ export default function DinerMenuScreen() {
       style={({ pressed }) => [styles.dishCard, pressed && styles.dishCardPressed]}
     >
       <View style={styles.dishRow}>
-        <LinearGradient
-          colors={['#FFEDD4', '#FFF7ED']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.dishImageGradient}
-        >
-          <Text style={styles.dishEmoji} accessibilityLabel="Dish placeholder">
-            🍽️
-          </Text>
-        </LinearGradient>
+        {dish.image_url ? (
+          <Image source={{ uri: dish.image_url }} contentFit="cover" style={styles.dishImage} />
+        ) : (
+          <LinearGradient
+            colors={['#FFEDD4', '#FFF7ED']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.dishImageGradient}
+          >
+            <Text style={styles.dishEmoji} accessibilityLabel="Dish placeholder">
+              🍽️
+            </Text>
+          </LinearGradient>
+        )}
 
         <View style={styles.dishTextCol}>
           <View style={styles.dishTitleRow}>
@@ -478,6 +479,12 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  dishImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 14,
+    backgroundColor: '#F5F5F5',
   },
   dishEmoji: {
     fontSize: 24,

@@ -51,6 +51,8 @@ export type ParsedMenuItem = {
   tags: string[];
   /** Key ingredients (Diner Dish Details); empty array if unknown */
   ingredients: string[];
+  /** Saved public URL for real or generated dish image */
+  image_url?: string | null;
 };
 
 export type ParsedMenuSection = {
@@ -146,6 +148,7 @@ function parseItem(raw: unknown): ParsedMenuItem | null {
     spice_level: o.spice_level,
     tags: o.tags as string[],
     ingredients,
+    image_url: null,
   };
 }
 
@@ -227,6 +230,7 @@ export function dishRowToParsedItem(row: DinerScannedDishRow): ParsedMenuItem {
     spice_level: normalizeSpiceLevel(row.spice_level),
     tags: Array.isArray(row.tags) ? row.tags : [],
     ingredients: Array.isArray(row.ingredients) ? row.ingredients : [],
+    image_url: typeof row.image_url === 'string' ? row.image_url : null,
   };
 }
 

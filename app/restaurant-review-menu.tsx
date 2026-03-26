@@ -129,9 +129,10 @@ export default function RestaurantReviewMenuScreen() {
       Alert.alert('Publish failed', res.error);
       return;
     }
-    Alert.alert('Menu published!', 'Your menu is now live for customers.', [{ text: 'OK' }]);
-    void load();
-  }, [scanId, load]);
+    Alert.alert('Menu published!', 'Your menu is now live for customers.', [
+      { text: 'OK', onPress: () => router.replace('/restaurant-home') },
+    ]);
+  }, [scanId, router]);
 
   const onPublish = useCallback(() => {
     if (!scanId) return;

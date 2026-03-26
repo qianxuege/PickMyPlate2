@@ -168,8 +168,10 @@ export default function RestaurantHighlightScreen() {
                   <Text style={styles.rowPrice}>{priceLabel(d)}</Text>
                   <View style={styles.switchRow}>
                     <View style={styles.switchCell}>
-                      <MaterialCommunityIcons name="star-outline" size={18} color={RestaurantUiInspect.accent} />
-                      <Text style={styles.switchLabel}>Featured</Text>
+                      <View style={styles.switchLabelRow}>
+                        <MaterialCommunityIcons name="star-outline" size={18} color={RestaurantUiInspect.accent} />
+                        <Text style={styles.switchLabel} numberOfLines={1}>Featured</Text>
+                      </View>
                       <Switch
                         value={d.is_featured}
                         onValueChange={(v) => void onToggle(d.id, 'is_featured', v)}
@@ -178,7 +180,9 @@ export default function RestaurantHighlightScreen() {
                       />
                     </View>
                     <View style={styles.switchCell}>
-                      <Text style={styles.switchLabel}>New</Text>
+                      <View style={styles.switchLabelRow}>
+                        <Text style={styles.switchLabel} numberOfLines={1}>New</Text>
+                      </View>
                       <Switch
                         value={d.is_new}
                         onValueChange={(v) => void onToggle(d.id, 'is_new', v)}
@@ -313,20 +317,25 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   switchRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.md,
+    flexDirection: 'column',
+    gap: Spacing.sm,
     marginTop: Spacing.sm,
   },
   switchCell: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  switchLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 6,
-    minWidth: 140,
+    minWidth: 0,
   },
   switchLabel: {
     ...Typography.caption,
     color: RestaurantUiInspect.sub,
-    flex: 1,
+    flexShrink: 1,
   },
 });

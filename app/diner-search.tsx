@@ -1,7 +1,7 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { type Href, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DinerSearchChrome, DinerSearchFooter, DS } from '@/components/diner-search-ui';
@@ -94,24 +94,22 @@ export default function DinerSearchScreen() {
 
   if (!scanId) {
     return (
-      <View style={[styles.screen, { paddingTop: insets.top + Spacing.xs }]}>
-        <View style={styles.hPad}>
-          <DinerSearchChrome query={query} onChangeQuery={setQuery} onSubmitSearch={onSubmitSearch} />
-          <Text style={styles.emptyHint}>Open search from a menu scan to find dishes.</Text>
+      <View style={styles.shell}>
+        <View style={styles.panel}>
+          <View style={[styles.hPad, { paddingTop: insets.top + Spacing.xs }]}>
+            <DinerSearchChrome query={query} onChangeQuery={setQuery} onSubmitSearch={onSubmitSearch} />
+            <Text style={styles.emptyHint}>Open search from a menu scan to find dishes.</Text>
+          </View>
+          <View style={styles.flex} />
+          <DinerSearchFooter onBackToMenu={goBackToMenu} bottomInset={insets.bottom} />
         </View>
-        <View style={styles.flex} />
-        <DinerSearchFooter onBackToMenu={goBackToMenu} bottomInset={insets.bottom} />
       </View>
     );
   }
 
   return (
-    <View style={styles.screen}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={insets.top}
-      >
+    <View style={styles.shell}>
+      <View style={styles.panel}>
         <ScrollView
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + Spacing.xs }]}
@@ -134,18 +132,23 @@ export default function DinerSearchScreen() {
           </View>
         </ScrollView>
         <DinerSearchFooter onBackToMenu={goBackToMenu} bottomInset={insets.bottom} />
-      </KeyboardAvoidingView>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
+  shell: {
     flex: 1,
+    backgroundColor: DS.shellBg,
+  },
+  panel: {
+    flex: 1,
+    width: '100%',
     backgroundColor: DS.screenBg,
   },
   flex: { flex: 1 },
-  hPad: { paddingHorizontal: Spacing.base },
+  hPad: { paddingHorizontal: 24 },
   scrollContent: {
     paddingBottom: Spacing.md,
   },
@@ -155,7 +158,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: DS.text,
     marginTop: DS.sectionGap,
-    marginBottom: DS.sectionGap,
+    marginBottom: 12,
   },
   /** Figma: each recent in its own rounded border (“brackets”) */
   recentBracket: {
@@ -165,7 +168,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     paddingVertical: 14,
     paddingHorizontal: Spacing.base,
-    marginBottom: DS.sectionGap,
+    marginBottom: 8,
   },
   recentBracketPressed: { opacity: 0.96 },
   recentBracketText: {

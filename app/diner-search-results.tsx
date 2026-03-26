@@ -8,8 +8,6 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -297,11 +295,7 @@ export default function DinerSearchResultsScreen() {
 
   return (
     <View style={styles.screen}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={insets.top}
-      >
+      <View style={styles.panel}>
         <View style={[styles.topBlock, { paddingTop: insets.top + Spacing.xs }]}>
           <View style={styles.hPad}>
             <DinerSearchChrome
@@ -350,7 +344,7 @@ export default function DinerSearchResultsScreen() {
         )}
 
         <DinerSearchFooter onBackToMenu={goBackToMenu} bottomInset={insets.bottom} />
-      </KeyboardAvoidingView>
+      </View>
     </View>
   );
 }
@@ -358,12 +352,17 @@ export default function DinerSearchResultsScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
+    backgroundColor: DS.shellBg,
+  },
+  panel: {
+    flex: 1,
+    width: '100%',
     backgroundColor: DS.screenBg,
   },
   flex: { flex: 1 },
-  hPad: { paddingHorizontal: Spacing.base },
+  hPad: { paddingHorizontal: 24 },
   topBlock: {
-    paddingBottom: Spacing.sm,
+    paddingBottom: 12,
     backgroundColor: DS.screenBg,
   },
   listWrap: {

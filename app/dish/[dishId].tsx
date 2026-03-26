@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { dinerRoleTheme } from '@/constants/role-theme';
 import { BorderRadius, Colors, Typography } from '@/constants/theme';
 import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
+import { generateDishImage } from '@/lib/dish-image-api';
 import type { DinerPreferenceSnapshot } from '@/lib/diner-preferences';
 import { fetchDinerPreferences, spiceDbToLabel } from '@/lib/diner-preferences';
 import type { DinerScannedDishRow } from '@/lib/menu-scan-schema';
@@ -222,6 +223,8 @@ export default function DishDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [favorite, setFavorite] = useState(false);
+  const [imageLoading, setImageLoading] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -299,6 +302,8 @@ export default function DishDetailScreen() {
         if (cancelled) return;
 
         setPrefs(prefSnap);
+        setImageLoading(false);
+        setImageError(null);
         setDetail({
           id: typedRow.id,
           restaurantName,
@@ -331,6 +336,20 @@ export default function DishDetailScreen() {
     if (!detail) return [];
     return buildWhyThisMatchesYou(detail, prefs);
   }, [detail, prefs]);
+
+  const onGenerateImage = async () => {
+    if (!detail || detail.imageUrl || imageLoading) return;
+
+    setImageError(null);
+    setImageLoading(true);
+    const result = await generateDishImage(detail.id);
+    if (result.ok) {
+      setDetail((prev) => (prev ? { ...prev, imageUrl: result.imageUrl } : prev));
+    } else {
+      setImageError('Unable to generate AI image right now.');
+    }
+    setImageLoading(false);
+  };
 
   const paddedTop = insets.top + 10;
 
@@ -381,12 +400,46 @@ export default function DishDetailScreen() {
               />
             ) : (
               <View style={styles.heroPlaceholder}>
-                <MaterialCommunityIcons name="silverware-fork-knife" size={36} color={FIG.muted} />
-                <Text style={styles.heroPlaceholderText}>Dish image not available</Text>
+                {imageLoading ? (
+                  <>
+                    <ActivityIndicator color={dinerRoleTheme.primary} />
+                    <Text style={styles.heroPlaceholderText}>Generating dish preview…</Text>
+                  </>
+                ) : (
+                  <>
+                    <MaterialCommunityIcons name="silverware-fork-knife" size={36} color={FIG.muted} />
+                    <Text style={styles.heroPlaceholderText}>Dish image not available</Text>
+                  </>
+                )}
               </View>
             )}
 
             <View style={styles.contentCard}>
+              {!detail.imageUrl && (
+                <View style={styles.imageActionBlock}>
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={imageLoading}
+                    onPress={() => void onGenerateImage()}
+                    style={({ pressed }) => [
+                      styles.aiImageButton,
+                      imageLoading && styles.aiImageButtonDisabled,
+                      pressed && !imageLoading && styles.aiImageButtonPressed,
+                    ]}
+                  >
+                    {imageLoading ? (
+                      <View style={styles.aiImageButtonLoading}>
+                        <ActivityIndicator color={Colors.white} />
+                        <Text style={styles.aiImageButtonText}>Generating...</Text>
+                      </View>
+                    ) : (
+                      <Text style={styles.aiImageButtonText}>View AI Image</Text>
+                    )}
+                  </Pressable>
+                  {imageError ? <Text style={styles.imageErrorText}>{imageError}</Text> : null}
+                </View>
+              )}
+
               <View style={styles.titleRow}>
                 <View style={styles.titleCol}>
                   <Text style={styles.dishName}>{detail.name}</Text>
@@ -577,6 +630,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 22,
     gap: 20,
+  },
+  imageActionBlock: {
+    gap: 10,
+  },
+  aiImageButton: {
+    height: 48,
+    borderRadius: BorderRadius.base,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: dinerRoleTheme.primary,
+    paddingHorizontal: 16,
+  },
+  aiImageButtonPressed: {
+    opacity: 0.92,
+  },
+  aiImageButtonDisabled: {
+    opacity: 0.7,
+  },
+  aiImageButtonText: {
+    ...Typography.button,
+    color: Colors.white,
+  },
+  aiImageButtonLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  imageErrorText: {
+    ...Typography.caption,
+    color: Colors.error,
   },
   titleRow: {
     flexDirection: 'row',

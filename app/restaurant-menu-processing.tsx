@@ -1,4 +1,3 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, Easing, StyleSheet, Text, View } from 'react-native';
@@ -18,6 +17,8 @@ import { readPendingRestaurantMenuScan, clearPendingRestaurantMenuScan } from '@
 import { MENU_UPLOAD_BUCKET } from '@/lib/upload-menu-image';
 
 const STATUS_MESSAGES = ['Reading menu…', 'Extracting items…', 'Reading prices…', 'Almost done…'];
+
+const t = restaurantRoleTheme;
 
 export default function RestaurantMenuProcessingScreen() {
   useGuardActiveRole('restaurant');
@@ -75,8 +76,6 @@ export default function RestaurantMenuProcessingScreen() {
 
   const bucket = resolvedBucket;
   const storagePath = resolvedPath;
-
-  const t = restaurantRoleTheme;
   const [statusIndex, setStatusIndex] = useState(0);
   const progressAnim = useRef(new Animated.Value(0.08)).current;
 
@@ -219,14 +218,7 @@ export default function RestaurantMenuProcessingScreen() {
               }),
             },
           ]}
-        >
-          <LinearGradient
-            colors={[t.primaryDark, t.primaryDark, t.primary, t.primary, t.primaryLight]}
-            start={{ x: 0, y: 0.5 }}
-            end={{ x: 1, y: 0.5 }}
-            style={styles.progressGradient}
-          />
-        </Animated.View>
+        />
       </View>
 
       <Text style={[styles.status, { color: t.primary }]}>{statusLabel}</Text>
@@ -259,10 +251,7 @@ const styles = StyleSheet.create({
   progressFill: {
     height: '100%',
     borderRadius: 9999,
-  },
-  progressGradient: {
-    width: '100%',
-    height: '100%',
+    backgroundColor: t.primary,
   },
   title: {
     fontSize: 28,

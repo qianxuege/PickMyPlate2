@@ -21,6 +21,8 @@ export type RestaurantMenuDishRow = {
   ingredients: string[];
   image_url: string | null;
   needs_review: boolean;
+  is_featured: boolean;
+  is_new: boolean;
 };
 
 export type FetchRestaurantMenuForScanResult =
@@ -62,16 +64,21 @@ export async function fetchRestaurantMenuForScan(scanId: string): Promise<FetchR
       const { data: dishRows, error: dishErr } = await supabase
         .from('restaurant_menu_dishes')
         .select(
-          'id, section_id, sort_order, name, description, price_amount, price_currency, price_display, spice_level, tags, ingredients, image_url, needs_review',
+          'id, section_id, sort_order, name, description, price_amount, price_currency, price_display, spice_level, tags, ingredients, image_url, needs_review, is_featured, is_new',
         )
         .in('section_id', sectionIds)
         .order('sort_order', { ascending: true });
 
       if (dishErr) return { ok: false, error: dishErr.message };
-      dishes = (dishRows ?? []).map((d) => ({
-        ...(d as any),
-        spice_level: coerceSpiceLevel((d as any).spice_level),
-      })) as RestaurantMenuDishRow[];
+      dishes = (dishRows ?? []).map((d) => {
+        const row = d as Record<string, unknown>;
+        return {
+          ...(d as object),
+          spice_level: coerceSpiceLevel(row.spice_level),
+          is_featured: Boolean(row.is_featured),
+          is_new: Boolean(row.is_new),
+        } as RestaurantMenuDishRow;
+      });
     }
 
     return {

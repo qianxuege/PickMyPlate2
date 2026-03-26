@@ -37,6 +37,8 @@ export async function createRestaurantDishDraft(input: CreateRestaurantDishDraft
       ingredients: [],
       image_url: null,
       needs_review: true,
+      is_featured: false,
+      is_new: false,
     })
     .select('id')
     .single();
@@ -95,6 +97,20 @@ export async function saveRestaurantDish(input: SaveRestaurantDishInput): Promis
   if (input.touchScan ?? true) {
     await touchRestaurantMenuScan(input.scanId);
   }
+  return { ok: true };
+}
+
+export async function updateRestaurantDishHighlightFlags(
+  dishId: string,
+  flags: { is_featured?: boolean; is_new?: boolean },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const patch: Record<string, boolean> = {};
+  if (typeof flags.is_featured === 'boolean') patch.is_featured = flags.is_featured;
+  if (typeof flags.is_new === 'boolean') patch.is_new = flags.is_new;
+  if (Object.keys(patch).length === 0) return { ok: true };
+
+  const { error } = await supabase.from('restaurant_menu_dishes').update(patch).eq('id', dishId);
+  if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
 

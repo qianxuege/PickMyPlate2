@@ -14,7 +14,7 @@ type DinerTabScreenLayoutProps = {
   activeTab: DinerTab;
   children: React.ReactNode;
   /** Figma diner menu: back + centered title + search; replaces mode badge header */
-  menuHeader?: { title: string };
+  menuHeader?: { title: string; scanId?: string; restaurantName?: string };
   /** Figma Diner Favorites: full-width banner instead of role header */
   headerBanner?: { title: string; backgroundColor: string };
   refreshControl?: ReactElement<ComponentProps<typeof RefreshControl>>;
@@ -46,7 +46,11 @@ export function DinerTabScreenLayout({
         ]}
       >
         {menuHeader ? (
-          <DinerMenuTitleBar title={menuHeader.title} />
+          <DinerMenuTitleBar
+            title={menuHeader.title}
+            scanId={menuHeader.scanId}
+            restaurantName={menuHeader.restaurantName}
+          />
         ) : headerBanner ? (
           <View style={[styles.bannerStrip, { backgroundColor: headerBanner.backgroundColor }]}>
             <Text style={styles.bannerTitle}>{headerBanner.title}</Text>

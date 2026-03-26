@@ -34,6 +34,7 @@ export default function RootLayout() {
       <Stack.Screen name="restaurant-edit-dish/[dishId]" options={noSwipeOptions} />
       <Stack.Screen name="restaurant-highlight" options={noSwipeOptions} />
       <Stack.Screen name="restaurant-dish/[dishId]" options={noSwipeOptions} />
+      <Stack.Screen name="restaurant-owner-dish/[dishId]" options={noSwipeOptions} />
       <Stack.Screen name="restaurant-profile" options={noSwipeOptions} />
     </Stack>
     </RoleSwitchToastProvider>

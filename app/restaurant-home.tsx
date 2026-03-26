@@ -2,7 +2,6 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import * as FileSystem from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -13,6 +12,7 @@ import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
 import { fetchRestaurantRecentUploads, type RestaurantMenuScanListRow } from '@/lib/restaurant-menu-scans';
 import { formatScannedAtPast } from '@/lib/format-scan-time';
+import { createBlankRestaurantMenu } from '@/lib/restaurant-create-blank-menu';
 import { writePendingRestaurantMenuScan } from '@/lib/pending-restaurant-menu-scan';
 import { supabase } from '@/lib/supabase';
 import { MenuUploadError, uploadMenuImageFromUri } from '@/lib/upload-menu-image';
@@ -132,6 +132,23 @@ export default function RestaurantHomeScreen() {
     [busy, resolveFileSize, router],
   );
 
+  const createBlank = useCallback(async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const result = await createBlankRestaurantMenu();
+      if (!result.ok) {
+        Alert.alert('Could not create menu', result.error);
+        return;
+      }
+      router.push({ pathname: '/restaurant-review-menu', params: { scanId: result.scanId } });
+    } catch (e) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'Something went wrong.');
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, router]);
+
   const cardShadow = Platform.select({
     ios: {
       shadowColor: '#E5E7EB',
@@ -145,8 +162,8 @@ export default function RestaurantHomeScreen() {
 
   return (
     <RestaurantTabScreenLayout activeTab="home">
-      <Text style={styles.title}>Upload your menu</Text>
-      <Text style={styles.subtitle}>{"We'll turn it into a digital menu automatically"}</Text>
+      <Text style={styles.title}>Create your menu</Text>
+      <Text style={styles.subtitle}>Scan a photo or start from scratch</Text>
 
       <View style={[styles.card, { borderColor: t.cardAccentBorder }, cardShadow]}>
         <Pressable
@@ -155,14 +172,9 @@ export default function RestaurantHomeScreen() {
           onPress={() => void startScan('camera')}
           style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
         >
-          <LinearGradient
-            colors={[t.primaryDark, t.primary, t.primaryLight]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.iconGradient}
-          >
+          <View style={styles.iconBox}>
             <MaterialCommunityIcons name="camera-outline" size={24} color={Colors.white} />
-          </LinearGradient>
+          </View>
           <View style={styles.rowText}>
             <Text style={styles.rowTitle}>Take photo</Text>
             <Text style={styles.rowSubtitle}>Scan your menu</Text>
@@ -182,17 +194,34 @@ export default function RestaurantHomeScreen() {
           onPress={() => void startScan('library')}
           style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
         >
-          <LinearGradient
-            colors={[t.primaryDark, t.primary, t.primaryLight]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.iconGradient}
-          >
+          <View style={styles.iconBox}>
             <MaterialCommunityIcons name="image-outline" size={24} color={Colors.white} />
-          </LinearGradient>
+          </View>
           <View style={styles.rowText}>
             <Text style={styles.rowTitle}>Upload menu</Text>
             <Text style={styles.rowSubtitle}>Choose an image</Text>
+          </View>
+          {busy ? (
+            <ActivityIndicator color={t.primaryDark} />
+          ) : (
+            <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.textSecondary} />
+          )}
+        </Pressable>
+
+        <View style={styles.divider} />
+
+        <Pressable
+          accessibilityRole="button"
+          disabled={busy}
+          onPress={() => void createBlank()}
+          style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+        >
+          <View style={styles.iconBox}>
+            <MaterialCommunityIcons name="text-box-plus-outline" size={24} color={Colors.white} />
+          </View>
+          <View style={styles.rowText}>
+            <Text style={styles.rowTitle}>Create blank menu</Text>
+            <Text style={styles.rowSubtitle}>Start with an empty menu</Text>
           </View>
           {busy ? (
             <ActivityIndicator color={t.primaryDark} />
@@ -269,12 +298,13 @@ const styles = StyleSheet.create({
   rowPressed: {
     opacity: 0.85,
   },
-  iconGradient: {
+  iconBox: {
     width: 48,
     height: 48,
     borderRadius: BorderRadius.base,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: t.primary,
   },
   rowText: {
     flex: 1,

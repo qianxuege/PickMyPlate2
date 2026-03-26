@@ -1,5 +1,4 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Image } from 'expo-image';
@@ -49,8 +48,6 @@ const footerShadow = Platform.select({
   android: { elevation: 12 },
   default: {},
 });
-
-const publishGradientColors = ['#047857', '#059669', '#10B981', '#34D399'] as const;
 
 function titleize(s: string): string {
   return s
@@ -132,8 +129,9 @@ export default function RestaurantReviewMenuScreen() {
       Alert.alert('Publish failed', res.error);
       return;
     }
-    router.replace({ pathname: '/restaurant-menu', params: { published: '1' } });
-  }, [router, scanId]);
+    Alert.alert('Menu published!', 'Your menu is now live for customers.', [{ text: 'OK' }]);
+    void load();
+  }, [scanId, load]);
 
   const onPublish = useCallback(() => {
     if (!scanId) return;
@@ -339,22 +337,15 @@ export default function RestaurantReviewMenuScreen() {
               </Text>
             </View>
             <View style={styles.progressTrack}>
-              <LinearGradient
-                colors={[...publishGradientColors]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={[styles.progressFill, { width: `${Math.round(reviewProgress * 100)}%` }]}
-              />
+              <View style={[styles.progressFill, { width: `${Math.round(reviewProgress * 100)}%` }]} />
             </View>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Publish Menu"
               onPress={() => void onPublish()}
-              style={({ pressed }) => [styles.publishWrap, pressed && { opacity: 0.92 }]}
+              style={({ pressed }) => [styles.publishBtn, pressed && { opacity: 0.92 }]}
             >
-              <LinearGradient colors={[...publishGradientColors]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.publishGradient}>
-                <Text style={styles.publishBtnText}>Publish Menu</Text>
-              </LinearGradient>
+              <Text style={styles.publishBtnText}>Publish Menu</Text>
             </Pressable>
           </View>
         </>
@@ -745,10 +736,14 @@ const styles = StyleSheet.create({
   progressFill: {
     height: 2,
     borderRadius: 9999,
+    backgroundColor: t.primary,
   },
-  publishWrap: {
+  publishBtn: {
+    height: 46,
     borderRadius: 14,
-    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: t.primary,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -759,12 +754,6 @@ const styles = StyleSheet.create({
       android: { elevation: 4 },
       default: {},
     }),
-  },
-  publishGradient: {
-    height: 46,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   publishBtnText: {
     fontSize: 15,

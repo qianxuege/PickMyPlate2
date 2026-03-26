@@ -102,3 +102,39 @@ def download_storage_object(bucket: str, path: str) -> bytes:
             "The object may be empty or the path may be wrong."
         )
     return raw
+
+
+def storage_object_exists(bucket: str, path: str) -> bool:
+    try:
+        download_storage_object(bucket, path)
+        return True
+    except RuntimeError as exc:
+        if "Storage 404" in str(exc):
+            return False
+        raise
+
+
+def upload_storage_object(
+    bucket: str,
+    path: str,
+    data: bytes,
+    *,
+    content_type: str,
+    upsert: bool = True,
+) -> str:
+    client = get_supabase_admin()
+    try:
+        client.storage.from_(bucket).upload(
+            path,
+            data,
+            {
+                "content-type": content_type,
+                "x-upsert": "true" if upsert else "false",
+            },
+        )
+    except Exception as e:
+        detail = _exception_detail(e)
+        raise RuntimeError(
+            f"Storage upload failed (bucket={bucket!r}, path={path!r}): {detail}"
+        ) from e
+    return client.storage.from_(bucket).get_public_url(path)

@@ -1,4 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -241,16 +242,20 @@ export default function DinerMenuScreen() {
       style={({ pressed }) => [styles.dishCard, pressed && styles.dishCardPressed]}
     >
       <View style={styles.dishRow}>
-        <LinearGradient
-          colors={['#FFEDD4', '#FFF7ED']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.dishImageGradient}
-        >
-          <Text style={styles.dishEmoji} accessibilityLabel="Dish placeholder">
-            🍽️
-          </Text>
-        </LinearGradient>
+        {dish.image_url ? (
+          <Image source={{ uri: dish.image_url }} contentFit="cover" style={styles.dishImage} />
+        ) : (
+          <LinearGradient
+            colors={['#FFEDD4', '#FFF7ED']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.dishImageGradient}
+          >
+            <Text style={styles.dishEmoji} accessibilityLabel="Dish placeholder">
+              🍽️
+            </Text>
+          </LinearGradient>
+        )}
 
         <View style={styles.dishTextCol}>
           <View style={styles.dishTitleRow}>
@@ -478,6 +483,12 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  dishImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 14,
+    backgroundColor: '#F5F5F5',
   },
   dishEmoji: {
     fontSize: 24,

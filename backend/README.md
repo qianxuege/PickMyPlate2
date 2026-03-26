@@ -66,6 +66,7 @@ Defaults: `http://0.0.0.0:8080`, `FLASK_DEBUG=1`.
 | ------ | ---- | ----------- |
 | GET | `/health` | `{ "status": "ok" }` |
 | POST | `/v1/parse-menu` | See `app.py` docstring; `MOCK_MENU_PARSE=1` → mock menu; `MOCK_MENU_PARSE=0` → download → OCR → Gemini → `{ ok, menu }` |
+| POST | `/v1/dishes/<dish_id>/generate-image` | Generate and persist a dish preview image if `image_url` is empty |
 
 ## Environment
 
@@ -80,3 +81,23 @@ Defaults: `http://0.0.0.0:8080`, `FLASK_DEBUG=1`.
 | `FLASK_DEBUG` | `1`: print Storage ref + OCR text + **each Gemini raw/parsed response** + **final ParsedMenu after tag allowlist** to stderr on each parse (`MOCK_MENU_PARSE=0`). |
 | `SUPABASE_JWT_SECRET` + `REQUIRE_AUTH=1` | Optional Bearer JWT verification on `/v1/parse-menu` |
 | `CORS_ORIGINS` | Default `*`; set to your Expo web origin in production |
+| `VERTEX_IMAGE_MODEL` | Optional; default `imagen-3.0-fast-generate-001` |
+| `DISH_IMAGES_BUCKET` | Optional; default `dish-images` |
+
+## Dish image generation (US3)
+
+Endpoint:
+
+- `POST /v1/dishes/<dish_id>/generate-image`
+
+Behavior:
+
+- Returns the existing `image_url` if the dish already has one
+- Otherwise generates a dish preview image from dish metadata
+- Uploads the generated image to Supabase Storage
+- Saves the public URL back to `diner_scanned_dishes.image_url`
+- Uses Vertex AI Imagen with the existing `GOOGLE_APPLICATION_CREDENTIALS`, `GCP_PROJECT`, and `VERTEX_LOCATION`
+
+The default storage path is:
+
+- `dish-images/<dish_id>.png`

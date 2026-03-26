@@ -16,7 +16,7 @@ export default function ForgotPasswordScreen() {
       <View style={{ height: insets.top + 36 }} />
       <Text style={styles.heading}>Forgot password?</Text>
       <Text style={styles.subtitle}>
-        Enter your email and we'll send you a link to reset your password.
+        {"Enter your email and we'll send you a link to reset your password."}
       </Text>
       <PrimaryButton text="Back to Login" onPress={() => router.back()} />
     </ScreenContainer>

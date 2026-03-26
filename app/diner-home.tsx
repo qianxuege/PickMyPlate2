@@ -233,6 +233,29 @@ export default function DinerHomeScreen() {
             <MaterialCommunityIcons name="chevron-right" size={20} color={FIG.chevron} />
           )}
         </Pressable>
+
+        <View style={styles.divider} />
+
+        <Pressable
+          accessibilityRole="button"
+          disabled={busy}
+          onPress={() => router.push('/diner-partner-qr-scan')}
+          style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+        >
+          <LinearGradient
+            colors={[FIG.orangeStart, '#FF6732', '#FF632E', '#FF5F2A', '#FF5B26', FIG.orangeEnd]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.iconGradient}
+          >
+            <MaterialCommunityIcons name="qrcode-scan" size={24} color={Colors.white} />
+          </LinearGradient>
+          <View style={styles.rowText}>
+            <Text style={styles.rowTitle}>Scan Partner QR</Text>
+            <Text style={styles.rowSubtitle}>Open restaurant digital menu instantly</Text>
+          </View>
+          <MaterialCommunityIcons name="chevron-right" size={20} color={FIG.chevron} />
+        </Pressable>
       </View>
 
       <Text style={styles.sectionTitle}>Recent scans</Text>

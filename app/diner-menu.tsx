@@ -190,6 +190,11 @@ export default function DinerMenuScreen() {
 
   const DishCard = ({ dish }: { dish: ParsedMenuItem }) => {
     const favorited = favoriteIds.has(dish.id);
+    const normalizedPartnerTags = dish.tags
+      .map((t) => t.trim().toLowerCase())
+      .map((t) => (t === "chef's recommendation" ? 'featured' : t))
+      .filter((t) => t === 'new' || t === 'popular' || t === 'featured');
+    const partnerTags = Array.from(new Set(normalizedPartnerTags));
     return (
       <View style={styles.dishCard}>
         <Pressable
@@ -234,6 +239,28 @@ export default function DinerMenuScreen() {
               ) : (
                 <View style={styles.dishDescSpacer} />
               )}
+
+              {partnerTags.length > 0 ? (
+                <View style={styles.partnerTagRow}>
+                  {partnerTags.map((tag) => (
+                    <View
+                      key={`${dish.id}-${tag}`}
+                      style={[
+                        styles.partnerTagChip,
+                        tag === 'new'
+                          ? styles.partnerTagNew
+                          : tag === 'popular'
+                            ? styles.partnerTagPopular
+                            : styles.partnerTagChef,
+                      ]}
+                    >
+                      <Text style={styles.partnerTagText}>
+                        {tag === 'featured' ? 'Featured' : tag.charAt(0).toUpperCase() + tag.slice(1)}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
 
               <View style={styles.dishBottomRow}>
                 <Text style={styles.dishPrice}>{formatPrice(dish)}</Text>
@@ -490,6 +517,32 @@ const styles = StyleSheet.create({
   },
   dishDescSpacer: {
     minHeight: 18,
+  },
+  partnerTagRow: {
+    flexDirection: 'row',
+    gap: 6,
+    flexWrap: 'wrap',
+    marginTop: 2,
+  },
+  partnerTagChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
+  partnerTagNew: {
+    backgroundColor: '#E0F2FE',
+  },
+  partnerTagPopular: {
+    backgroundColor: '#FEF3C7',
+  },
+  partnerTagChef: {
+    backgroundColor: '#FFE4D6',
+  },
+  partnerTagText: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: '700',
+    color: '#1F2937',
   },
   dishBottomRow: {
     flexDirection: 'row',

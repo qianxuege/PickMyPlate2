@@ -12,6 +12,8 @@ type DinerTab = 'home' | 'menu' | 'favorites' | 'profile';
 
 type DinerTabScreenLayoutProps = {
   activeTab: DinerTab;
+  /** US7: dark bottom bar + orange active (Figma restaurant highlight diner view) */
+  bottomNavVariant?: 'light' | 'dark';
   children: React.ReactNode;
   /** Figma diner menu: back + centered title + search; replaces mode badge header */
   menuHeader?: { title: string; scanId?: string; restaurantName?: string };
@@ -22,6 +24,7 @@ type DinerTabScreenLayoutProps = {
 
 export function DinerTabScreenLayout({
   activeTab,
+  bottomNavVariant = 'light',
   children,
   menuHeader,
   headerBanner,
@@ -75,7 +78,7 @@ export function DinerTabScreenLayout({
           {children}
         </ScrollView>
       </KeyboardAvoidingView>
-      <DinerBottomNav activeTab={activeTab} />
+      <DinerBottomNav activeTab={activeTab} variant={bottomNavVariant} />
     </View>
   );
 }

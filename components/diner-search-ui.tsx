@@ -5,22 +5,19 @@ import { Spacing, Typography } from '@/constants/theme';
 
 /** Figma: Raw Wireframes — Diner Search / Diner Search Results (nodes 43-779, 43-813) */
 export const DS = {
+  shellBg: '#FFFFFF',
   screenBg: '#FFFFFF',
-  /** Slightly softer strip behind results (wireframe vs white header) */
-  listBg: '#F2F4F7',
+  listBg: '#FFFFFF',
   text: '#101828',
   subtext: '#6A7282',
   muted: '#99A1AF',
-  /** Yellow highlight behind “Search” only (node 43-779 / 43-813) */
-  highlightBg: '#FDE047',
   orange: '#FF6B35',
   border: '#E5E7EB',
   inputBorder: '#D1D5DC',
   bodyMuted: '#4A5565',
   heart: '#99A1AF',
   flameOff: '#D1D5DC',
-  /** Inspect: ~10px vertical rhythm between stacked blocks */
-  sectionGap: 10,
+  sectionGap: 8,
 } as const;
 
 type DinerSearchChromeProps = {
@@ -34,12 +31,7 @@ export function DinerSearchChrome({ query, onChangeQuery, onSubmitSearch }: Dine
   return (
     <>
       <View style={chromeStyles.titleCenterWrap}>
-        <View style={chromeStyles.titleRow}>
-          <View style={chromeStyles.searchHighlight}>
-            <Text style={chromeStyles.searchHighlightText}>Search</Text>
-          </View>
-          <Text style={chromeStyles.dishesText}>Dishes</Text>
-        </View>
+        <Text style={chromeStyles.titleText}>Search Dishes</Text>
       </View>
       <Text style={chromeStyles.subtitle}>Find your perfect meal</Text>
 
@@ -100,38 +92,13 @@ const chromeStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
+    marginTop: 48,
   },
-  /** Single horizontal line, centered as a unit (Figma headline). */
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexWrap: 'wrap',
-    maxWidth: '100%',
-  },
-  searchHighlight: {
-    backgroundColor: DS.highlightBg,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 6,
-    justifyContent: 'center',
-  },
-  searchHighlightText: {
-    fontSize: 34,
+  titleText: {
+    fontSize: 32,
     lineHeight: 40,
-    fontWeight: '800',
-    letterSpacing: -0.85,
-    color: DS.text,
-    ...Platform.select({
-      android: { includeFontPadding: false },
-    }),
-  },
-  dishesText: {
-    marginLeft: 8,
-    fontSize: 34,
-    lineHeight: 40,
-    fontWeight: '800',
-    letterSpacing: -0.85,
+    fontWeight: '700',
+    letterSpacing: -0.5,
     color: DS.text,
     ...Platform.select({
       android: { includeFontPadding: false },
@@ -143,14 +110,14 @@ const chromeStyles = StyleSheet.create({
     fontWeight: '400',
     color: DS.subtext,
     textAlign: 'center',
-    marginBottom: DS.sectionGap,
+    marginBottom: 24,
   },
   /** Figma wireframe: pill-shaped search bar, light grey stroke */
   searchFieldWrap: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: DS.inputBorder,
+    borderColor: DS.orange,
     borderRadius: 9999,
     backgroundColor: '#FFFFFF',
     paddingHorizontal: Spacing.base,
@@ -167,8 +134,8 @@ const chromeStyles = StyleSheet.create({
   },
   clearBtn: { padding: 6 },
   footerPad: {
-    paddingHorizontal: Spacing.base,
-    paddingTop: Spacing.sm,
+    paddingHorizontal: 24,
+    paddingTop: 24,
     backgroundColor: DS.screenBg,
   },
   footerRule: {

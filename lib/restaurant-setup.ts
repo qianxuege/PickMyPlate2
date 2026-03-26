@@ -106,3 +106,19 @@ export async function ensureDinerRole(): Promise<{ error: Error | null }> {
   if (error) return { error };
   return { error: null };
 }
+
+/**
+ * Get the restaurant id for the currently signed-in restaurant owner.
+ * Returns null if the owner hasn't completed restaurant onboarding yet.
+ */
+export async function fetchRestaurantIdForOwner(): Promise<{ restaurantId: string | null; error: Error | null }> {
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  const user = userData?.user;
+  if (userError || !user) {
+    return { restaurantId: null, error: userError ?? new Error('Not signed in') };
+  }
+
+  const { data: row, error: rErr } = await supabase.from('restaurants').select('id').eq('owner_id', user.id).maybeSingle();
+  if (rErr) return { restaurantId: null, error: rErr };
+  return { restaurantId: row?.id ? String(row.id) : null, error: null };
+}

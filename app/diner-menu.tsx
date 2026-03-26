@@ -1,8 +1,16 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import { DinerTabScreenLayout } from '@/components/DinerTabScreenLayout';
 import { MenuFilterChip } from '@/components/MenuFilterChip';
@@ -10,8 +18,15 @@ import { Colors, Spacing, Typography } from '@/constants/theme';
 import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
 import type { DinerPreferenceSnapshot } from '@/lib/diner-preferences';
 import { fetchDinerPreferences, spiceDbToLabel } from '@/lib/diner-preferences';
-import { fetchParsedMenuForScan } from '@/lib/fetch-parsed-menu-for-scan';
-import type { ParsedMenu, ParsedMenuItem } from '@/lib/menu-scan-schema';
+import { fetchFavoritedDishIds, toggleDishFavorite } from '@/lib/diner-favorites';
+import {
+  assembleParsedMenu,
+  type DinerMenuSectionRow,
+  type DinerScannedDishRow,
+  type ParsedMenu,
+  type ParsedMenuItem,
+} from '@/lib/menu-scan-schema';
+import { supabase } from '@/lib/supabase';
 
 /** Figma Diner Menu 1 tokens */
 const FIG = {
@@ -45,6 +60,38 @@ export default function DinerMenuScreen() {
   const [loading, setLoading] = useState(Boolean(scanId));
   const [error, setError] = useState<string | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      void (async () => {
+        try {
+          const ids = await fetchFavoritedDishIds();
+          if (!cancelled) setFavoriteIds(ids);
+        } catch {
+          /* ignore */
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [])
+  );
+
+  const handleToggleFavorite = useCallback(async (dishId: string) => {
+    try {
+      const next = await toggleDishFavorite(dishId);
+      setFavoriteIds((prev) => {
+        const n = new Set(prev);
+        if (next) n.add(dishId);
+        else n.delete(dishId);
+        return n;
+      });
+    } catch (e) {
+      Alert.alert('Favorites', e instanceof Error ? e.message : 'Could not update favorite.');
+    }
+  }, []);
 
   useEffect(() => {
     if (!scanId) return;
@@ -56,12 +103,45 @@ export default function DinerMenuScreen() {
         setLoading(true);
 
         const prefSnap = await fetchDinerPreferences();
-        const fetched = await fetchParsedMenuForScan(scanId);
-        if (!fetched.ok) throw new Error(fetched.error);
+
+        const { data: scanRow, error: scanErr } = await supabase
+          .from('diner_menu_scans')
+          .select('restaurant_name')
+          .eq('id', scanId)
+          .maybeSingle();
+        if (scanErr) throw scanErr;
+        if (!scanRow) throw new Error('Scan not found');
+
+        const { data: sections, error: secErr } = await supabase
+          .from('diner_menu_sections')
+          .select('id, scan_id, title, sort_order')
+          .eq('scan_id', scanId)
+          .order('sort_order', { ascending: true });
+        if (secErr) throw secErr;
+
+        const sectionIds = (sections ?? []).map((s: DinerMenuSectionRow) => s.id);
+        let dishes: DinerScannedDishRow[] = [];
+        if (sectionIds.length > 0) {
+          const { data: dishRows, error: dishErr } = await supabase
+            .from('diner_scanned_dishes')
+            .select(
+              'id, section_id, sort_order, name, description, price_amount, price_currency, price_display, spice_level, tags, ingredients, image_url'
+            )
+            .in('section_id', sectionIds)
+            .order('sort_order', { ascending: true });
+          if (dishErr) throw dishErr;
+          dishes = (dishRows ?? []) as DinerScannedDishRow[];
+        }
+
+        const assembled = assembleParsedMenu(
+          scanRow.restaurant_name ?? null,
+          (sections ?? []) as DinerMenuSectionRow[],
+          dishes
+        );
 
         if (cancelled) return;
         setPrefs(prefSnap);
-        setMenu(fetched.menu);
+        setMenu(assembled);
       } catch (e) {
         if (cancelled) return;
         setError(e instanceof Error ? e.message : 'Failed to load menu');
@@ -92,27 +172,63 @@ export default function DinerMenuScreen() {
     return deduped;
   }, [prefs]);
 
+  const prefTagSet = useMemo(() => {
+    if (!prefs) return new Set<string>();
+    const tags: string[] = [];
+    const spice = spiceDbToLabel(prefs.spice_level);
+    if (spice) tags.push(spice);
+    tags.push(...prefs.dietaryKeys);
+    if (prefs.budget_tier) tags.push(prefs.budget_tier);
+    tags.push(...prefs.cuisineNames);
+    tags.push(...prefs.smartTags.map((t) => t.label));
+    return new Set(tags.filter(Boolean));
+  }, [prefs]);
+
   const menuTagSet = useMemo(() => {
     return new Set<string>(menu?.sections.flatMap((s) => s.items.flatMap((i) => i.tags)) ?? []);
   }, [menu]);
 
-  /**
-   * Hard filter: no chips => full menu; one+ chips => only dishes whose `tags` include every selected chip.
-   * Sections with zero matching dishes are dropped.
-   */
+  const allDishesInOrder = useMemo(() => {
+    return menu?.sections.flatMap((s) => s.items) ?? [];
+  }, [menu]);
+
+  const recommendedDishes = useMemo(() => {
+    if (!menu) return [];
+    if (allDishesInOrder.length === 0) return [];
+
+    // No tag selected => pick top-3 by "matched tag count" (among all preference tags we know).
+    if (selectedTags.length === 0) {
+      if (prefTagSet.size === 0) return allDishesInOrder.slice(0, 3);
+
+      const idxById = new Map<string, number>(allDishesInOrder.map((d, i) => [d.id, i]));
+      const scored = allDishesInOrder.map((dish) => {
+        const score = dish.tags.reduce((acc, t) => (prefTagSet.has(t) ? acc + 1 : acc), 0);
+        return { dish, score };
+      });
+
+      scored.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return (idxById.get(a.dish.id) ?? 0) - (idxById.get(b.dish.id) ?? 0);
+      });
+
+      return scored.slice(0, 3).map((x) => x.dish);
+    }
+
+    // At least one tag selected => recommend the intersection: dishes that contain ALL selected tags.
+    return allDishesInOrder.filter((dish) => selectedTags.every((t) => dish.tags.includes(t)));
+  }, [allDishesInOrder, menu, prefTagSet, selectedTags]);
+
+  const recommendedIds = useMemo(() => new Set(recommendedDishes.map((d) => d.id)), [recommendedDishes]);
+
   const sectionBlocks = useMemo(() => {
     if (!menu) return [];
-
-    const matchesSelected = (dish: ParsedMenuItem) =>
-      selectedTags.length === 0 || selectedTags.every((t) => dish.tags.includes(t));
-
     return menu.sections
       .map((sec) => ({
         title: sec.title,
-        items: sec.items.filter(matchesSelected),
+        items: sec.items.filter((i) => !recommendedIds.has(i.id)),
       }))
       .filter((s) => s.items.length > 0);
-  }, [menu, selectedTags]);
+  }, [menu, recommendedIds]);
 
   const formatPrice = (dish: ParsedMenuItem) => {
     const amount = dish.price.amount;
@@ -150,59 +266,72 @@ export default function DinerMenuScreen() {
     );
   };
 
-  const DishCard = ({ dish }: { dish: ParsedMenuItem }) => (
-    <Pressable
-      accessibilityRole="button"
-      onPress={() =>
-        router.push({
-          pathname: '/dish/[dishId]',
-          params: {
-            dishId: dish.id,
-            scanId,
-            restaurantName: headerTitle,
-          },
-        })
-      }
-      style={({ pressed }) => [styles.dishCard, pressed && styles.dishCardPressed]}
-    >
-      <View style={styles.dishRow}>
-        <LinearGradient
-          colors={['#FFEDD4', '#FFF7ED']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.dishImageGradient}
+  const DishCard = ({ dish }: { dish: ParsedMenuItem }) => {
+    const favorited = favoriteIds.has(dish.id);
+    return (
+      <View style={styles.dishCard}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() =>
+            router.push({
+              pathname: '/dish/[dishId]',
+              params: {
+                dishId: dish.id,
+                scanId,
+                restaurantName: headerTitle,
+              },
+            })
+          }
+          style={({ pressed }) => [styles.dishCardHit, pressed && styles.dishCardPressed]}
         >
-          <Text style={styles.dishEmoji} accessibilityLabel="Dish placeholder">
-            🍽️
-          </Text>
-        </LinearGradient>
+          <View style={styles.dishRow}>
+            <LinearGradient
+              colors={['#FFEDD4', '#FFF7ED']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.dishImageGradient}
+            >
+              <Text style={styles.dishEmoji} accessibilityLabel="Dish placeholder">
+                🍽️
+              </Text>
+            </LinearGradient>
 
-        <View style={styles.dishTextCol}>
-          <View style={styles.dishTitleRow}>
-            <Text style={styles.dishName} numberOfLines={1}>
-              {dish.name}
-            </Text>
-            <View pointerEvents="none" style={styles.heartIcon}>
-              <MaterialCommunityIcons name="heart-outline" size={20} color={FIG.heart} />
+            <View style={styles.dishTextCol}>
+              <Text style={[styles.dishName, styles.dishNameWithHeartPad]} numberOfLines={1}>
+                {dish.name}
+              </Text>
+
+              {dish.description ? (
+                <Text style={styles.dishDesc} numberOfLines={2}>
+                  {dish.description}
+                </Text>
+              ) : (
+                <View style={styles.dishDescSpacer} />
+              )}
+
+              <View style={styles.dishBottomRow}>
+                <Text style={styles.dishPrice}>{formatPrice(dish)}</Text>
+                {renderSpiceFlames(dish.spice_level)}
+              </View>
             </View>
           </View>
-
-          {dish.description ? (
-            <Text style={styles.dishDesc} numberOfLines={2}>
-              {dish.description}
-            </Text>
-          ) : (
-            <View style={styles.dishDescSpacer} />
-          )}
-
-          <View style={styles.dishBottomRow}>
-            <Text style={styles.dishPrice}>{formatPrice(dish)}</Text>
-            {renderSpiceFlames(dish.spice_level)}
-          </View>
-        </View>
+        </Pressable>
+        <Pressable
+          hitSlop={10}
+          onPress={() => void handleToggleFavorite(dish.id)}
+          style={({ pressed }) => [styles.dishHeartFab, pressed && styles.dishHeartFabPressed]}
+          accessibilityRole="button"
+          accessibilityLabel={favorited ? 'Remove from favorites' : 'Add to favorites'}
+        >
+          <MaterialCommunityIcons
+            name={favorited ? 'heart' : 'heart-outline'}
+            size={20}
+            color={favorited ? FIG.orange : FIG.heart}
+          />
+        </Pressable>
       </View>
-    </Pressable>
-  );
+    );
+  };
 
   const headerTitle = menu?.restaurant_name?.trim() || 'Menu';
 
@@ -216,14 +345,7 @@ export default function DinerMenuScreen() {
   }
 
   return (
-    <DinerTabScreenLayout
-      activeTab="menu"
-      menuHeader={{
-        title: loading ? 'Menu' : headerTitle,
-        scanId,
-        restaurantName: headerTitle,
-      }}
-    >
+    <DinerTabScreenLayout activeTab="menu" menuHeader={{ title: loading ? 'Menu' : headerTitle }}>
       {loading ? (
         <View style={styles.loading}>
           <ActivityIndicator color={FIG.orange} />
@@ -264,9 +386,16 @@ export default function DinerMenuScreen() {
             </View>
           )}
 
-          {selectedTags.length > 0 && sectionBlocks.length === 0 ? (
-            <Text style={styles.filterEmptyText}>No dishes match all selected filters.</Text>
-          ) : null}
+          <View style={styles.recommendedHeadingRow}>
+            <View style={styles.recommendedAccent} />
+            <Text style={styles.recommendedHeading}>RECOMMENDED FOR YOU</Text>
+          </View>
+
+          <View style={styles.cardList}>
+            {recommendedDishes.map((dish) => (
+              <DishCard key={dish.id} dish={dish} />
+            ))}
+          </View>
 
           {sectionBlocks.map((sec, idx) => (
             <View key={`${sec.title}-${idx}`} style={styles.sectionBlock}>
@@ -345,10 +474,25 @@ const styles = StyleSheet.create({
     letterSpacing: -0.076,
     color: FIG.sectionMuted,
   },
-  filterEmptyText: {
-    ...Typography.body,
-    color: FIG.bodyMuted,
-    marginBottom: 16,
+  recommendedHeadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  recommendedAccent: {
+    width: 4,
+    height: 20,
+    borderRadius: 9999,
+    backgroundColor: FIG.orange,
+  },
+  recommendedHeading: {
+    fontSize: 13,
+    lineHeight: 20,
+    fontWeight: '700',
+    letterSpacing: 0.249,
+    textTransform: 'uppercase',
+    color: FIG.text,
   },
   cardList: {
     gap: 12,
@@ -366,16 +510,29 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   dishCard: {
+    position: 'relative',
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     borderWidth: 1,
     borderColor: FIG.border,
+  },
+  dishCardHit: {
     paddingVertical: 12,
     paddingHorizontal: 12,
     paddingBottom: 12,
+    borderRadius: 16,
   },
   dishCardPressed: {
     opacity: 0.9,
+  },
+  dishHeartFab: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    padding: 4,
+  },
+  dishHeartFabPressed: {
+    opacity: 0.75,
   },
   dishRow: {
     flexDirection: 'row',
@@ -398,22 +555,15 @@ const styles = StyleSheet.create({
     minWidth: 0,
     gap: 4,
   },
-  dishTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
   dishName: {
-    flex: 1,
     fontSize: 15,
     lineHeight: 19,
     fontWeight: '700',
     letterSpacing: -0.234,
     color: FIG.text,
   },
-  heartIcon: {
-    marginTop: -1,
+  dishNameWithHeartPad: {
+    paddingRight: 36,
   },
   dishDesc: {
     fontSize: 13,

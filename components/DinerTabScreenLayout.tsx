@@ -1,4 +1,5 @@
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import type { ComponentProps, ReactElement } from 'react';
+import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DinerBottomNav } from '@/components/DinerBottomNav';
@@ -13,12 +14,23 @@ type DinerTabScreenLayoutProps = {
   activeTab: DinerTab;
   children: React.ReactNode;
   /** Figma diner menu: back + centered title + search; replaces mode badge header */
-  menuHeader?: { title: string; scanId?: string; restaurantName?: string };
+  menuHeader?: { title: string };
+  /** Figma Diner Favorites: full-width banner instead of role header */
+  headerBanner?: { title: string; backgroundColor: string };
+  refreshControl?: ReactElement<ComponentProps<typeof RefreshControl>>;
 };
 
-export function DinerTabScreenLayout({ activeTab, children, menuHeader }: DinerTabScreenLayoutProps) {
+export function DinerTabScreenLayout({
+  activeTab,
+  children,
+  menuHeader,
+  headerBanner,
+  refreshControl,
+}: DinerTabScreenLayoutProps) {
   const insets = useSafeAreaInsets();
   const t = dinerRoleTheme;
+
+  const headerTopPad = menuHeader ? insets.top : headerBanner ? insets.top : insets.top + Spacing.md;
 
   return (
     <View style={[styles.root, { backgroundColor: t.screenBackground }]}>
@@ -26,18 +38,19 @@ export function DinerTabScreenLayout({ activeTab, children, menuHeader }: DinerT
         style={[
           styles.headerChrome,
           menuHeader ? styles.headerChromeMenu : null,
+          headerBanner ? styles.headerChromeBanner : null,
           {
-            paddingTop: menuHeader ? insets.top : insets.top + Spacing.md,
+            paddingTop: headerTopPad,
             backgroundColor: '#FFFFFF',
           },
         ]}
       >
         {menuHeader ? (
-          <DinerMenuTitleBar
-            title={menuHeader.title}
-            scanId={menuHeader.scanId}
-            restaurantName={menuHeader.restaurantName}
-          />
+          <DinerMenuTitleBar title={menuHeader.title} />
+        ) : headerBanner ? (
+          <View style={[styles.bannerStrip, { backgroundColor: headerBanner.backgroundColor }]}>
+            <Text style={styles.bannerTitle}>{headerBanner.title}</Text>
+          </View>
         ) : (
           <RoleAppHeader mode="diner" />
         )}
@@ -53,6 +66,7 @@ export function DinerTabScreenLayout({ activeTab, children, menuHeader }: DinerT
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          refreshControl={refreshControl}
         >
           {children}
         </ScrollView>
@@ -76,6 +90,23 @@ const styles = StyleSheet.create({
   headerChromeMenu: {
     paddingHorizontal: 0,
     paddingBottom: 0,
+  },
+  headerChromeBanner: {
+    paddingHorizontal: 0,
+    paddingBottom: 0,
+  },
+  bannerStrip: {
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  bannerTitle: {
+    fontSize: 20,
+    lineHeight: 28,
+    fontWeight: '700',
+    color: '#101828',
   },
   scrollContent: {
     paddingHorizontal: Spacing.xl,

@@ -9,9 +9,6 @@ import { Spacing, Typography } from '@/constants/theme';
 import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
 import { addDinerSearchRecent, loadDinerSearchRecents } from '@/lib/diner-search-recent';
 
-/** Figma wireframe defaults when there are no saved recents yet */
-const FIGMA_DEFAULT_RECENTS = ['Tacos', 'Salmon', 'Pizza', 'Curry'] as const;
-
 /**
  * Figma node 43-779 — Diner Search (recents + search field, no results list).
  * Results: `diner-search-results.tsx` (node 43-813).
@@ -89,8 +86,7 @@ export default function DinerSearchScreen() {
     [openResults]
   );
 
-  const displayRecents =
-    recents.length > 0 ? recents : [...FIGMA_DEFAULT_RECENTS];
+  const displayRecents = recents;
 
   if (!scanId) {
     return (

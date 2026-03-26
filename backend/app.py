@@ -399,6 +399,207 @@ def create_app() -> Flask:
                 traceback.print_exc(file=sys.stderr)
             return jsonify({"ok": False, "error": f"image_generation_failed: {e!s}"}), 502
 
+    @app.post("/v1/restaurant-dishes/<dish_id>/generate-image")
+    def generate_restaurant_dish_image(dish_id: str):
+        payload = None
+        if REQUIRE_AUTH:
+            payload = verify_bearer_token(request.headers.get("Authorization"))
+            if payload is None:
+                return auth_error_response()
+
+        from storage_supabase import (
+            get_supabase_admin,
+            storage_object_exists,
+            upload_storage_object,
+        )
+
+        from image_generate_vertex import build_dish_image_prompt, generate_dish_image_bytes
+
+        client = get_supabase_admin()
+
+        try:
+            dish_res = (
+                client.table("restaurant_menu_dishes")
+                .select("id, section_id, name, description, ingredients, image_url")
+                .eq("id", dish_id)
+                .limit(1)
+                .execute()
+            )
+            dish_rows = getattr(dish_res, "data", None) or []
+            if not dish_rows:
+                return jsonify({"ok": False, "error": "dish not found"}), 404
+            dish = dish_rows[0]
+
+            sec_res = (
+                client.table("restaurant_menu_sections")
+                .select("id, scan_id")
+                .eq("id", dish["section_id"])
+                .limit(1)
+                .execute()
+            )
+            sec_rows = getattr(sec_res, "data", None) or []
+            if not sec_rows:
+                return jsonify({"ok": False, "error": "dish section not found"}), 404
+            section = sec_rows[0]
+
+            scan_res = (
+                client.table("restaurant_menu_scans")
+                .select("id, restaurant_id, restaurant_name")
+                .eq("id", section["scan_id"])
+                .limit(1)
+                .execute()
+            )
+            scan_rows = getattr(scan_res, "data", None) or []
+            if not scan_rows:
+                return jsonify({"ok": False, "error": "scan not found"}), 404
+            scan = scan_rows[0]
+
+            if payload is not None:
+                rest_res = (
+                    client.table("restaurants")
+                    .select("owner_id")
+                    .eq("id", scan["restaurant_id"])
+                    .limit(1)
+                    .execute()
+                )
+                rest_rows = getattr(rest_res, "data", None) or []
+                if not rest_rows or rest_rows[0].get("owner_id") != payload.get("sub"):
+                    return jsonify({"ok": False, "error": "unauthorized"}), 401
+
+            existing_url = (dish.get("image_url") or "").strip()
+            if existing_url:
+                return jsonify({"ok": True, "image_url": existing_url, "cached": True}), 200
+
+            storage_path = f"{dish_id}.png"
+            public_url = client.storage.from_(DISH_IMAGES_BUCKET).get_public_url(storage_path)
+
+            if storage_object_exists(DISH_IMAGES_BUCKET, storage_path):
+                (
+                    client.table("restaurant_menu_dishes")
+                    .update({"image_url": public_url})
+                    .eq("id", dish_id)
+                    .execute()
+                )
+                return jsonify({"ok": True, "image_url": public_url, "cached": True}), 200
+
+            ingredients = dish.get("ingredients")
+            if not isinstance(ingredients, list):
+                ingredients = []
+
+            prompt = build_dish_image_prompt(
+                dish_name=(dish.get("name") or "Dish").strip(),
+                description=dish.get("description"),
+                ingredients=[str(item) for item in ingredients if isinstance(item, str)],
+                restaurant_name=scan.get("restaurant_name"),
+            )
+            image_bytes = generate_dish_image_bytes(prompt)
+            public_url = upload_storage_object(
+                DISH_IMAGES_BUCKET,
+                storage_path,
+                image_bytes,
+                content_type="image/png",
+                upsert=True,
+            )
+
+            (
+                client.table("restaurant_menu_dishes")
+                .update({"image_url": public_url})
+                .eq("id", dish_id)
+                .execute()
+            )
+
+            return jsonify({"ok": True, "image_url": public_url, "cached": False}), 200
+        except Exception as e:
+            if _is_flask_debug(app):
+                traceback.print_exc(file=sys.stderr)
+            return jsonify({"ok": False, "error": f"image_generation_failed: {e!s}"}), 502
+
+    @app.post("/v1/restaurant-dishes/<dish_id>/generate-summary")
+    def generate_restaurant_dish_summary(dish_id: str):
+        payload = None
+        if REQUIRE_AUTH:
+            payload = verify_bearer_token(request.headers.get("Authorization"))
+            if payload is None:
+                return auth_error_response()
+
+        from llm_dish_vertex import generate_dish_description
+        from storage_supabase import get_supabase_admin
+
+        client = get_supabase_admin()
+
+        try:
+            dish_res = (
+                client.table("restaurant_menu_dishes")
+                .select("id, section_id, name, description, ingredients")
+                .eq("id", dish_id)
+                .limit(1)
+                .execute()
+            )
+            dish_rows = getattr(dish_res, "data", None) or []
+            if not dish_rows:
+                return jsonify({"ok": False, "error": "dish not found"}), 404
+            dish = dish_rows[0]
+
+            sec_res = (
+                client.table("restaurant_menu_sections")
+                .select("id, scan_id")
+                .eq("id", dish["section_id"])
+                .limit(1)
+                .execute()
+            )
+            sec_rows = getattr(sec_res, "data", None) or []
+            if not sec_rows:
+                return jsonify({"ok": False, "error": "dish section not found"}), 404
+            section = sec_rows[0]
+
+            scan_res = (
+                client.table("restaurant_menu_scans")
+                .select("id, restaurant_id, restaurant_name")
+                .eq("id", section["scan_id"])
+                .limit(1)
+                .execute()
+            )
+            scan_rows = getattr(scan_res, "data", None) or []
+            if not scan_rows:
+                return jsonify({"ok": False, "error": "scan not found"}), 404
+            scan = scan_rows[0]
+
+            if payload is not None:
+                rest_res = (
+                    client.table("restaurants")
+                    .select("owner_id")
+                    .eq("id", scan["restaurant_id"])
+                    .limit(1)
+                    .execute()
+                )
+                rest_rows = getattr(rest_res, "data", None) or []
+                if not rest_rows or rest_rows[0].get("owner_id") != payload.get("sub"):
+                    return jsonify({"ok": False, "error": "unauthorized"}), 401
+
+            ingredients = dish.get("ingredients")
+            if not isinstance(ingredients, list):
+                ingredients = []
+
+            desc = generate_dish_description(
+                dish_name=(dish.get("name") or "Dish").strip(),
+                ingredients=[str(item) for item in ingredients if isinstance(item, str)],
+                restaurant_name=scan.get("restaurant_name"),
+                debug_llm=_is_flask_debug(app),
+            )
+
+            (
+                client.table("restaurant_menu_dishes")
+                .update({"description": desc})
+                .eq("id", dish_id)
+                .execute()
+            )
+
+            return jsonify({"ok": True, "description": desc}), 200
+        except Exception as e:
+            if _is_flask_debug(app):
+                traceback.print_exc(file=sys.stderr)
+            return jsonify({"ok": False, "error": f"summary_generation_failed: {e!s}"}), 502
+
     return app
 
 

@@ -240,6 +240,7 @@ export default function DinerMenuProcessingScreen() {
           source={require('../assets/diner-processing-illustration.png')}
           style={styles.illustrationImage}
           resizeMode="contain"
+          accessibilityLabel="Menu processing illustration"
         />
       </View>
 

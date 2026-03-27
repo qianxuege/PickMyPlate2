@@ -30,6 +30,8 @@ export function SecondaryButton({
 }: SecondaryButtonProps) {
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={text}
       onPress={onPress}
       disabled={disabled || loading}
       style={({ pressed }) => [

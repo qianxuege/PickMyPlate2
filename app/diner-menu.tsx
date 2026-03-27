@@ -213,7 +213,7 @@ export default function DinerMenuScreen() {
         >
           <View style={styles.dishRow}>
             {dish.image_url ? (
-              <Image source={{ uri: dish.image_url }} contentFit="cover" style={styles.dishImage} />
+              <Image source={{ uri: dish.image_url }} contentFit="cover" style={styles.dishImage} accessibilityLabel={dish.name} />
             ) : (
               <LinearGradient
                 colors={['#FFEDD4', '#FFF7ED']}

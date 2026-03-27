@@ -333,7 +333,7 @@ export default function RestaurantMenuScreen() {
                     >
                       <View style={styles.dishRow}>
                         {dish.image_url ? (
-                          <Image source={{ uri: dish.image_url }} style={styles.dishImage} />
+                          <Image source={{ uri: dish.image_url }} style={styles.dishImage} accessibilityLabel={dish.name} />
                         ) : (
                           <View style={styles.dishImagePlaceholder}>
                             <MaterialCommunityIcons name="silverware-fork-knife" size={20} color={Colors.textPlaceholder} />
@@ -368,7 +368,7 @@ export default function RestaurantMenuScreen() {
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Partner Menu QR</Text>
-            {partnerQrUrl ? <Image source={{ uri: partnerQrUrl }} style={styles.qrPreview} /> : null}
+            {partnerQrUrl ? <Image source={{ uri: partnerQrUrl }} style={styles.qrPreview} accessibilityLabel="Partner menu QR code" /> : null}
             <Text style={styles.modalHint}>Scan this to open your published digital menu.</Text>
             {partnerLink ? (
               <Text style={styles.linkText} numberOfLines={3}>

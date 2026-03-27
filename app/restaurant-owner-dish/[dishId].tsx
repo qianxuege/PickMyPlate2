@@ -99,6 +99,8 @@ export default function RestaurantOwnerDishDetailScreen() {
         <View style={styles.center}>
           <Text style={styles.errText}>{error}</Text>
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
             onPress={() => router.back()}
             style={({ pressed }) => [styles.errBtn, pressed && { opacity: 0.85 }]}
           >
@@ -112,7 +114,7 @@ export default function RestaurantOwnerDishDetailScreen() {
         >
           {/* Hero image */}
           {detail.image_url ? (
-            <Image source={{ uri: detail.image_url }} style={styles.hero} contentFit="cover" />
+            <Image source={{ uri: detail.image_url }} style={styles.hero} contentFit="cover" accessibilityLabel={detail.name} />
           ) : (
             <View style={[styles.hero, styles.heroPlaceholder]}>
               <MaterialCommunityIcons name="silverware-fork-knife" size={40} color={G.muted} />

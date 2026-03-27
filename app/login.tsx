@@ -91,7 +91,11 @@ export default function LoginScreen() {
             value={password}
             onChangeText={setPassword}
           />
-          <Pressable onPress={() => router.push('/forgot-password')}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Forgot password"
+            onPress={() => router.push('/forgot-password')}
+          >
             <Text style={styles.forgotPassword}>Forgot password?</Text>
           </Pressable>
         </View>

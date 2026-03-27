@@ -229,7 +229,7 @@ export default function DinerSearchResultsScreen() {
           >
             <View style={styles.row}>
               {item.image_url ? (
-                <Image source={{ uri: item.image_url }} contentFit="cover" style={styles.thumb} />
+                <Image source={{ uri: item.image_url }} contentFit="cover" style={styles.thumb} accessibilityLabel={item.name} />
               ) : (
                 <LinearGradient
                   colors={['#FFEDD4', '#FFF7ED']}

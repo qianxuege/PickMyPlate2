@@ -149,7 +149,11 @@ export default function RestaurantRegistrationScreen() {
 
         <View style={styles.footer}>
           <Text style={styles.footerPrompt}>Already have an account? </Text>
-          <Pressable onPress={() => router.replace('/login')}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Log in"
+            onPress={() => router.replace('/login')}
+          >
             <Text style={styles.footerLink}>Log in</Text>
           </Pressable>
         </View>

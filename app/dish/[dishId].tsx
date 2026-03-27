@@ -406,6 +406,7 @@ export default function DishDetailScreen() {
                 source={{ uri: detail.imageUrl }}
                 contentFit="cover"
                 style={styles.heroImage}
+                accessibilityLabel={detail.name}
               />
             ) : (
               <View style={styles.heroPlaceholder}>
@@ -428,6 +429,7 @@ export default function DishDetailScreen() {
                 <View style={styles.imageActionBlock}>
                   <Pressable
                     accessibilityRole="button"
+                    accessibilityLabel="Generate AI image for this dish"
                     disabled={imageLoading}
                     onPress={() => void onGenerateImage()}
                     style={({ pressed }) => [

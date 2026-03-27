@@ -52,7 +52,7 @@ export default function RestaurantDishDetailScreen() {
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <View style={styles.topBar}>
-        <Pressable accessibilityRole="button" onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
           <MaterialCommunityIcons name="chevron-left" size={26} color={RestaurantUiInspect.text} />
         </Pressable>
         <Text style={styles.topTitle} numberOfLines={1}>
@@ -68,14 +68,19 @@ export default function RestaurantDishDetailScreen() {
       ) : error ? (
         <View style={styles.center}>
           <Text style={styles.errText}>{error}</Text>
-          <Pressable onPress={() => router.back()} style={styles.errBtn}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            onPress={() => router.back()}
+            style={styles.errBtn}
+          >
             <Text style={styles.errBtnText}>Go back</Text>
           </Pressable>
         </View>
       ) : detail ? (
         <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + Spacing.xxl }]} showsVerticalScrollIndicator={false}>
           {detail.image_url ? (
-            <Image source={{ uri: detail.image_url }} style={styles.hero} contentFit="cover" />
+            <Image source={{ uri: detail.image_url }} style={styles.hero} contentFit="cover" accessibilityLabel={detail.name} />
           ) : (
             <View style={[styles.hero, styles.heroPlaceholder]}>
               <MaterialCommunityIcons name="silverware-fork-knife" size={40} color={Colors.textPlaceholder} />

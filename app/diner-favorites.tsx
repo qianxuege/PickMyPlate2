@@ -162,7 +162,7 @@ export default function DinerFavoritesScreen() {
               >
                 <View style={styles.cardRow}>
                   {row.imageUrl ? (
-                    <Image source={{ uri: row.imageUrl }} style={styles.thumb} contentFit="cover" />
+                    <Image source={{ uri: row.imageUrl }} style={styles.thumb} contentFit="cover" accessibilityLabel={row.name} />
                   ) : (
                     <LinearGradient
                       colors={['#FFEDD4', '#FFF7ED']}

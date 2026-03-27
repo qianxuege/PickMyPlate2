@@ -11,6 +11,8 @@ export function BackButton() {
 
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Go back"
       onPress={() => router.back()}
       style={({ pressed }) => [
         styles.button,

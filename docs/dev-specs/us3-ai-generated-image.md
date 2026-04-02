@@ -221,7 +221,7 @@ This codebase is largely module-oriented rather than class-oriented. For this se
 
 ### 2. DishImageApiClient
 
-**File:** [lib/dish-image-api.ts](lib/dish-image-api.ts)
+**File:** [lib/dish-image-api.ts](/lib/dish-image-api.ts)
 
 **Public fields and methods**
 
@@ -236,7 +236,7 @@ This codebase is largely module-oriented rather than class-oriented. For this se
 
 ### 3. SupabaseClientWrapper
 
-**File:** [lib/supabase.ts](lib/supabase.ts)
+**File:** [lib/supabase.ts](/lib/supabase.ts)
 
 **Public fields and methods**
 
@@ -253,7 +253,7 @@ This codebase is largely module-oriented rather than class-oriented. For this se
 
 ### 4. GenerateDishImageRoute
 
-**File:** [backend/app.py](backend/app.py)
+**File:** [backend/app.py](/backend/app.py)
 
 **Public fields and methods**
 
@@ -280,7 +280,7 @@ This codebase is largely module-oriented rather than class-oriented. For this se
 
 ### 5. StorageSupabaseService
 
-**File:** [backend/storage_supabase.py](backend/storage_supabase.py)
+**File:** [backend/storage_supabase.py](/backend/storage_supabase.py)
 
 **Public fields and methods**
 
@@ -305,7 +305,7 @@ This codebase is largely module-oriented rather than class-oriented. For this se
 
 ### 6. ImageGenerateVertexService
 
-**File:** [backend/image_generate_vertex.py](backend/image_generate_vertex.py)
+**File:** [backend/image_generate_vertex.py](/backend/image_generate_vertex.py)
 
 **Public fields and methods**
 
@@ -326,7 +326,7 @@ This codebase is largely module-oriented rather than class-oriented. For this se
 
 ### 7. DinerScannedDish
 
-**Files:** [lib/menu-scan-schema.ts](lib/menu-scan-schema.ts), [supabase/migrations/20260327120000_diner_menu_sections_and_dishes.sql](supabase/migrations/20260327120000_diner_menu_sections_and_dishes.sql)
+**Files:** [/lib/menu-scan-schema.ts](lib/menu-scan-schema.ts), [/supabase/migrations/20260327120000_diner_menu_sections_and_dishes.sql](supabase/migrations/20260327120000_diner_menu_sections_and_dishes.sql)
 
 **Public fields and methods**
 
@@ -351,7 +351,7 @@ This codebase is largely module-oriented rather than class-oriented. For this se
 
 ### 8. DinerMenuSection
 
-**Files:** [lib/menu-scan-schema.ts](lib/menu-scan-schema.ts), [supabase/migrations/20260327120000_diner_menu_sections_and_dishes.sql](supabase/migrations/20260327120000_diner_menu_sections_and_dishes.sql)
+**Files:** [/lib/menu-scan-schema.ts](lib/menu-scan-schema.ts), [/supabase/migrations/20260327120000_diner_menu_sections_and_dishes.sql](supabase/migrations/20260327120000_diner_menu_sections_and_dishes.sql)
 
 **Public fields and methods**
 
@@ -368,7 +368,7 @@ This codebase is largely module-oriented rather than class-oriented. For this se
 
 ### 9. DinerMenuScan
 
-**Files:** [backend/app.py](backend/app.py), [supabase/migrations/20260327120000_diner_menu_sections_and_dishes.sql](supabase/migrations/20260327120000_diner_menu_sections_and_dishes.sql)
+**Files:** [/backend/app.py](backend/app.py), [/supabase/migrations/20260327120000_diner_menu_sections_and_dishes.sql](supabase/migrations/20260327120000_diner_menu_sections_and_dishes.sql)
 
 **Public fields and methods**
 
@@ -384,7 +384,7 @@ This codebase is largely module-oriented rather than class-oriented. For this se
 
 ### 10. DishImagesBucket
 
-**Files:** [supabase/migrations/20260329120000_storage_dish_images.sql](supabase/migrations/20260329120000_storage_dish_images.sql), [backend/storage_supabase.py](backend/storage_supabase.py)
+**Files:** [/supabase/migrations/20260329120000_storage_dish_images.sql](supabase/migrations/20260329120000_storage_dish_images.sql), [/backend/storage_supabase.py](backend/storage_supabase.py)
 
 **Public fields and methods**
 
@@ -406,7 +406,7 @@ This codebase is largely module-oriented rather than class-oriented. For this se
 
 ### 11. VertexImagenApi
 
-**Files:** [backend/image_generate_vertex.py](backend/image_generate_vertex.py)
+**Files:** [/backend/image_generate_vertex.py](backend/image_generate_vertex.py)
 
 **Public fields and methods**
 

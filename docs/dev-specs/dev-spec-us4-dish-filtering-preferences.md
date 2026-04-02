@@ -308,9 +308,11 @@ Versions are from `PickMyPlate2/package.json` at documentation time. Patch versi
 
 ## 8. Database — long-term storage for US4
 
+**Why sizes are estimates, not measured from “the” database:** This specification was produced from the **repository** (SQL migrations and application code), not from a live connection to your Supabase project. The authors do **not** have credentials or network access to query your deployed database. Even with access, **per-table on-disk bytes** depend on **how many rows you have**, **average text length** (`description`, `ingredients`, labels), **indexes**, **TOAST**, and PostgreSQL **page alignment**—so schema alone cannot yield a single exact number. The tables below give **order-of-magnitude hints** (fixed types like UUID/timestamptz vs variable `text`). For **measured** sizes in your environment, use PostgreSQL/Supabase tooling, for example: `pg_total_relation_size('public.diner_scanned_dishes')`, `pg_relation_size` for heap vs indexes, or row-level `pg_column_size(row.*)` on samples.
+
 ### 8.1 Tables that store preference data (diner)
 
-| Table | Purpose | Fields (relevant) | Per-field purpose | Rough size notes |
+| Table | Purpose | Fields (relevant) | Per-field purpose | Per-field size (estimated) |
 |-------|---------|-------------------|-------------------|------------------|
 | `diner_preferences` | 1:1 diner settings | `profile_id` (PK, FK) | Links to `profiles.id` / `auth.users` | UUID ~16 B |
 | | | `spice_level` | `mild` / `medium` / `spicy` / null | small text ~ few bytes |
@@ -326,7 +328,7 @@ Versions are from `PickMyPlate2/package.json` at documentation time. Patch versi
 
 ### 8.2 Tables that store menu data used for filtering
 
-| Table | Purpose | Fields (relevant) | Per-field purpose | Rough size notes |
+| Table | Purpose | Fields (relevant) | Per-field purpose | Per-field size (estimated) |
 |-------|---------|-------------------|-------------------|------------------|
 | `diner_menu_scans` | Scan record | `id`, `profile_id`, `restaurant_name`, `scanned_at` | Identifies menu instance | name variable |
 | `diner_menu_sections` | Sections | `id`, `scan_id`, `title`, `sort_order` | Group dishes | title variable |
@@ -334,7 +336,7 @@ Versions are from `PickMyPlate2/package.json` at documentation time. Patch versi
 | | | `ingredients` | Display / detail; **not used in filter logic in app** | can be larger per dish |
 | | | `spice_level`, `name`, `description`, prices, `image_url` | UI / detail | variable |
 
-**Storage estimate (illustrative):** A single dish row might be on the order of **hundreds to a few thousand bytes** depending on `description` and `ingredients` length; `tags` alone are typically **tens of bytes**. Exact PostgreSQL on-disk size includes row overhead, indexes, and TOAST for large text.
+**Whole-row / table totals (illustrative only):** A single `diner_scanned_dishes` payload might fall in the **hundreds to a few thousand bytes** range for typical menus, driven mostly by `description` and `ingredients`; `tags` alone are often **tens of bytes**. **Total table size** = sum over all rows plus indexes; measure in prod/staging if the assignment requires a concrete number.
 
 ---
 

@@ -124,3 +124,46 @@ Assumptions / Notes
 - The Flask backend includes an optional REQUIRE_AUTH flag. If enabled, the route verifies the Supabase JWT bearer token before processing the request.
 - The client always attempts to send the session access token when available.
 
+## Class Diagram in Mermaid
+
+```mermaid
+classDiagram
+  class DishDetailScreen
+  class DishImageApiClient
+  class SupabaseClientWrapper
+
+  class GenerateDishImageRoute
+  class StorageSupabaseService
+  class ImageGenerateVertexService
+
+  class DinerScannedDish
+  class DinerMenuSection
+  class DinerMenuScan
+
+  class DishImagesBucket
+  class VertexImagenApi
+
+  DishDetailScreen --> DishImageApiClient : calls
+  DishDetailScreen --> SupabaseClientWrapper : uses
+
+  DishImageApiClient --> SupabaseClientWrapper : gets session token
+  DishImageApiClient --> GenerateDishImageRoute : calls
+
+  SupabaseClientWrapper --> DinerScannedDish : reads
+  SupabaseClientWrapper --> DinerMenuSection : reads
+  SupabaseClientWrapper --> DinerMenuScan : reads
+
+  GenerateDishImageRoute --> StorageSupabaseService : uses
+  GenerateDishImageRoute --> ImageGenerateVertexService : uses
+  GenerateDishImageRoute --> DinerScannedDish : reads
+  GenerateDishImageRoute --> DinerScannedDish : writes
+  GenerateDishImageRoute --> DinerMenuSection : reads
+  GenerateDishImageRoute --> DinerMenuScan : reads
+
+  StorageSupabaseService --> DishImagesBucket : reads
+  StorageSupabaseService --> DishImagesBucket : writes
+
+  ImageGenerateVertexService --> VertexImagenApi : calls
+```
+
+This is a module-oriented diagram. The classes represent implementation components, services, and data models used in US3 rather than strict object-oriented classes.

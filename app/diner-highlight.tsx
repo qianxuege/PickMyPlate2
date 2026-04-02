@@ -98,6 +98,8 @@ export default function DinerHighlightScreen() {
             return (
               <Pressable
                 key={`${item.restaurantId}-${item.dishId}`}
+                accessibilityRole="button"
+                accessibilityLabel={`${item.name}, ${item.restaurantName}`}
                 style={({ pressed }) => [styles.card, pressed && { opacity: 0.92 }]}
                 onPress={() =>
                   router.push({
@@ -108,7 +110,7 @@ export default function DinerHighlightScreen() {
               >
                 <View style={styles.cardRow}>
                   {item.image_url ? (
-                    <Image source={{ uri: item.image_url }} style={styles.cardImage} />
+                    <Image source={{ uri: item.image_url }} style={styles.cardImage} accessibilityLabel={item.name} />
                   ) : (
                     <View style={styles.cardImage}>
                       <MaterialCommunityIcons name="silverware-fork-knife" size={26} color={Colors.textPlaceholder} />

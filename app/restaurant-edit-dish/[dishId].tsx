@@ -311,13 +311,19 @@ export default function RestaurantEditDishScreen() {
               <Text style={styles.fieldLabel}>Dish Photo</Text>
               <View style={styles.photoPlaceholder}>
                 {dishImageUrl ? (
-                  <Image source={{ uri: dishImageUrl }} style={styles.photoImage} />
+                  <Image
+                    source={{ uri: dishImageUrl }}
+                    style={styles.photoImage}
+                    accessibilityLabel={name || 'Dish photo'}
+                  />
                 ) : (
                   <MaterialCommunityIcons name="image-outline" size={48} color="#99A1AF" />
                 )}
               </View>
               <View style={styles.photoButtonsRow}>
                 <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Upload dish photo"
                   onPress={() => void onUploadPhoto()}
                   disabled={!dishId || uploadPhotoLoading || imageLoading}
                   style={({ pressed }) => [
@@ -333,6 +339,8 @@ export default function RestaurantEditDishScreen() {
                   )}
                 </Pressable>
                 <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Generate AI image for dish"
                   onPress={() => void onGenerateImage()}
                   disabled={!dishId || imageLoading}
                   style={({ pressed }) => [
@@ -379,6 +387,8 @@ export default function RestaurantEditDishScreen() {
               <View style={styles.summaryHeaderRow}>
                 <Text style={styles.fieldLabel}>Summary</Text>
                 <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Generate AI summary"
                   onPress={() => void onGenerateSummary()}
                   disabled={!dishId || summaryLoading}
                   style={({ pressed }) => [

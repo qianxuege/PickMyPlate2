@@ -36,6 +36,8 @@ export function PrimaryButton({
   const shadowTint = accentShadowRgb ?? '255, 106, 61';
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={text}
       onPress={onPress}
       disabled={disabled || loading}
       style={({ pressed }) => [

@@ -156,11 +156,23 @@ export default function RestaurantProfileScreen() {
       <View style={styles.titleRow}>
         <Text style={styles.title}>Profile</Text>
         {!isEditing ? (
-          <Pressable onPress={onEdit} hitSlop={12} style={({ pressed }) => [pressed && styles.editPressed]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Edit profile"
+            onPress={onEdit}
+            hitSlop={12}
+            style={({ pressed }) => [pressed && styles.editPressed]}
+          >
             <Text style={styles.editLink}>Edit</Text>
           </Pressable>
         ) : (
-          <Pressable onPress={onCancel} hitSlop={12} style={({ pressed }) => [pressed && styles.editPressed]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Cancel editing"
+            onPress={onCancel}
+            hitSlop={12}
+            style={({ pressed }) => [pressed && styles.editPressed]}
+          >
             <Text style={styles.cancelLink}>Cancel</Text>
           </Pressable>
         )}
@@ -170,7 +182,7 @@ export default function RestaurantProfileScreen() {
       {!isEditing ? (
         <View>
           <View style={[styles.heroCard, { borderColor: t.cardAccentBorder }]}>
-            <LogoPreview uri={form.logo_url} accent={t.primary} primaryLight={t.primaryLight} />
+            <LogoPreview uri={form.logo_url} accent={t.primary} primaryLight={t.primaryLight} name={form.name} />
             <View style={styles.heroText}>
               <Text style={styles.venueName}>{form.name.trim() || 'Your restaurant'}</Text>
               <Text style={styles.venueMeta}>
@@ -194,6 +206,8 @@ export default function RestaurantProfileScreen() {
           <View style={[styles.formCard, { borderColor: t.cardAccentBorder }]}>
             <ReadBlock label="Email" value={email} />
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Change password"
               onPress={() => router.push('/forgot-password')}
               style={({ pressed }) => [styles.linkRow, pressed && styles.linkRowPressed]}
             >
@@ -214,11 +228,18 @@ export default function RestaurantProfileScreen() {
         <View>
           <Text style={styles.sectionTitle}>Logo & cover</Text>
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Upload restaurant logo"
             onPress={onUploadLogo}
             style={[styles.uploadCard, { borderColor: t.cardAccentBorder, backgroundColor: t.primaryLight }]}
           >
             {form.logo_url ? (
-              <Image source={{ uri: form.logo_url }} style={styles.uploadImage} contentFit="cover" />
+              <Image
+                source={{ uri: form.logo_url }}
+                style={styles.uploadImage}
+                contentFit="cover"
+                accessibilityLabel={form.name ? `${form.name} logo` : 'Restaurant logo'}
+              />
             ) : (
               <View style={styles.uploadInner}>
                 <MaterialCommunityIcons name="image-plus-outline" size={36} color={t.primary} />
@@ -251,6 +272,8 @@ export default function RestaurantProfileScreen() {
               return (
                 <Pressable
                   key={p}
+                  accessibilityRole="button"
+                  accessibilityLabel={active ? `${p}, selected` : p}
                   onPress={() => setField('price_range', active ? '' : p)}
                   style={[
                     styles.pricePill,
@@ -337,13 +360,22 @@ function LogoPreview({
   uri,
   accent,
   primaryLight,
+  name,
 }: {
   uri: string | null;
   accent: string;
   primaryLight: string;
+  name: string;
 }) {
   if (uri) {
-    return <Image source={{ uri }} style={styles.heroLogo} contentFit="cover" />;
+    return (
+      <Image
+        source={{ uri }}
+        style={styles.heroLogo}
+        contentFit="cover"
+        accessibilityLabel={name ? `${name} logo` : 'Restaurant logo'}
+      />
+    );
   }
   return (
     <View style={[styles.heroLogoPlaceholder, { backgroundColor: primaryLight }]}>

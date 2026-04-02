@@ -139,7 +139,12 @@ export default function RestaurantHighlightScreen() {
                       </Text>
                       <HighlightDishBadges is_featured={d.is_featured} is_new={d.is_new} />
                     </View>
-                    <Pressable onPress={() => void clearHighlight(d.id)} hitSlop={8}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove ${d.name} from highlights`}
+                      onPress={() => void clearHighlight(d.id)}
+                      hitSlop={8}
+                    >
                       <Text style={styles.remove}>Remove</Text>
                     </Pressable>
                   </View>
@@ -155,7 +160,7 @@ export default function RestaurantHighlightScreen() {
             {dishes.map((d) => (
               <View key={d.id} style={styles.rowCard}>
                 {d.image_url ? (
-                  <Image source={{ uri: d.image_url }} style={styles.thumb} />
+                  <Image source={{ uri: d.image_url }} style={styles.thumb} accessibilityLabel={d.name} />
                 ) : (
                   <View style={styles.thumb}>
                     <MaterialCommunityIcons name="silverware-fork-knife" size={20} color={Colors.textPlaceholder} />

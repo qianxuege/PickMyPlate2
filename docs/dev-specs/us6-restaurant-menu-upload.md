@@ -15,42 +15,48 @@ As a restaurant owner, I want to upload my menu to the platform so that customer
 
 ---
 
-## Architecture (execution boundaries)
+## Architecture Diagram in Mermaid
 
-Components are grouped by **where they run**. Arrows show primary dependencies, not every RPC.
+Components are grouped as **client** (device), **server** (app backend you run), and **cloud** (hosted providers). Arrows show primary dependencies.
 
 ```mermaid
-flowchart TB
-  subgraph device["Owner mobile device (iOS / Android / Expo)"]
-    ExpoApp["Expo / React Native app"]
-    AsyncStore["AsyncStorage (pending upload path)"]
+graph TB
+  subgraph Client
+    ExpoApp[Expo React Native app]
+    AsyncStore[AsyncStorage on device]
     ExpoApp --> AsyncStore
   end
-
-  subgraph supabase_cloud["Supabase Cloud"]
-    Auth["Auth (JWT)"]
-    PG[("Postgres + RLS")]
-    StorageAPI["Storage API (buckets)"]
+  subgraph Server
+    Flask[Flask menu API]
+  end
+  subgraph SupabaseCloud
+    Auth[Supabase Auth]
+    PG[Postgres and RLS]
+    StorageAPI[Supabase Storage]
     Auth --> PG
     Auth --> StorageAPI
   end
-
-  subgraph gcp["Google Cloud (backend credentials)"]
-    Vision["Cloud Vision — Document Text Detection"]
-    Vertex["Vertex AI — Gemini menu JSON"]
+  subgraph GoogleCloud
+    Vision[Cloud Vision OCR]
+    Vertex[Vertex AI Gemini]
   end
-
-  subgraph compute["App server (Flask) — VM / Cloud Run / laptop"]
-    Flask["Flask API :8080"]
-    Flask --> Vision
-    Flask --> Vertex
-    Flask --> StorageAPI
-  end
-
-  ExpoApp -->|"JWT + REST"| Auth
-  ExpoApp -->|"upload image bytes"| StorageAPI
-  ExpoApp -->|"POST /v1/parse-menu (bucket, path, prefs)"| Flask
+  ExpoApp --> Auth
+  ExpoApp --> StorageAPI
+  ExpoApp --> Flask
+  Flask --> Vision
+  Flask --> Vertex
+  Flask --> StorageAPI
 ```
+
+**Client** — Owner phone or tablet: the Expo app and local AsyncStorage (e.g. pending upload path).
+
+**Server** — Your Flask service (laptop, VM, Cloud Run, etc.): calls cloud APIs and is not part of the mobile binary.
+
+**Cloud · Supabase** — Managed Auth, Postgres, and private Storage for menu images and metadata.
+
+**Cloud · Google** — Vision for OCR and Vertex Gemini for structuring menu JSON.
+
+Install the **Markdown Preview Mermaid Support** extension (`bierner.markdown-mermaid`) on VS Code to see the mermaid diagram.
 
 ---
 

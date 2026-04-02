@@ -568,7 +568,7 @@ This section lists the external technologies used to implement US3: AI Generated
 - Official documentation: [https://github.com/charpeni/react-native-url-polyfill](https://github.com/charpeni/react-native-url-polyfill)
 - Maintained by: Nicolas Charpentier and contributors
 
-### Fetch API (platform API; version based on project environment, verify if needed)
+### Fetch API (platform API; version based on project environment)
 
 **Used For:**
 - Sending the frontend `POST /v1/dishes/:dishId/generate-image` request from the mobile client to the Flask backend.
@@ -581,7 +581,7 @@ This section lists the external technologies used to implement US3: AI Generated
 - Official documentation: [https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API)
 - Maintained by: Web platform standard; documented by MDN / browser platform vendors
 
-### Python (version based on project environment, verify if needed)
+### Python (version based on project environment)
 
 **Used For:**
 - Implementing the backend image-generation route, storage helpers, auth checks, and Vertex AI integration in `backend/app.py`, `backend/storage_supabase.py`, and `backend/image_generate_vertex.py`.
@@ -659,7 +659,7 @@ This section lists the external technologies used to implement US3: AI Generated
 - Official documentation: [https://supabase.com/docs/reference/python/introduction](https://supabase.com/docs/reference/python/introduction)
 - Maintained by: Supabase
 
-### Supabase Platform: PostgreSQL Database (platform version managed by Supabase; verify if needed)
+### Supabase Platform: PostgreSQL Database (platform version managed by Supabase)
 
 **Used For:**
 - Persisting the `diner_scanned_dishes.image_url` field and storing the dish, section, and scan records that the backend and frontend read during US3.
@@ -672,7 +672,7 @@ This section lists the external technologies used to implement US3: AI Generated
 - Official documentation: [https://supabase.com/docs/guides/database/overview](https://supabase.com/docs/guides/database/overview)
 - Maintained by: Supabase (managed Postgres platform)
 
-### Supabase Platform: Storage (`dish-images` bucket; platform version managed by Supabase, verify if needed)
+### Supabase Platform: Storage (`dish-images` bucket; platform version managed by Supabase)
 
 **Used For:**
 - Persisting the generated image artifact itself in the public `dish-images` bucket at paths such as `<dish_id>.png`.
@@ -686,7 +686,7 @@ This section lists the external technologies used to implement US3: AI Generated
 - Official documentation: [https://supabase.com/docs/guides/storage](https://supabase.com/docs/guides/storage)
 - Maintained by: Supabase
 
-### Google Cloud Platform (platform version managed by Google Cloud; verify if needed)
+### Google Cloud Platform (platform version managed by Google Cloud)
 
 **Used For:**
 - Hosting the Vertex AI service environment that US3 uses for dish image generation.
@@ -699,7 +699,7 @@ This section lists the external technologies used to implement US3: AI Generated
 - Official documentation: [https://cloud.google.com/docs](https://cloud.google.com/docs)
 - Maintained by: Google Cloud
 
-### Vertex AI (service version managed by Google Cloud; verify if needed)
+### Vertex AI (service version managed by Google Cloud)
 
 **Used For:**
 - Providing the managed AI image-generation service invoked by the backend after prompt construction.
@@ -750,16 +750,3 @@ This section lists the external technologies used to implement US3: AI Generated
 **Source / Documentation:**
 - Official documentation: [https://pillow.readthedocs.io/en/stable/](https://pillow.readthedocs.io/en/stable/)
 - Maintained by: Pillow Team
-
-### Markdown Mermaid Support on GitHub (platform feature; version managed by GitHub, verify if needed)
-
-**Used For:**
-- Rendering the architecture, information-flow, and class diagrams in the US3 development spec file.
-
-**Why This Was Chosen:**
-- Mermaid-on-GitHub was chosen over static diagram images because it keeps the spec text-based, versionable, reviewable in pull requests, and easy to update alongside code changes.
-- This is directly relevant to the deliverable for US3 documentation, even though it is not part of runtime execution.
-
-**Source / Documentation:**
-- Official documentation: [https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/creating-diagrams](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/creating-diagrams)
-- Maintained by: GitHub

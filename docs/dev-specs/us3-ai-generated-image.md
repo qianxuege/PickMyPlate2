@@ -66,7 +66,7 @@ flowchart LR
   VertexService["Vertex Prompt + Image Service\nbackend/image_generate_vertex.py"]
   VertexImagen["Google Vertex AI Imagen"]
 
-  User -->|Tap \"View AI Image\" for selected dish| DishDetail
+  User -->|Tap View AI Image for selected dish| DishDetail
 
   DishDetail -->|Read dish query: dishId| SupabaseClient
   SupabaseClient -->|SELECT id, section_id, name, description, price_amount, price_currency, price_display, spice_level, tags, ingredients, image_url| DishTable
@@ -80,7 +80,7 @@ flowchart LR
   DishDetail -->|Generate request: dishId| DishImageApi
   DishImageApi -->|Get current session| SupabaseClient
   SupabaseClient -->|Session access_token| DishImageApi
-  DishImageApi -->|POST /v1/dishes/:dishId/generate-image\nHeaders: Authorization Bearer token, Content-Type| FlaskRoute
+  DishImageApi -->|POST /v1/dishes/:dishId/generate-image Headers: Authorization Bearer token| FlaskRoute
 
   FlaskRoute -->|SELECT id, section_id, name, description, ingredients, image_url| DishTable
   DishTable -->|Dish record for selected dishId| FlaskRoute
@@ -97,7 +97,7 @@ flowchart LR
   DishBucket -->|Object exists / not found| StorageService
   StorageService -->|Cache result| FlaskRoute
 
-  FlaskRoute -->|Prompt inputs:\ndish_name, description, ingredients, restaurant_name| VertexService
+  FlaskRoute -->|Prompt inputs: dish_name, description, ingredients, restaurant_name| VertexService
   VertexService -->|Prompt text| VertexImagen
   VertexImagen -->|Generated image bytes| VertexService
   VertexService -->|image_bytes| FlaskRoute

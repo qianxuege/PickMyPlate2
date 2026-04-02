@@ -120,5 +120,7 @@ flowchart LR
 - The backend has two cache checks before generation: first the persisted `diner_scanned_dishes.image_url`, then the presence of the object in the Supabase `dish-images` bucket at `<dish_id>.png`.
 - The frontend only receives the public `image_url` or an error outcome; raw image bytes never return to the client from the Flask API.
 
-Needs Manual Verification:
-- `REQUIRE_AUTH` is optional in the Flask app, so bearer-token verification is conditional on deployment configuration. The client still sends the session token when available.
+Assumptions / Notes
+- The Flask backend includes an optional REQUIRE_AUTH flag. If enabled, the route verifies the Supabase JWT bearer token before processing the request.
+- The client always attempts to send the session access token when available.
+

@@ -75,8 +75,8 @@ flowchart TB
 flowchart LR
   U[("Diner user")] -->|selects filters / toggles chips| UI["DinerMenuScreen"]
   UI -->|read session| AUTH["Supabase Auth"]
-  UI -->|SELECT diner_preferences,\ndiner_dietary_preferences,\ndiner_cuisine_interests,\ndiner_smart_tags"| PREF_DB[("PostgreSQL")]
-  UI -->|SELECT scan, sections, dishes\n(tags, ingredients, …)"| SCAN_DB[("PostgreSQL")]
+  UI -->|SELECT prefs, dietary, cuisines, smart_tags| PREF_DB[("PostgreSQL")]
+  UI -->|SELECT scan, sections, dishes with tags| SCAN_DB[("PostgreSQL")]
 
   subgraph ParsePath["Initial scan (populates tags)"]
     U2[("Diner user")] -->|upload / camera| PROC["DinerMenuProcessingScreen"]

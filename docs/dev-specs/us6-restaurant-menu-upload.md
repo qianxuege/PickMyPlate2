@@ -1,8 +1,4 @@
-# US6: Restaurant Menu Upload
-
-## User story summary
-
-As a restaurant owner, I want to upload my menu to the platform so that customers can access a digital version without printed updates. The implementation uses **camera or photo-library images**, **Supabase Storage** (`menu-uploads`), **Google Cloud Vision** for document text detection (OCR), **Vertex AI (Gemini)** to structure text into `ParsedMenu` JSON, and **Supabase Postgres** for draft sections/dishes, owner review/edit, and publish. **PDF upload is not implemented in the current MVP** (images only).
+# US6: Restaurant Menu Upload Specs
 
 ## 1. Owners
 
@@ -1228,10 +1224,3 @@ This codebase **does not** query any child-abuse registry or maintain a workforc
 - **Access control:** Production data access is limited to trusted team members, with **division-scoped** access planned (see **Who may see this data** above) and **software engineering–only** paths for raw development access.
 - **People risk:** Hiring and continued access should follow **institution and legal counsel** guidance (e.g. background checks, student employment rules, revocation of dashboard keys when someone leaves).
 - **No false assurance:** The team does **not** claim technical enforcement against every risk scenario; the policy is **least-privilege access + HR/institutional process**, with optional future hardening (e.g. vendor tools, legal age gate) documented if adopted.
-
----
-
-## Gap vs. acceptance criteria
-
-- **PDF upload:** Not in current MVP (bucket allows `image/jpeg`, `image/png`, `image/webp` only). Adding PDF would require server-side rasterization or a PDF-aware OCR path.
-- **“OCR” wording:** Pipeline uses **Google Cloud Vision Document Text Detection** plus **Gemini** for structuring; mock mode (`MOCK_MENU_PARSE=1`) skips real OCR/LLM for development.

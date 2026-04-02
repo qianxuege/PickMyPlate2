@@ -174,7 +174,7 @@ This codebase is largely module-oriented rather than class-oriented. For this se
 
 ### 1. DishDetailScreen
 
-**File:** [app/dish/[dishId].tsx](app/dish/[dishId].tsx)
+**File:** [app/dish/[dishId].tsx](/app/dish/[dishId].tsx)
 
 **Public fields and methods**
 

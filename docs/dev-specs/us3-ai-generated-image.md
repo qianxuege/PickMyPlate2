@@ -881,3 +881,148 @@ US3 stores durable metadata in Supabase Postgres and the generated image asset i
 **Assumptions:**
 - This value is already included inside the `Diner Scanned Dish Record` estimate above.
 - It is broken out separately here because it is the main US3-specific metadata artifact produced by the feature and consumed by the client.
+
+## Failure Mode Analysis
+
+This section analyzes how the current US3 implementation behaves when parts of the dish-image generation path fail. It focuses on the diner dish detail screen, the `generateDishImage` client call, the Flask `POST /v1/dishes/<dish_id>/generate-image` route, Supabase Postgres and Storage, and Vertex AI image generation.
+
+### 1. Frontend Application Crashed Its Process
+
+**User-Visible Effects**
+- If the app crashes before the request is sent, the diner is returned to the OS/app launcher and no image is generated.
+- If the app crashes while `imageLoading` is active, the diner sees the screen disappear and loses the in-progress spinner state.
+- After reopening the app and returning to the dish detail screen, the diner may still see the generated image if the backend already completed and persisted `diner_scanned_dishes.image_url`.
+- If the backend did not finish before the crash, the dish detail page reopens with the placeholder and the diner must tap `View AI Image` again.
+
+**Internally-Visible Effects**
+- Client runtime state in `detail`, `imageLoading`, and `imageError` is lost immediately.
+- No long-term frontend data is corrupted by the crash because US3 does not persist image-generation UI state locally.
+- If the backend completed generation before the crash, Postgres may already contain the new `image_url` and the `dish-images` bucket may already contain `<dish_id>.png`.
+- If the request was in flight, engineers may observe a completed backend request with no corresponding client-side success handling.
+
+### 2. Frontend Application Lost All Its Runtime State
+
+**User-Visible Effects**
+- The dish detail screen resets to its initial loading behavior and reloads the dish from Supabase.
+- The diner loses transient UI state such as `imageLoading`, `imageError`, and any in-memory `detail.imageUrl` update that had not yet been re-fetched.
+- If the image had already been persisted to `diner_scanned_dishes.image_url`, the next load shows the image normally.
+- If generation had not yet completed, the diner sees the placeholder again and may retry.
+
+**Internally-Visible Effects**
+- This is effectively a soft reset of React state, not a long-term storage failure.
+- The backend and storage state remain authoritative, so any completed `image_url` write survives.
+- Duplicate generation requests are possible if the UI resets before it sees a successful response and the diner taps again.
+
+### 3. Frontend Application Erased All Stored Data
+
+**User-Visible Effects**
+- The diner may be signed out if the Supabase auth session stored through AsyncStorage is erased.
+- If signed out, the `generateDishImage` client may stop sending a bearer token; depending on backend `REQUIRE_AUTH` configuration, the request may fail with unauthorized or still proceed if auth enforcement is disabled.
+- The screen itself can still re-fetch public data only if the surrounding app auth and RLS conditions allow it; otherwise the diner may be blocked from reaching the feature path.
+
+**Internally-Visible Effects**
+- The most relevant erased frontend-stored data for US3 is the persisted auth session token, not the generated image itself.
+- Postgres rows and the `dish-images` bucket are unaffected because they are server-side long-term storage.
+- This scenario does not directly delete `diner_scanned_dishes.image_url` or the generated object path.
+
+### 4. Frontend Application Noticed That Some Data in the Database Appeared Corrupt
+
+**User-Visible Effects**
+- If `diner_scanned_dishes.image_url` is malformed or points to a missing object, the diner may see a broken or missing hero image even though the record claims an image exists.
+- If `name`, `description`, or `ingredients` are corrupt, the generated image may look unrelated to the real dish because prompt construction uses bad metadata.
+- If `section_id` or scan linkage data are corrupt, the backend may fail with errors such as `dish section not found`, `scan not found`, or `unauthorized`.
+- The current frontend does not have a specialized corruption-recovery UI; it will generally fall back to generic error text such as `Unable to generate AI image right now.`
+
+**Internally-Visible Effects**
+- The backend route will surface data-integrity failures through 404/401/502 JSON responses depending on which lookup fails.
+- A stale `image_url` combined with a missing object can produce a persistent mismatch between Postgres metadata and Storage state.
+- If the DB field is blank but the object still exists in Storage, the backend partially mitigates corruption by restoring `image_url` from `dish-images/<dish_id>.png`.
+- There is no explicit schema-level corruption detector in the US3 frontend beyond failed reads or failed image rendering.
+
+### 5. Remote Procedure Call Failed
+
+**User-Visible Effects**
+- If the `generateDishImage` fetch call fails, the diner remains on the dish detail page with the placeholder image.
+- `imageLoading` stops and `imageError` is set to a user-facing failure message, so the diner sees that AI image generation did not complete.
+- The diner can retry by pressing `View AI Image` again.
+
+**Internally-Visible Effects**
+- The failure can occur between the mobile client and Flask, or between Flask and Vertex/Supabase services.
+- The client maps network/JSON/HTTP failures into `{ ok: false, error }`, but the screen currently collapses these into a generic message rather than exposing backend detail.
+- No new long-term data is written if the route fails before `image_url` persistence.
+- If the backend generated and uploaded the image but failed before returning the response, the diner may see failure even though `image_url` and the storage object were actually written.
+
+### 6. Client Overloaded
+
+**User-Visible Effects**
+- The dish detail screen may feel slow to respond, and the `View AI Image` tap may lag before the loading spinner appears.
+- Rendering of the generated image or placeholder may stutter.
+- The diner may tap multiple times if the UI appears frozen, potentially causing repeated requests once the event queue catches up.
+
+**Internally-Visible Effects**
+- `imageLoading` is intended to prevent duplicate generation requests, but an overloaded client can still create a poor UX before that state visibly updates.
+- The backend cache checks reduce the impact of duplicate requests: once `image_url` exists or `<dish_id>.png` already exists, later requests resolve as cached instead of regenerating.
+- No direct long-term data corruption is implied, but repeated requests can produce unnecessary backend load.
+
+### 7. Client Out of RAM
+
+**User-Visible Effects**
+- The app may terminate, restart, or fail to render the detail screen correctly.
+- The diner may lose the current loading state and need to reopen the dish detail page.
+- If the generated image is large, image display may become unstable on lower-memory devices.
+
+**Internally-Visible Effects**
+- This resembles a process crash from the perspective of US3 state: `detail`, `imageLoading`, and `imageError` are lost.
+- Long-term storage remains intact unless the backend request was interrupted before completion.
+- If the backend completed independently, the next dish reload should still show the persisted `image_url`.
+
+### 8. Database Out of Space
+
+**User-Visible Effects**
+- The diner may be able to trigger generation, but the image may never appear on refresh if the backend cannot persist `diner_scanned_dishes.image_url`.
+- The frontend may repeatedly show the placeholder and generic generation failure message.
+- In a partial-failure case, the diner may get inconsistent behavior: generation appears to fail even though an image object exists in Storage.
+
+**Internally-Visible Effects**
+- The Flask route can still potentially generate the image and upload it to the `dish-images` bucket before the `UPDATE diner_scanned_dishes SET image_url = public_url` fails.
+- That would create an orphaned or semi-orphaned storage object: `<dish_id>.png` exists, but the DB metadata write failed.
+- The implementation partially mitigates this on future retries because `storage_object_exists` can detect the object and attempt to restore the missing `image_url`.
+- Operators would see DB write failures on the update step rather than generation failures.
+
+### 9. Lost Its Network Connectivity
+
+**User-Visible Effects**
+- The diner cannot call the backend from the dish detail screen, so the image generation request fails quickly or times out.
+- The placeholder remains, `imageLoading` ends, and the diner sees the generic image-generation failure message.
+- If the image had already been persisted previously, a fresh page load may still show the image if the existing `image_url` was already available before connectivity dropped and the resource remains cached locally by platform/image stack behavior; otherwise the image may not load.
+
+**Internally-Visible Effects**
+- The client-side `fetch` in `generateDishImage` returns a network error and no backend work starts.
+- No Postgres rows or storage objects are changed if the request never reaches Flask.
+- If connectivity is lost after the request reaches the server, backend work may still complete, producing a mismatch where the user saw failure but `image_url` was persisted.
+
+### 10. Lost Access to Its Database
+
+**User-Visible Effects**
+- The dish detail page may fail to load entirely because the frontend cannot fetch `diner_scanned_dishes`.
+- Even if the backend route is reachable, image generation fails because the route cannot load the dish, section, or scan records required for prompt construction and authorization.
+- The diner will see either the dish-load error state or the generic AI image failure message, depending on where the failure occurs.
+
+**Internally-Visible Effects**
+- The Flask route depends on Postgres reads for `diner_scanned_dishes`, `diner_menu_sections`, and `diner_menu_scans`; loss of DB access prevents normal route execution.
+- If DB access fails before cache or prompt construction, no new object is uploaded to Storage.
+- If DB access fails after upload but before `image_url` update, a storage object may exist without a matching persisted URL.
+- Operators would observe Supabase client query/update failures rather than Vertex generation failures.
+
+### 11. Bot Signs Up and Spams Users
+
+**User-Visible Effects**
+- US3 is not a user-to-user messaging feature, so there is no direct “spam other users with generated images” path in the current implementation.
+- The more realistic user-visible impact is service degradation: image generation becomes slower, more failure-prone, or unavailable if bots repeatedly trigger `View AI Image` across many dishes.
+- Legitimate diners may see more loading time, more generic failures, or delayed image availability.
+
+**Internally-Visible Effects**
+- The current US3 implementation does not show explicit rate limiting, abuse detection, CAPTCHA, or per-user generation quotas in the documented route.
+- A bot could drive up repeated backend calls to `/v1/dishes/<dish_id>/generate-image`, increasing Vertex usage and backend/storage load.
+- The cache design limits repeated cost per dish after the first successful generation because existing `image_url` or an existing `<dish_id>.png` object causes cached responses.
+- However, bots can still create load by generating images for many unique dishes or by forcing repeated requests before initial completion.

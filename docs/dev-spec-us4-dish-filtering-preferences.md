@@ -11,18 +11,16 @@
 
 | Role | Name | Notes |
 |------|------|--------|
-| **Primary owner** | *TBD (team)* | Owns requirements, acceptance, and release sign-off for US4. |
-| **Secondary owner** | *TBD (team)* | Owns implementation review, test plan, and operational follow-up. |
-
-*These are not present in the repository; assign per your course/team roster.*
+| **Primary owner** | Yano Li | Owns requirements, acceptance, and release sign-off for US4. |
+| **Secondary owner** | Cici Ge | Owns implementation review, test plan, and operational follow-up. |
 
 ---
 
 ## 2. Date merged into `main`
 
-**Unknown from this repository alone.** The merge date must be taken from your Git hosting history (e.g., GitHub PR merge timestamp for the branch that introduced US4 filtering). Record it here when known:
+Recorded from team / GitHub history:
 
-- **Merged to `main`:** *YYYY-MM-DD (source: GitHub PR #…)*
+- **Merged to `main`:** 2026-03-25 (GitHub PR #17)
 
 ---
 
@@ -36,7 +34,7 @@ flowchart TB
     DM["DinerMenuScreen\n(app/diner-menu.tsx)"]
     MFC["MenuFilterChip\n(components/MenuFilterChip.tsx)"]
     DMP["DinerMenuProcessingScreen\n(app/diner-menu-processing.tsx)"]
-    LIB["lib/* helpers\n(diner-preferences, fetch-parsed-menu, menu-preferences-payload, menu-scan-schema)"]
+    LIB["lib helpers\ndiner-preferences, fetch-parsed-menu, menu-preferences-payload, menu-scan-schema"]
     DM --> MFC
     DM --> LIB
     DMP --> LIB
@@ -62,8 +60,8 @@ flowchart TB
     SBUCK["Supabase Storage\n(menu image bucket)"]
   end
 
-  Client <-->|"HTTPS: Supabase JS (@supabase/supabase-js)"| API
-  Client <-->|"HTTPS: menu parse + image ref"| FLASK
+  Client <-->|Supabase HTTPS| API
+  Client <-->|Menu parse HTTPS| FLASK
   FLASK --> SBUCK
 ```
 
@@ -73,19 +71,19 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-  U[("Diner user")] -->|selects filters / toggles chips| UI["DinerMenuScreen"]
-  UI -->|read session| AUTH["Supabase Auth"]
-  UI -->|SELECT prefs, dietary, cuisines, smart_tags| PREF_DB[("PostgreSQL")]
-  UI -->|SELECT scan, sections, dishes with tags| SCAN_DB[("PostgreSQL")]
+  U[Diner user] -->|filters / chips| UI[DinerMenuScreen]
+  UI -->|read session| AUTH[Supabase Auth]
+  UI -->|SELECT preference tables| PREF_DB[PostgreSQL]
+  UI -->|SELECT scan rows| SCAN_DB[PostgreSQL]
 
-  subgraph ParsePath["Initial scan (populates tags)"]
-    U2[("Diner user")] -->|upload / camera| PROC["DinerMenuProcessingScreen"]
+  subgraph ParsePath[Initial scan populates tags]
+    U2[Diner user] -->|upload or camera| PROC[DinerMenuProcessingScreen]
     PROC -->|fetch snapshot| PREF_DB
-    PROC -->|buildMenuParseUserPreferences| MP["menu-preferences-payload.ts"]
-    PROC -->|POST user_preferences + storage ref| API["Flask /v1/parse-menu"]
-    API -->|allowed tag set| LLM["LLM menu JSON"]
-    API -->|validate + constrain tags| VAL["parsed_menu_validate.py"]
-    PROC -->|INSERT scan/sections/dishes| SCAN_DB
+    PROC -->|buildMenuParseUserPreferences| MP[menu-preferences-payload.ts]
+    PROC -->|POST parse-menu| FLASK_API[Flask parse-menu]
+    FLASK_API -->|allowed tag set| LLM[LLM menu JSON]
+    FLASK_API -->|validate tags| VAL[parsed_menu_validate.py]
+    PROC -->|INSERT scan| SCAN_DB
   end
 ```
 
@@ -319,7 +317,7 @@ Versions are from `PickMyPlate2/package.json` at documentation time. Patch versi
 | | | `budget_tier` | `$` … `$` | 1–4 chars |
 | | | `onboarding_completed_at` | When onboarding saved | timestamptz ~8 B |
 | | | `preferences_skipped` | boolean | 1 B |
-| | | `raw_preference_notes` | Free text notes | variable (0–KB+) |
+| | | `raw_preference_notes` | Optional free text (schema present; not read/written by current `diner-preferences.ts`) | variable (0–KB+) |
 | | | `created_at`, `updated_at` | audit | timestamptz each |
 | `diner_dietary_preferences` | Many dietary chips | `(profile_id, dietary_key)` PK | Selected dietary tags | UUID + short text per row |
 | `diner_cuisine_interests` | Cuisine many-to-many | `profile_id`, `cuisine_id` | Cuisine filter chips | 2× UUID per row |
@@ -369,27 +367,30 @@ Applies to the **US4 filtering feature** and its dependencies (load preferences,
 |------|------|------------|------------|---------------------------|----------------------|---------------------|
 | `profiles.id` / `auth.users.id` | Indirect identifier (UUID) | Account identity | UUID in Postgres | Sign-up / Supabase Auth | Auth module → `profiles` | Joined from all `profile_id` FKs |
 | `profiles.display_name`, `avatar_url` | Potentially PII | Profile UX | Text / URL | User profile UI | Client → Supabase | Read on profile screens |
-| `diner_preferences.raw_preference_notes` | **Likely PII** (free text may include names, health details) | User-entered notes | `text` in Postgres | Onboarding / personalization forms | Client → `savePersonalizationFormPrefs` | Read by `fetchDinerPreferences` if selected in UI *(verify UI exposure in repo)* |
+| `diner_preferences.raw_preference_notes` | **Likely PII** if ever used (free text) | Reserved for notes-style onboarding copy | `text` in Postgres | Schema only in current repo | *Not written or selected by `lib/diner-preferences.ts` as of this spec* | Would require explicit `select` / UI if enabled later |
 | `diner_smart_tags.label`, `source_text` | **May be sensitive** (allergies, dislikes) | Personalization | Text in Postgres | Parsed or user-entered | Client / future parsers | Chip labels in `fetchDinerPreferences` |
 | Dietary / cuisine / spice / budget | Lower direct identifiability; still preference data | Filtering & recommendations | Normalized columns / join tables | User selections | `savePersonalizationFormPrefs` | `fetchDinerPreferences` → menu chips |
 | `diner_menu_scans`, dish content | Restaurant data + user linkage via `profile_id` | User’s scan history | Postgres | Menu parse + persist | `persistParsedMenu` | `fetchParsedMenuForScan` |
 
-### 10.2 Responsibility and auditing (team — not in code)
+### 10.2 Responsibility and auditing (team)
 
-| Storage unit | Suggested owner | Auditing |
-|--------------|-----------------|----------|
-| `auth.users` / Supabase Auth | *TBD (team lead / infra)* | Supabase Auth logs, MFA policy |
-| `profiles`, diner preference tables | *TBD (backend owner)* | Supabase log explorer, RLS review, periodic access reviews |
-| Menu parse Flask service | *TBD (backend owner)* | Application logging, rate limits, secrets rotation |
+| Storage unit | Owner | Auditing |
+|--------------|-------|----------|
+| `auth.users` / Supabase Auth | Cici Ge (auth integration) | Supabase dashboard logs; auth events reviewed as part of changes that touch sign-in/session flows. |
+| `profiles`, diner preference tables, and related diner data access in app code | Yano Li (diner preference storage and access logic) | GitHub PR review for any change that queries or mutates these tables; Supabase dashboard logs; code-level inspection of API usage in the client. |
+| Menu parse Flask service / deployment | Yao Lu | Application logging, rate limits, and secrets handling for the parse service; reviewed when deploying or changing `backend/`. |
 
-**Procedures:** Define in your team policy (who may run SQL against prod, how incidents are logged). **Not specified in application source.**
+**Team procedures (routine):** Review database-related access through **GitHub PRs**, **Supabase dashboard logs**, and **code-level inspection** of routes and Supabase client usage.
+
+**Non-routine access:** Discussed and agreed **within the team before execution** (e.g., ad-hoc SQL, production debugging, or dashboard access outside normal development).
 
 ### 10.3 Minors
 
-- The repository **does not** encode age verification or parental consent flows.
-- **Policy statement for coursework:** *TBD by team — e.g., “App is intended for users 13+” or institutional IRB policy.*
-- **Whether minors’ PII is solicited:** Only indirectly if a minor creates an account; **no dedicated guardian permission UI** appears in the reviewed migrations.
-- **Child safety policy:** *TBD by team / institution* — not implementable from code review alone.
+- The application is **not intended specifically for minors** as a target audience.
+- The team **does not knowingly solicit or store minors’ PII** as a product goal.
+- **Guardian permission flows are not implemented** because the app **does not target children**; there is no dedicated parental-consent UI in the reviewed schema and flows.
+- The repository **does not** encode age verification; if a minor signs up like any other user, standard account data may exist—handled under general auth and privacy practices, not a child-directed product policy.
+- **Child-safety / restricted-access policy for convicted or suspected abusers:** Not separately encoded in application logic; follow **institutional** and **platform (Supabase / hosting)** policies where applicable.
 
 ---
 
@@ -397,7 +398,7 @@ Applies to the **US4 filtering feature** and its dependencies (load preferences,
 
 1. **Ingredient filtering:** User story text mentions **ingredients**; the client filter uses **`tags` only**. Ingredients are stored and shown elsewhere in the app lifecycle but **not** used in `diner-menu.tsx` filter logic.
 2. **Search results:** `app/diner-search-results.tsx` filters by **text query** over dish fields, not by the same preference chip model as the menu screen.
-3. **Merge date and owners:** Fill from team records / GitHub.
+3. **Merge date and owners:** Documented in §1–2 and §10.2 (team-provided).
 
 ---
 
@@ -413,4 +414,4 @@ The repository may not yet contain Jest/Detox tests for US4; recommended cases:
 
 ---
 
-*Document generated from codebase paths under `PickMyPlate2/` and `PickMyPlate2/backend/`. Update owners, merge date, and team policies before submission.*
+*Document generated from codebase paths under `PickMyPlate2/` and `PickMyPlate2/backend/`.* Owners, merge metadata, and team policies updated per team input (2026).

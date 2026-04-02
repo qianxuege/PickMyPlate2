@@ -1026,3 +1026,271 @@ This section analyzes how the current US3 implementation behaves when parts of t
 - A bot could drive up repeated backend calls to `/v1/dishes/<dish_id>/generate-image`, increasing Vertex usage and backend/storage load.
 - The cache design limits repeated cost per dish after the first successful generation because existing `image_url` or an existing `<dish_id>.png` object causes cached responses.
 - However, bots can still create load by generating images for many unique dishes or by forcing repeated requests before initial completion.
+
+## Personally Identifying Information (PII) Analysis
+
+This section is evidence-based and scoped to the current repository, the SQL schema you provided, and the US3 implementation path. It separates confirmed facts from items that cannot be proven from the repo/schema alone and therefore require manual verification.
+
+### 1. PII Stored in Long-Term Storage
+
+#### Auth Account Email
+
+**Storage Location**
+- Supabase Auth managed identity store: `auth.users`
+- Exact `auth.users` column layout was not included in the provided schema, but the repository and migrations clearly reference that table.
+
+**Why It Is Considered PII**
+- Email address is direct personal contact information and can identify a specific user.
+
+**Why The System Stores It**
+- The app uses email/password signup and login.
+- The email is also used in account-linking and account-confirmation flows.
+
+**How It Is Stored**
+- Stored by Supabase Auth as an auth-managed identity field.
+- The repository does not expose the exact `auth.users` schema beyond the foreign-key link from `public.profiles.id`, so exact storage details are **Needs Manual Verification**.
+- No repo evidence confirms application-managed encryption, hashing, or tokenization for email itself.
+
+**How It Enters The System**
+- A user enters email into registration or login UI.
+- Confirmed entry points:
+  - [app/diner-registration.tsx](/Users/sofiayu/Desktop/2025-2026/17356/PickMyPlate2/app/diner-registration.tsx)
+  - [app/login.tsx](/Users/sofiayu/Desktop/2025-2026/17356/PickMyPlate2/app/login.tsx)
+  - [lib/link-account.ts](/Users/sofiayu/Desktop/2025-2026/17356/PickMyPlate2/lib/link-account.ts)
+
+**Flow Before Storage**
+- `DinerRegistrationScreen`
+  - local state field `email`
+  - method `onCreate()`
+  - calls `supabase.auth.signUp({ email: trimmedEmail, password, options: { data: ... } })`
+- `LoginScreen`
+  - local state field `email`
+  - method `onLogin()`
+  - calls `supabase.auth.signInWithPassword({ email: trimmed, password })`
+- `linkDinerToExistingAccount()` and `linkRestaurantToExistingAccount()`
+  - accept `email` and `password`
+  - call `supabase.auth.signInWithPassword({ email, password })`
+- Supabase Auth then persists the account identity in `auth.users`
+
+**Flow After Retrieval**
+- Raw email is not part of the normal US3 image-generation request payload.
+- After retrieval from auth storage, the relevant downstream artifact for US3 is the authenticated session:
+  - [lib/dish-image-api.ts](/Users/sofiayu/Desktop/2025-2026/17356/PickMyPlate2/lib/dish-image-api.ts)
+  - `supabase.auth.getSession()`
+  - session `access_token` becomes the `Authorization` bearer token for `POST /v1/dishes/<dish_id>/generate-image`
+- On the backend:
+  - [backend/auth_supabase.py](/Users/sofiayu/Desktop/2025-2026/17356/PickMyPlate2/backend/auth_supabase.py)
+  - `verify_bearer_token()` decodes the JWT and exposes `sub` for authorization checks
+
+#### Auth-Linked User Identifier (`profiles.id` / `diner_menu_scans.profile_id`)
+
+**Storage Location**
+- `public.profiles.id`
+- `public.diner_menu_scans.profile_id`
+
+**Why It Is Considered PII**
+- A stable account UUID tied to a real authenticated user is a persistent identifier.
+- Even though it is not human-readable, it can identify and track a single user across records and requests.
+
+**Why The System Stores It**
+- The system needs a durable account key for ownership, row-level access control, and authorization.
+- US3 specifically depends on this identifier to ensure the requesting diner owns the scan that contains the dish.
+
+**How It Is Stored**
+- UUID primary key in `public.profiles.id`
+- UUID foreign key in `public.diner_menu_scans.profile_id`
+- JWT `sub` values used during US3 authorization correspond to this same account identity
+
+**How It Enters The System**
+- `public.profiles.id` is created from `auth.users.id`
+- Evidence:
+  - [supabase/migrations/20250324120000_profiles_pickmyplate_rls.sql](/Users/sofiayu/Desktop/2025-2026/17356/PickMyPlate2/supabase/migrations/20250324120000_profiles_pickmyplate_rls.sql)
+  - trigger `handle_new_user()` inserts `new.id` into `public.profiles`
+- `public.diner_menu_scans.profile_id` is later written when a diner menu scan is persisted:
+  - [lib/persist-parsed-menu.ts](/Users/sofiayu/Desktop/2025-2026/17356/PickMyPlate2/lib/persist-parsed-menu.ts)
+  - `persistParsedMenu(menu, profileId)` inserts `{ profile_id: profileId, restaurant_name: ... }`
+
+**Flow Before Storage**
+- Signup/auth creation:
+  - Supabase Auth creates `auth.users.id`
+  - DB trigger `handle_new_user()` writes that ID into `public.profiles.id`
+- Scan creation:
+  - the application obtains the signed-in user ID as `profileId`
+  - `persistParsedMenu(menu, profileId)`
+  - `supabase.from('diner_menu_scans').insert({ profile_id: profileId, restaurant_name })`
+
+**Flow After Retrieval**
+- In US3, this identifier is primarily used for backend authorization rather than display:
+  - [backend/app.py](/Users/sofiayu/Desktop/2025-2026/17356/PickMyPlate2/backend/app.py)
+  - route `generate_dish_image(dish_id)`
+  - reads `profile_id` from `diner_menu_scans`
+  - compares it against `payload.get("sub")` from `verify_bearer_token()`
+- The client does not display `profile_id` on the dish detail screen.
+
+#### Display Name
+
+**Storage Location**
+- `public.profiles.display_name`
+- Initially present in Supabase Auth user metadata during signup
+
+**Why It Is Considered PII**
+- A display name can directly identify a person or materially narrow their identity when linked to an account.
+
+**Why The System Stores It**
+- The app stores a user-facing account name for profile and onboarding flows.
+- This field is not directly used in US3 image generation, but it is part of the same long-term user identity system that US3 depends on.
+
+**How It Is Stored**
+- Text column in `public.profiles.display_name`
+- Initially passed via `raw_user_meta_data.display_name` during signup
+- No evidence in the repo shows hashing, tokenization, or application-managed encryption for this field
+
+**How It Enters The System**
+- The diner enters their name during registration.
+- Evidence:
+  - [app/diner-registration.tsx](/Users/sofiayu/Desktop/2025-2026/17356/PickMyPlate2/app/diner-registration.tsx)
+  - local state field `name`
+  - `supabase.auth.signUp({ ..., options: { data: { display_name: name.trim() } } })`
+- The DB trigger copies this into `public.profiles.display_name`
+
+**Flow Before Storage**
+- `DinerRegistrationScreen`
+  - local state field `name`
+  - method `onCreate()`
+  - passes `display_name` inside `options.data`
+- `handle_new_user()` trigger
+  - reads `new.raw_user_meta_data->>'display_name'`
+  - inserts into `public.profiles (id, display_name)`
+
+**Flow After Retrieval**
+- No direct US3 retrieval path was found for `profiles.display_name`.
+- The field is likely used by account/profile surfaces elsewhere in the app, but that is outside the direct image-generation flow.
+
+#### Avatar URL
+
+**Storage Location**
+- `public.profiles.avatar_url`
+
+**Why It Is Considered PII**
+- An avatar can contain a person’s face or a user-linked image URL and is therefore potentially identifying.
+
+**Why The System Stores It**
+- The schema supports user profile avatars.
+- This field is not directly used by US3, but it is part of the same long-term account store.
+
+**How It Is Stored**
+- Text column in `public.profiles.avatar_url`
+- Exact upstream source and storage conventions are **Needs Manual Verification**
+
+**How It Enters The System**
+- The schema confirms the field exists, but no current write path for `avatar_url` was found in the repository.
+- **Needs Manual Verification**
+
+**Flow Before Storage**
+- No confirmed application write flow was found in the repo.
+- **Needs Manual Verification**
+
+**Flow After Retrieval**
+- No confirmed US3 retrieval path was found in the repo.
+- **Needs Manual Verification**
+
+#### Potential Additional Auth-Managed Identity Fields
+
+**Storage Location**
+- Supabase Auth managed store `auth.users`
+
+**Why It Is Considered PII**
+- The repository and login/signup code strongly imply the presence of additional auth-managed identity fields or metadata beyond the visible app schema.
+
+**Why The System Stores It**
+- Required for account authentication and lifecycle management.
+
+**How It Is Stored**
+- Managed by Supabase Auth, outside the visible application-owned schema provided here.
+- Exact field set is **Needs Manual Verification**
+
+**How It Enters The System**
+- Through `supabase.auth.signUp()` and related Supabase Auth flows
+
+**Flow Before Storage**
+- Same auth entry path as the email item above
+
+**Flow After Retrieval**
+- In US3, the practical downstream artifact is the authenticated session token retrieved by `supabase.auth.getSession()` and decoded by `verify_bearer_token()`
+
+### 2. Long-Term Storage Units and Responsible Team Members
+
+| Storage Unit | PII It Contains | Team Members Responsible for Securing It |
+|---|---|---|
+| Supabase Auth `auth.users` | Email and other auth-managed identity fields; auth-linked user ID | **Needs Manual Verification** |
+| `public.profiles` | `id`, `display_name`, `avatar_url` | **Needs Manual Verification** |
+| `public.diner_menu_scans` | `profile_id` (auth-linked user identifier) | **Needs Manual Verification** |
+
+Notes:
+- This dev spec names **Sofia** as primary owner and **Yano** as secondary owner for US3, but the repository and schema do not explicitly assign storage-security responsibility to either person.
+- It would be unsafe to claim formal security ownership without explicit human confirmation.
+
+### 3. Access Auditing Procedures
+
+**Routine Access Auditing**
+- The repository provides evidence of access control, not of documented auditing procedure:
+  - row-level security on `public.profiles`
+  - row ownership checks on diner tables
+  - optional JWT verification in [backend/auth_supabase.py](/Users/sofiayu/Desktop/2025-2026/17356/PickMyPlate2/backend/auth_supabase.py)
+- No documented routine access-audit process, review cadence, or named reviewer was found in the repo or provided schema.
+- **Needs Manual Verification**
+
+**Non-Routine Access Auditing**
+- No documented incident-response or special-case audit procedure for unusual access to PII was found in the repo or schema.
+- The codebase does not define who reviews Supabase admin access, storage access, or backend investigation logs.
+- **Needs Manual Verification**
+
+### 4. Minors and Guardian Permission
+
+- **Is PII of a minor under 18 solicited or stored?**
+  - The application solicits `name`, `email`, and `password` during account registration.
+  - The system does **not** collect age in the visible repo/schema, so it cannot determine from current data whether a registrant is a minor.
+  - Because there is no age gate in the visible implementation, the system could store PII belonging to a minor if a minor signs up.
+
+- **Why?**
+  - Registration is general-purpose account creation and is not age-segmented in the visible code.
+  - No age-verification logic or minors-specific workflow was found.
+
+- **Does the application solicit guardian permission?**
+  - No guardian-permission workflow was found in the repository or provided schema.
+  - **Needs Manual Verification** if such a process exists outside the current codebase.
+
+- **What is the team policy for preventing access by anyone convicted or suspected of child abuse?**
+  - No such policy was found in the repository, schema, or user-provided team information.
+  - **Needs Manual Verification**
+
+### 5. Confirmed Non-PII Relevant to US3
+
+The following long-term data are important to US3 but are not PII based on the provided schema and current repository:
+
+- `public.diner_scanned_dishes.name`
+  - Dish/application content, not user identity data
+- `public.diner_scanned_dishes.description`
+  - Dish/application content
+- `public.diner_scanned_dishes.ingredients`
+  - Dish/application content
+- `public.diner_scanned_dishes.image_url`
+  - Public pointer to a generated dish image asset, not a user identifier
+- Supabase Storage object `dish-images/<dish_id>.png`
+  - Stored under dish UUID, not user UUID, in the current US3 implementation
+- `public.diner_menu_scans.restaurant_name`
+  - Venue/business context for a menu scan, not a user identity field in the current design
+- `public.diner_menu_sections.title`
+  - Menu section metadata, not PII
+
+### 6. Manual Follow-Ups Required
+
+- Confirm the exact PII fields present in Supabase Auth `auth.users`, especially whether the only directly stored contact field used by this app is email.
+- Confirm whether any additional code outside the visible repository writes or reads `public.profiles.avatar_url`.
+- Confirm which team members are formally responsible for securing:
+  - Supabase Auth
+  - Supabase Postgres
+  - Supabase Storage
+- Confirm whether the team has documented routine and non-routine access-auditing procedures outside this repository.
+- Confirm whether the organization has any minors policy, guardian-consent policy, or safeguards related to access by individuals convicted or suspected of child abuse.
+- Confirm whether any PII-bearing logs, analytics, or monitoring systems exist outside the application schema shown here.

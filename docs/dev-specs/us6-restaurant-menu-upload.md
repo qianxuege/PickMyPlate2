@@ -1170,7 +1170,7 @@ Metadata rows in `storage.objects` are small (hundreds of bytes) plus the **bina
 
 ---
 
-## Frontend failure and abuse scenarios
+## 9. Frontend failure and abuse scenarios
 
 Assumptions: **frontend** = Expo app process on device; **backend** = Supabase + Flask as configured.
 
@@ -1190,28 +1190,44 @@ Assumptions: **frontend** = Expo app process on device; **backend** = Supabase +
 
 ---
 
-## PII in long-term storage
+## 10. PII in long-term storage
+
+**Who may see this data (team policy):** **All founding members** of the team **can view** the information described in this section (Supabase auth data, restaurant profile fields, Storage paths and menu images, etc.). **Going forward**, access will be **limited by division**: each division will only see what its role requires. For **development** work specifically—live dashboards, database inspection, Storage browsing, exports, and the like—those artifacts remain **visible only to software engineering** members (plus closely related technical roles if needed), **solely for development and operations**, and **must not be leaked** or shared outside confidential, approved channels.
 
 ### What counts as PII here
 
-| Data                                                       | Stored where                         | Why kept                | How stored                                                      | Enters via                      | Path into storage                                       | After storage (read path)                     | Custodian (assign names) | Minors                                                              |
-| ---------------------------------------------------------- | ------------------------------------ | ----------------------- | --------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------- | --------------------------------------------- | ------------------------ | ------------------------------------------------------------------- |
-| **Owner account email**                                    | Supabase `auth.users`                | Account recovery, login | Encrypted at rest (Supabase); bcrypt/Supabase Auth for password | Restaurant registration / login | `RestaurantRegistrationScreen` → `supabase.auth.signUp` | `supabase.auth.getSession` in clients         | _Security owner (TBD)_   | Not collected as “minor email” in US6 flow; age not verified in-app |
-| **Owner user UUID (`sub`)**                                | `auth.users`, `profiles`, FK columns | RLS ownership           | `uuid` columns                                                  | Signup                          | Auth triggers / inserts                                 | Every guarded query via `auth.uid()`          | _Backend lead (TBD)_     | Identifier; combine with policy                                     |
-| **Restaurant business phone / address** (if owner entered) | `public.restaurants`                 | Venue contact           | `text`                                                          | Onboarding / profile            | `upsertRestaurantForOwner` etc.                         | Profile screens                               | _Data owner (TBD)_       | Could include personal phone for sole proprietors                   |
-| **Storage object path prefix**                             | `storage.objects.name`               | Locates menu image      | Text path starting with `auth.uid()`                            | Upload                          | `uploadMenuImageFromUri` → Supabase Storage API         | Flask `download_storage_object(bucket, path)` | _Infra owner (TBD)_      | UUID links object to account                                        |
-| **Menu image bytes**                                       | `menu-uploads`                       | OCR input               | Private object                                                  | Camera/library                  | Client upload                                           | Vision + Gemini in Flask (transient)          | _Infra owner (TBD)_      | May photograph patrons or receipts—**content-dependent**            |
+| Data                                                       | Stored where                         | Why kept                | How stored                                                      | Enters via                      | Path into storage                                       | After storage (read path)                     | Custodian (assign names) | Minors                                                                                                         |
+| ---------------------------------------------------------- | ------------------------------------ | ----------------------- | --------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------- | --------------------------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| **Owner account email**                                    | Supabase `auth.users`                | Account recovery, login | Encrypted at rest (Supabase); bcrypt/Supabase Auth for password | Restaurant registration / login | `RestaurantRegistrationScreen` → `supabase.auth.signUp` | `supabase.auth.getSession` in clients         | _Security owner (TBD)_   | With name, forms the team’s explicit **contact PII** ceiling for owners; age not verified—see **Minors** below |
+| **Owner user UUID (`sub`)**                                | `auth.users`, `profiles`, FK columns | RLS ownership           | `uuid` columns                                                  | Signup                          | Auth triggers / inserts                                 | Every guarded query via `auth.uid()`          | _Backend lead (TBD)_     | Identifier; combine with policy                                                                                |
+| **Restaurant business phone / address** (if owner entered) | `public.restaurants`                 | Venue contact           | `text`                                                          | Onboarding / profile            | `upsertRestaurantForOwner` etc.                         | Profile screens                               | _Data owner (TBD)_       | Could include personal phone for sole proprietors                                                              |
+| **Storage object path prefix**                             | `storage.objects.name`               | Locates menu image      | Text path starting with `auth.uid()`                            | Upload                          | `uploadMenuImageFromUri` → Supabase Storage API         | Flask `download_storage_object(bucket, path)` | _Infra owner (TBD)_      | UUID links object to account                                                                                   |
+| **Menu image bytes**                                       | `menu-uploads`                       | OCR input               | Private object                                                  | Camera/library                  | Client upload                                           | Vision + Gemini in Flask (transient)          | _Infra owner (TBD)_      | May photograph patrons or receipts—**content-dependent**                                                       |
 
 ### Auditing access to PII
 
-- **Routine:** Supabase Dashboard access restricted to named maintainers; enable **audit logs** / log drains where available; JWT/service-role keys in secret manager only.
-- **Non-routine:** Ticket + approval for SQL queries touching `auth.users` or exports; document reason, time range, and erasure date if copied locally.
+- **Routine:** Supabase Dashboard access restricted to named maintainers (aligned with **software engineering** / ops above; other divisions use read-only or anonymized views where possible once division policies apply); enable **audit logs** / log drains where available; JWT/service-role keys in secret manager only.
+- **Non-routine:** Ticket + approval for SQL queries touching `auth.users` or exports; document reason, time range, and erasure date if copied locally—the same **no-leakage** expectation applies to any export or screenshot of production-like data.
 
 ### Minors — policy questions
 
-- **Is PII of a minor under 18 solicited or stored?** The product does not implement age gating in this repository; **restaurant registration collects email/password** without verifying age. Team policy should treat the app as **13+ or 18+** per legal review.
-- **Guardian permission?** **Not implemented** in code.
-- **Policy for minors’ PII vs. child-abuse registry:** **No automated screening** exists in this codebase. Organizational policy should follow institutional HR/legal guidance (e.g., background checks for employees with production access) — **document owner: legal/compliance (TBD)**.
+**Scope of stored owner contact data (team policy):** For restaurant **owner accounts**, the team treats **name** and **email address** as the only **intentional** human-identifying contact fields this product is meant to persist for that person. **Passwords** are credentials managed by **Supabase Auth** (hashed by the provider—not application-held plaintext). Other columns in this document (e.g. UUID keys, optional phone/address on `restaurants`, menu images) exist for product function but are **not** additional “profile” solicitations aimed at children; nonetheless, if a minor uses the app, **any** stored row tied to that account could still constitute their data. The answers below focus on **name + email** as the core contact PII surface.
+
+**Is PII of a minor under the age of 18 solicited or stored by the system?**  
+**Solicited:** The registration and profile flows ask for information typical of an adult business owner—**name**, **email**, and a **password** for login. The app **does not** ask for date of birth or school grade, so it does not _explicitly_ solicit “minor-specific” fields. **Stored:** If a person under 18 completes signup anyway, the same fields (**name**, **email**, auth metadata, and any rows their account creates) **can be stored** without the system ever classifying them as a minor. **Why:** The MVP has **no age verification** and no COPPA-style gate in code; storage follows normal account creation.
+
+**Why (why is it stored at all)?**  
+**Name** and **email** are stored so owners can sign in, recover access, and be distinguished in the database; they are ordinary prerequisites for a multi-tenant restaurant product, not because the product targets minors.
+
+**Does your application solicit a guardian’s permission to have that PII?**  
+**No.** There is **no** guardian consent flow, parental e-mail loop, or COPPA-style authorization step in this repository. A legal/compliance review should decide whether the product must add such a flow or restrict use to **18+** (or **13+** with consent), **document owner: legal/compliance (TBD)**.
+
+**What is your team’s policy for ensuring that minors’ PII is not accessible by anyone convicted or suspected of child abuse?**  
+This codebase **does not** query any child-abuse registry or maintain a workforce eligibility database. Mitigation is **organizational**, not automated:
+
+- **Access control:** Production data access is limited to trusted team members, with **division-scoped** access planned (see **Who may see this data** above) and **software engineering–only** paths for raw development access.
+- **People risk:** Hiring and continued access should follow **institution and legal counsel** guidance (e.g. background checks, student employment rules, revocation of dashboard keys when someone leaves).
+- **No false assurance:** The team does **not** claim technical enforcement against every risk scenario; the policy is **least-privilege access + HR/institutional process**, with optional future hardening (e.g. vendor tools, legal age gate) documented if adopted.
 
 ---
 

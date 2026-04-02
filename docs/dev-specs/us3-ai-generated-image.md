@@ -418,3 +418,348 @@ This codebase is largely module-oriented rather than class-oriented. For this se
 
 - **Needs manual verification**
   - Vertex AI Imagen is an external SDK/service. Its internal fields and private methods are not defined in this repository and are therefore not inspectable here.
+
+## Technologies, Libraries, and APIs
+
+This section lists the external technologies used to implement US3: AI Generated Dish Image. It is scoped to the diner-side image-generation feature path that loads a dish, calls the backend, generates an image, stores it in Supabase, and returns the public URL to the client.
+
+### TypeScript (5.9.2)
+
+**Used For:**
+- Defining the frontend implementation for US3, including the dish detail screen, typed API client responses, and row/data shapes such as `DinerScannedDishRow`.
+- Catching type mismatches in fields such as `image_url`, `ingredients`, `price_amount`, and `spice_level` before runtime.
+
+**Why This Was Chosen:**
+- TypeScript was chosen over plain JavaScript because US3 depends on multiple data boundaries: route params, Supabase query results, backend JSON responses, and normalized screen state.
+- Strong typing reduces mistakes around nullable fields like `image_url` and makes feature documentation and maintenance easier.
+
+**Source / Documentation:**
+- Official documentation: [https://www.typescriptlang.org/docs/](https://www.typescriptlang.org/docs/)
+- Maintained by: Microsoft
+
+### React (19.1.0)
+
+**Used For:**
+- Powering the `DishDetailScreen` component and its stateful UI behavior for loading, image generation, error handling, and conditional rendering.
+
+**Why This Was Chosen:**
+- React was chosen over lower-level UI state management approaches because the app is already structured around declarative component rendering.
+- US3 relies on local state transitions such as `loading`, `imageLoading`, `imageError`, and `detail.imageUrl`, which fit React’s model well.
+
+**Source / Documentation:**
+- Official documentation: [https://react.dev/](https://react.dev/)
+- Maintained by: Meta
+
+### React Native (0.81.5)
+
+**Used For:**
+- Rendering the mobile UI for US3, including `View`, `Text`, `Pressable`, `ScrollView`, `ActivityIndicator`, and styling for the dish detail page.
+
+**Why This Was Chosen:**
+- React Native was chosen over separate native iOS and Android implementations because the project ships a shared cross-platform app.
+- US3 needed standard mobile UI primitives, loading states, and press interactions without duplicating platform-specific code.
+
+**Source / Documentation:**
+- Official documentation: [https://reactnative.dev/docs/getting-started](https://reactnative.dev/docs/getting-started)
+- Maintained by: Meta
+
+### Expo (54.0.33)
+
+**Used For:**
+- Providing the application runtime, bundling, environment integration, and managed React Native development environment used by the US3 frontend.
+
+**Why This Was Chosen:**
+- Expo was chosen over a fully bare React Native setup because it simplifies mobile app setup, configuration, and consistent access to Expo libraries already used elsewhere in the project.
+- For US3, Expo makes it straightforward to combine routing, config access, image display, and mobile app packaging in one environment.
+
+**Source / Documentation:**
+- Official documentation: [https://docs.expo.dev/](https://docs.expo.dev/)
+- Maintained by: Expo
+
+### Expo Router (6.0.23)
+
+**Used For:**
+- Routing into `app/dish/[dishId].tsx` and resolving route parameters such as `dishId`, `scanId`, and `restaurantName` for the dish detail page.
+
+**Why This Was Chosen:**
+- Expo Router was chosen over a manually wired navigation tree because the project uses file-based routes.
+- US3 benefits from this because the dish detail page can be modeled directly as `/dish/[dishId]`, which keeps the feature discoverable and consistent with the rest of the app.
+
+**Source / Documentation:**
+- Official documentation: [https://docs.expo.dev/router/introduction/](https://docs.expo.dev/router/introduction/)
+- Maintained by: Expo
+
+### Expo Image (3.0.11)
+
+**Used For:**
+- Rendering the generated dish image from the returned public `image_url` in the dish detail screen and other related image-display surfaces.
+
+**Why This Was Chosen:**
+- `expo-image` was chosen over the base React Native image component because it provides a modern Expo-supported image pipeline with good performance and straightforward remote URI rendering.
+- US3 specifically needs efficient display of a remotely stored image artifact after generation.
+
+**Source / Documentation:**
+- Official documentation: [https://docs.expo.dev/versions/latest/sdk/image/](https://docs.expo.dev/versions/latest/sdk/image/)
+- Maintained by: Expo
+
+### Expo Constants (18.0.13)
+
+**Used For:**
+- Reading app configuration needed by `lib/dish-image-api.ts`, specifically the backend base URL fallback from Expo config.
+
+**Why This Was Chosen:**
+- Expo Constants was chosen over a custom runtime-config layer because the app already uses Expo-managed configuration.
+- For US3 it gives a reliable fallback source for `menuApiUrl` when resolving the Flask backend address.
+
+**Source / Documentation:**
+- Official documentation: [https://docs.expo.dev/versions/latest/sdk/constants/](https://docs.expo.dev/versions/latest/sdk/constants/)
+- Maintained by: Expo
+
+### React Navigation (7.1.8 for `@react-navigation/native`; 7.4.0 for bottom tabs)
+
+**Used For:**
+- Supporting the app’s navigation infrastructure that Expo Router builds on, including screen lifecycle and focus behavior around the diner experience that leads into the US3 dish detail screen.
+
+**Why This Was Chosen:**
+- React Navigation was chosen over a custom navigation solution because it is the standard navigation foundation in the React Native ecosystem and integrates directly with Expo Router.
+- US3 depends on this navigation stack even though the feature code itself uses Expo Router APIs directly.
+
+**Source / Documentation:**
+- Official documentation: [https://reactnavigation.org/docs/getting-started](https://reactnavigation.org/docs/getting-started)
+- Maintained by: React Navigation maintainers
+
+### Supabase JavaScript Client (`@supabase/supabase-js` 2.100.0)
+
+**Used For:**
+- Reading `diner_scanned_dishes`, `diner_menu_sections`, and `diner_menu_scans` from the mobile app.
+- Retrieving the current authenticated session and access token before calling the Flask image-generation endpoint.
+
+**Why This Was Chosen:**
+- Supabase JS was chosen over writing raw REST or GraphQL calls to the database because the project already uses Supabase as its backend platform.
+- It provides typed, direct access to Postgres-backed tables and integrates naturally with Supabase Auth, which US3 uses for token forwarding.
+
+**Source / Documentation:**
+- Official documentation: [https://supabase.com/docs/reference/javascript/introduction](https://supabase.com/docs/reference/javascript/introduction)
+- Maintained by: Supabase
+
+### AsyncStorage (`@react-native-async-storage/async-storage` 2.2.0)
+
+**Used For:**
+- Persisting the client-side Supabase auth session on device so the access token can be reused when the diner requests an AI image.
+
+**Why This Was Chosen:**
+- AsyncStorage was chosen over custom device persistence because it is the standard lightweight storage backend used by Supabase Auth in React Native.
+- US3 depends on it indirectly so the session survives app restarts and the authorization header can still be attached.
+
+**Source / Documentation:**
+- Official documentation: [https://react-native-async-storage.github.io/async-storage/docs/install/](https://react-native-async-storage.github.io/async-storage/docs/install/)
+- Maintained by: React Native Async Storage maintainers
+
+### React Native URL Polyfill (`react-native-url-polyfill` 3.0.0)
+
+**Used For:**
+- Providing URL and related web-standard behavior needed by the Supabase client in the React Native environment.
+
+**Why This Was Chosen:**
+- This was chosen over maintaining custom shims because Supabase JS expects modern URL behavior that is not consistently available in React Native by default.
+- US3 relies on the Supabase client, so this dependency is part of the feature’s working runtime stack.
+
+**Source / Documentation:**
+- Official documentation: [https://github.com/charpeni/react-native-url-polyfill](https://github.com/charpeni/react-native-url-polyfill)
+- Maintained by: Nicolas Charpentier and contributors
+
+### Fetch API (platform API; version based on project environment, verify if needed)
+
+**Used For:**
+- Sending the frontend `POST /v1/dishes/:dishId/generate-image` request from the mobile client to the Flask backend.
+
+**Why This Was Chosen:**
+- The built-in Fetch API was chosen over adding Axios or another HTTP client because US3 only needs a simple authenticated POST request and JSON parsing flow.
+- This keeps the client implementation smaller and avoids another dependency layer.
+
+**Source / Documentation:**
+- Official documentation: [https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API)
+- Maintained by: Web platform standard; documented by MDN / browser platform vendors
+
+### Python (version based on project environment, verify if needed)
+
+**Used For:**
+- Implementing the backend image-generation route, storage helpers, auth checks, and Vertex AI integration in `backend/app.py`, `backend/storage_supabase.py`, and `backend/image_generate_vertex.py`.
+
+**Why This Was Chosen:**
+- Python was chosen over Node or Go for this backend because the repository’s AI/OCR backend stack is already built in Python.
+- US3 benefits from the mature Google Cloud AI SDK ecosystem and straightforward backend orchestration code in Python.
+
+**Source / Documentation:**
+- Official documentation: [https://docs.python.org/3/](https://docs.python.org/3/)
+- Maintained by: Python Software Foundation
+
+### Flask (`flask>=3.0,<4`)
+
+**Used For:**
+- Defining the backend HTTP API endpoint `POST /v1/dishes/<dish_id>/generate-image` that orchestrates cache checks, image generation, upload, and DB persistence.
+
+**Why This Was Chosen:**
+- Flask was chosen over larger frameworks such as Django or FastAPI because the backend is relatively lightweight and organized around a small number of explicit endpoints.
+- US3 only needs a thin request/response layer around Supabase and Vertex calls, which Flask supports with low overhead.
+
+**Source / Documentation:**
+- Official documentation: [https://flask.palletsprojects.com/](https://flask.palletsprojects.com/)
+- Maintained by: Pallets
+
+### Flask-CORS (`flask-cors>=4.0`)
+
+**Used For:**
+- Enabling cross-origin requests from the mobile/web client to the Flask API under `/v1/*`, including the US3 generate-image endpoint.
+
+**Why This Was Chosen:**
+- Flask-CORS was chosen over implementing manual CORS header logic because it handles route-level CORS behavior cleanly within Flask.
+- US3 needs this so the frontend can call the backend API from development and deployment origins.
+
+**Source / Documentation:**
+- Official documentation: [https://flask-cors.readthedocs.io/en/latest/](https://flask-cors.readthedocs.io/en/latest/)
+- Maintained by: Cory Dolphin and contributors
+
+### python-dotenv (`python-dotenv>=1.0`)
+
+**Used For:**
+- Loading backend environment variables such as `GCP_PROJECT`, `VERTEX_LOCATION`, `DISH_IMAGES_BUCKET`, `SUPABASE_URL`, and `SUPABASE_SERVICE_ROLE_KEY`.
+
+**Why This Was Chosen:**
+- `python-dotenv` was chosen over hand-rolled environment-file parsing because it is a standard lightweight solution for local Flask configuration.
+- US3 depends on several configuration variables and would be error-prone to initialize manually.
+
+**Source / Documentation:**
+- Official documentation: [https://saurabh-kumar.com/python-dotenv/](https://saurabh-kumar.com/python-dotenv/)
+- Maintained by: Saurabh Kumar and contributors
+
+### PyJWT (`PyJWT>=2.8`)
+
+**Used For:**
+- Optionally verifying the Supabase bearer JWT in the Flask backend when `REQUIRE_AUTH=1` is enabled.
+
+**Why This Was Chosen:**
+- PyJWT was chosen over implementing JWT parsing manually because token validation is security-sensitive and should use a maintained library.
+- US3 uses this to ensure the diner requesting image generation owns the associated scan when auth enforcement is enabled.
+
+**Source / Documentation:**
+- Official documentation: [https://pyjwt.readthedocs.io/en/stable/](https://pyjwt.readthedocs.io/en/stable/)
+- Maintained by: PyJWT maintainers
+
+### Supabase Python Client (`supabase>=2.10`)
+
+**Used For:**
+- Creating the backend service-role client used to query `diner_scanned_dishes`, `diner_menu_sections`, and `diner_menu_scans`, and to upload/read objects in Supabase Storage.
+
+**Why This Was Chosen:**
+- The Supabase Python client was chosen over direct SQL and raw Storage REST calls because it provides one consistent interface for both the database and storage parts of US3.
+- This reduces integration code and keeps the backend aligned with the rest of the Supabase-based system.
+
+**Source / Documentation:**
+- Official documentation: [https://supabase.com/docs/reference/python/introduction](https://supabase.com/docs/reference/python/introduction)
+- Maintained by: Supabase
+
+### Supabase Platform: PostgreSQL Database (platform version managed by Supabase; verify if needed)
+
+**Used For:**
+- Persisting the `diner_scanned_dishes.image_url` field and storing the dish, section, and scan records that the backend and frontend read during US3.
+
+**Why This Was Chosen:**
+- Supabase Postgres was chosen over Firebase-style document storage because the application already models menus, sections, and dishes as relational data.
+- US3 benefits from straightforward SQL-style joins through foreign keys like `dish -> section -> scan`, which is more natural in Postgres than in a document store.
+
+**Source / Documentation:**
+- Official documentation: [https://supabase.com/docs/guides/database/overview](https://supabase.com/docs/guides/database/overview)
+- Maintained by: Supabase (managed Postgres platform)
+
+### Supabase Platform: Storage (`dish-images` bucket; platform version managed by Supabase, verify if needed)
+
+**Used For:**
+- Persisting the generated image artifact itself in the public `dish-images` bucket at paths such as `<dish_id>.png`.
+- Returning a public object URL that is saved back to `diner_scanned_dishes.image_url`.
+
+**Why This Was Chosen:**
+- Supabase Storage was chosen over storing binary image data directly inside Postgres because object storage is the right abstraction for user-visible media assets.
+- It also fits the existing Supabase platform already used by the app, so there is no need to add a separate S3-like media store for US3.
+
+**Source / Documentation:**
+- Official documentation: [https://supabase.com/docs/guides/storage](https://supabase.com/docs/guides/storage)
+- Maintained by: Supabase
+
+### Google Cloud Platform (platform version managed by Google Cloud; verify if needed)
+
+**Used For:**
+- Hosting the Vertex AI service environment that US3 uses for dish image generation.
+
+**Why This Was Chosen:**
+- GCP was chosen because the backend already integrates with Google AI services elsewhere in the project, and Vertex AI is the image-generation provider selected for this feature.
+- Keeping US3 on the same cloud AI platform avoids splitting credentials and operational setup across multiple AI vendors.
+
+**Source / Documentation:**
+- Official documentation: [https://cloud.google.com/docs](https://cloud.google.com/docs)
+- Maintained by: Google Cloud
+
+### Vertex AI (service version managed by Google Cloud; verify if needed)
+
+**Used For:**
+- Providing the managed AI image-generation service invoked by the backend after prompt construction.
+
+**Why This Was Chosen:**
+- Vertex AI was chosen over standalone hosted image APIs because the team already uses Google’s AI stack in the backend and can share project-level credentials and region configuration.
+- US3 needs a server-side image-generation service with manageable SDK support, safety settings, and cloud-hosted inference, all of which Vertex AI provides.
+
+**Source / Documentation:**
+- Official documentation: [https://cloud.google.com/vertex-ai/docs](https://cloud.google.com/vertex-ai/docs)
+- Maintained by: Google Cloud
+
+### Imagen Model via Vertex AI (`imagen-3.0-fast-generate-001`)
+
+**Used For:**
+- Generating the actual dish preview image from prompt inputs derived from `name`, `description`, `ingredients`, and `restaurant_name`.
+
+**Why This Was Chosen:**
+- The Imagen model was chosen over non-image models because US3 needs a realistic food image artifact, not text completion.
+- The configured fast-generate variant appears to be chosen to balance quality and latency for an on-demand mobile UX.
+
+**Source / Documentation:**
+- Official documentation: [https://cloud.google.com/vertex-ai/generative-ai/docs/image/overview](https://cloud.google.com/vertex-ai/generative-ai/docs/image/overview)
+- Maintained by: Google Cloud
+
+### Google Cloud AI Platform Python SDK (`google-cloud-aiplatform>=1.64,<2`)
+
+**Used For:**
+- Giving the backend Python code access to Vertex AI model initialization and image-generation calls through the Vertex SDK.
+
+**Why This Was Chosen:**
+- This SDK was chosen over raw HTTP requests to Vertex endpoints because it provides a supported Python interface for model loading and generation requests.
+- US3 uses it directly in `image_generate_vertex.py` to initialize Vertex and call `ImageGenerationModel`.
+
+**Source / Documentation:**
+- Official documentation: [https://cloud.google.com/python/docs/reference/aiplatform/latest](https://cloud.google.com/python/docs/reference/aiplatform/latest)
+- Maintained by: Google Cloud
+
+### Pillow (`Pillow>=10,<12`)
+
+**Used For:**
+- Supporting image byte handling in the backend runtime; US3’s Vertex integration includes a fallback path that converts the returned image object to bytes via the SDK’s PIL-backed helper.
+
+**Why This Was Chosen:**
+- Pillow was chosen over lower-level imaging libraries because it is the standard Python imaging dependency and integrates cleanly with SDKs that expose PIL-backed image objects.
+- Even though US3 does not manipulate the image heavily, it benefits from a reliable image-conversion fallback.
+
+**Source / Documentation:**
+- Official documentation: [https://pillow.readthedocs.io/en/stable/](https://pillow.readthedocs.io/en/stable/)
+- Maintained by: Pillow Team
+
+### Markdown Mermaid Support on GitHub (platform feature; version managed by GitHub, verify if needed)
+
+**Used For:**
+- Rendering the architecture, information-flow, and class diagrams in the US3 development spec file.
+
+**Why This Was Chosen:**
+- Mermaid-on-GitHub was chosen over static diagram images because it keeps the spec text-based, versionable, reviewable in pull requests, and easy to update alongside code changes.
+- This is directly relevant to the deliverable for US3 documentation, even though it is not part of runtime execution.
+
+**Source / Documentation:**
+- Official documentation: [https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/creating-diagrams](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/creating-diagrams)
+- Maintained by: GitHub

@@ -750,3 +750,134 @@ This section lists the external technologies used to implement US3: AI Generated
 **Source / Documentation:**
 - Official documentation: [https://pillow.readthedocs.io/en/stable/](https://pillow.readthedocs.io/en/stable/)
 - Maintained by: Pillow Team
+
+## Long-Term Stored Data Types
+
+US3 stores durable metadata in Supabase Postgres and the generated image asset itself in Supabase Storage. The entries below include only long-term stored data directly relevant to the AI Generated Dish Image feature: the dish record that receives `image_url`, the section and scan records used to resolve ownership and prompt context, and the generated image object stored in the `dish-images` bucket.
+
+### 1. Diner Scanned Dish Record
+
+**Storage Location:**
+- Supabase Postgres table: `public.diner_scanned_dishes`
+
+**Purpose:**
+- Stores the canonical dish row shown on the diner dish detail screen.
+- US3 reads this record to obtain the metadata used in image generation and writes back the generated public `image_url`.
+- This is also the primary metadata cache for whether a generated image already exists.
+
+**Fields:**
+
+| Field | Logical Type | Purpose | Estimated Size (bytes) | Notes |
+|---|---|---|---:|---|
+| `id` | UUID | Stable dish identifier used by the detail route and backend generate-image endpoint | 16 | PostgreSQL UUID values are typically 16 bytes internally |
+| `section_id` | UUID | Links the dish to its parent section so US3 can resolve the scan and owner | 16 | Same UUID estimate |
+| `name` | text | Dish name used in the UI and passed into prompt construction | 48 | Assumes about 40 ASCII characters plus variable-length text overhead |
+| `description` | text, nullable | Optional prompt input and user-visible detail text | 96 | Assumes about 88 ASCII characters plus text overhead |
+| `ingredients` | text[] | Ingredient strings used directly by prompt construction | 96 | Assumes 4 ingredients averaging 16 bytes each plus array overhead |
+| `image_url` | text, nullable | Persisted public URL of the generated image object | 120 | Assumes a Supabase public URL of roughly 100 to 110 characters plus text overhead |
+
+**Estimated Total Size Per Record/Object:**
+- Approximately **392 bytes** for the US3-relevant subset of one `diner_scanned_dishes` row.
+
+**Assumptions:**
+- The table contains additional fields such as `sort_order`, price fields, `spice_level`, `tags`, and timestamps; those are not counted here because they are not the primary long-term storage outputs or dependencies of US3.
+- If `image_url` is null because no image has been generated yet, the row will be smaller by roughly the URL text size.
+- PostgreSQL row headers, alignment, and TOAST behavior can change the actual on-disk size.
+
+### 2. Diner Menu Section Record
+
+**Storage Location:**
+- Supabase Postgres table: `public.diner_menu_sections`
+
+**Purpose:**
+- Stores the menu section that owns the dish.
+- US3 uses this record to resolve `scan_id` from `section_id`, which allows the backend to find the scan owner and restaurant context.
+
+**Fields:**
+
+| Field | Logical Type | Purpose | Estimated Size (bytes) | Notes |
+|---|---|---|---:|---|
+| `id` | UUID | Stable section identifier referenced by `diner_scanned_dishes.section_id` | 16 | Standard UUID estimate |
+| `scan_id` | UUID | Parent menu scan identifier used by US3 to resolve ownership and restaurant context | 16 | Standard UUID estimate |
+| `title` | text | Human-readable section title stored with the section record | 40 | Assumes about 32 ASCII characters plus text overhead |
+
+**Estimated Total Size Per Record/Object:**
+- Approximately **72 bytes** for the US3-relevant subset of one `diner_menu_sections` row.
+
+**Assumptions:**
+- `title` is included because it is part of the persisted section record, even though the current US3 prompt does not use it.
+- `sort_order` and `created_at` are omitted because they are not materially involved in the AI image generation feature path.
+
+### 3. Diner Menu Scan Record
+
+**Storage Location:**
+- Supabase Postgres table: `public.diner_menu_scans`
+
+**Purpose:**
+- Stores the parent diner menu scan record.
+- US3 uses this row to confirm the requesting diner owns the dish via `profile_id` and to retrieve `restaurant_name` for prompt context.
+
+**Fields:**
+
+| Field | Logical Type | Purpose | Estimated Size (bytes) | Notes |
+|---|---|---|---:|---|
+| `id` | UUID | Stable scan identifier referenced by `diner_menu_sections.scan_id` | 16 | Standard UUID estimate |
+| `profile_id` | UUID | Diner owner identifier used by the backend to enforce authorization | 16 | Standard UUID estimate |
+| `restaurant_name` | text, nullable | Restaurant context added to the Vertex image prompt and shown in the UI | 48 | Assumes about 40 ASCII characters plus text overhead |
+
+**Estimated Total Size Per Record/Object:**
+- Approximately **80 bytes** for the US3-relevant subset of one `diner_menu_scans` row.
+
+**Assumptions:**
+- The original `diner_menu_scans` migration created a `parsed_menu jsonb` column, but a later migration in the repo removes that legacy column. It is therefore excluded from the current storage estimate.
+- `scanned_at`, `created_at`, and `updated_at` are not counted because they are not directly required by US3.
+
+### 4. Generated Dish Image Object
+
+**Storage Location:**
+- Supabase Storage bucket: `dish-images`
+- Object path pattern used by US3: `<dish_id>.png`
+
+**Purpose:**
+- Stores the actual generated dish image bytes returned by Vertex AI Imagen.
+- This is the durable media asset rendered back to the diner after generation.
+- It also acts as an object-level cache: if the object already exists at `<dish_id>.png`, the backend can restore `image_url` without regenerating the image.
+
+**Fields:**
+
+| Field | Logical Type | Purpose | Estimated Size (bytes) | Notes |
+|---|---|---|---:|---|
+| `object path` | storage key string | Unique object key used to store and retrieve the generated image | 40 | Assumes a 36-character UUID plus the 4-character `.png` suffix |
+| `content_type` | MIME type string | Upload metadata indicating the object is stored as `image/png` | 9 | Literal ASCII length of `image/png`; provider metadata overhead not included |
+| `image bytes` | binary PNG image | The generated visual asset itself | 262144 | Assumes roughly 256 KB for a 1:1 generated PNG food image; actual output can vary widely |
+
+**Estimated Total Size Per Record/Object:**
+- Approximately **262,193 bytes** total, or about **256 KB** plus minimal object key and content-type metadata.
+
+**Assumptions:**
+- The actual binary size is not fixed by the repository and depends on Vertex output characteristics and PNG compression.
+- The bucket configuration permits files up to 5,242,880 bytes (5 MB), so real generated images may be larger than this estimate.
+- Supabase Storage maintains additional provider-managed metadata that is not directly exposed in this repository and is not counted here.
+
+### 5. Persisted Public Image URL Value
+
+**Storage Location:**
+- Stored in `public.diner_scanned_dishes.image_url`
+- Derived from the public object stored in the Supabase Storage `dish-images` bucket
+
+**Purpose:**
+- Provides the durable public pointer that the frontend can render directly with `expo-image`.
+- This value is the long-term linkage between the relational dish record and the binary object in storage.
+
+**Fields:**
+
+| Field | Logical Type | Purpose | Estimated Size (bytes) | Notes |
+|---|---|---|---:|---|
+| `image_url` | URL string | Public URI for the generated image object | 120 | Assumes roughly 100 to 110 characters plus text overhead for a Supabase public URL |
+
+**Estimated Total Size Per Record/Object:**
+- Approximately **120 bytes**.
+
+**Assumptions:**
+- This value is already included inside the `Diner Scanned Dish Record` estimate above.
+- It is broken out separately here because it is the main US3-specific metadata artifact produced by the feature and consumed by the client.

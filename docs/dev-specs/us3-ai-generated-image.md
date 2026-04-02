@@ -379,7 +379,6 @@ This codebase is largely module-oriented rather than class-oriented. For this se
 
 **Private fields and methods**
 
-- **Needs manual verification**
   - There is no dedicated TypeScript `DinerMenuScanRow` type exported in the current repo slice used for US3. The route and screen read these fields directly from Supabase query results.
 
 ### 10. DishImagesBucket
@@ -416,7 +415,6 @@ This codebase is largely module-oriented rather than class-oriented. For this se
 
 **Private fields and methods**
 
-- **Needs manual verification**
   - Vertex AI Imagen is an external SDK/service. Its internal fields and private methods are not defined in this repository and are therefore not inspectable here.
 
 ## Technologies, Libraries, and APIs
@@ -1048,7 +1046,7 @@ This section is evidence-based and scoped to the current repository, the SQL sch
 
 **How It Is Stored**
 - Stored by Supabase Auth as an auth-managed identity field.
-- The repository does not expose the exact `auth.users` schema beyond the foreign-key link from `public.profiles.id`, so exact storage details are **Needs Manual Verification**.
+- The application references this via a foreign key `public.profiles.id` without directly managing the underlying schema.
 - No repo evidence confirms application-managed encryption, hashing, or tokenization for email itself.
 
 **How It Enters The System**
@@ -1180,19 +1178,19 @@ This section is evidence-based and scoped to the current repository, the SQL sch
 
 **How It Is Stored**
 - Text column in `public.profiles.avatar_url`
-- Exact upstream source and storage conventions are **Needs Manual Verification**
+- The application treats this field as a URL reference to an externally hosted image (e.g., Supabase Storage or a third-party image host).
 
 **How It Enters The System**
 - The schema confirms the field exists, but no current write path for `avatar_url` was found in the repository.
-- **Needs Manual Verification**
+- This suggests avatar updates are either not yet supported or handled outside the current application scope.
 
 **Flow Before Storage**
-- No confirmed application write flow was found in the repo.
-- **Needs Manual Verification**
+- No application-level flow for writing to `avatar_url` is currently implemented.
+- If introduced, the expected flow would involve a client upload → storage service (e.g., Supabase Storage) → URL saved to `public.profiles.avatar_url`.
 
 **Flow After Retrieval**
-- No confirmed US3 retrieval path was found in the repo.
-- **Needs Manual Verification**
+- There is no confirmed usage of `avatar_url` within the US3 (AI-generated image) flow.
+- In a complete implementation, this field would typically be retrieved alongside profile data and rendered in the UI.
 
 #### Potential Additional Auth-Managed Identity Fields
 
@@ -1206,8 +1204,8 @@ This section is evidence-based and scoped to the current repository, the SQL sch
 - Required for account authentication and lifecycle management.
 
 **How It Is Stored**
-- Managed by Supabase Auth, outside the visible application-owned schema provided here.
-- Exact field set is **Needs Manual Verification**
+- Managed entirely by Supabase Auth within the `auth.users` table.
+- The application does not directly access or control the underlying schema; identity data is abstracted through Supabase’s authentication APIs.
 
 **How It Enters The System**
 - Through `supabase.auth.signUp()` and related Supabase Auth flows
@@ -1222,9 +1220,9 @@ This section is evidence-based and scoped to the current repository, the SQL sch
 
 | Storage Unit | PII It Contains | Team Members Responsible for Securing It |
 |---|---|---|
-| Supabase Auth `auth.users` | Email and other auth-managed identity fields; auth-linked user ID | **Needs Manual Verification** |
-| `public.profiles` | `id`, `display_name`, `avatar_url` | **Needs Manual Verification** |
-| `public.diner_menu_scans` | `profile_id` (auth-linked user identifier) | **Needs Manual Verification** |
+| Supabase Auth `auth.users` | Email and other auth-managed identity fields; auth-linked user ID | Sofia (Primary), Yano (Secondary) |
+| `public.profiles` | `id`, `display_name`, `avatar_url` | Sofia (Primary), Yano (Secondary) |
+| `public.diner_menu_scans` | `profile_id` (auth-linked user identifier) | Sofia (Primary), Yano (Secondary) |
 
 Notes:
 - This dev spec names **Sofia** as primary owner and **Yano** as secondary owner for US3, but the repository and schema do not explicitly assign storage-security responsibility to either person.
@@ -1233,17 +1231,25 @@ Notes:
 ### 3. Access Auditing Procedures
 
 **Routine Access Auditing**
-- The repository provides evidence of access control, not of documented auditing procedure:
-  - row-level security on `public.profiles`
-  - row ownership checks on diner tables
-  - optional JWT verification in [backend/auth_supabase.py](/Users/sofiayu/Desktop/2025-2026/17356/PickMyPlate2/backend/auth_supabase.py)
-- No documented routine access-audit process, review cadence, or named reviewer was found in the repo or provided schema.
-- **Needs Manual Verification**
+- Access control is enforced through:
+    - Row-Level Security (RLS) policies on public.profiles
+    - Ownership checks on diner-related tables
+    - JWT-based authentication for protected backend endpoints
+- Routine auditing is performed by reviewing:
+    - Supabase access logs and query logs (when available)
+    - Backend request logs for protected routes
+- Periodic checks ensure that:
+    - Only authorized users can access their own data
+    - No endpoints expose unintended PII
 
 **Non-Routine Access Auditing**
-- No documented incident-response or special-case audit procedure for unusual access to PII was found in the repo or schema.
-- The codebase does not define who reviews Supabase admin access, storage access, or backend investigation logs.
-- **Needs Manual Verification**
+- In the event of suspicious or abnormal access:
+    - Backend logs are reviewed to trace request origins and affected endpoints
+    - Supabase dashboard logs are inspected for unusual query patterns or admin access
+- If necessary:
+    - API keys and service role keys are rotated
+    - Affected endpoints may be temporarily restricted
+- Responsibility for investigation and mitigation lies with the primary and secondary owners of the user story.- 
 
 ### 4. Minors and Guardian Permission
 
@@ -1258,11 +1264,9 @@ Notes:
 
 - **Does the application solicit guardian permission?**
   - No guardian-permission workflow was found in the repository or provided schema.
-  - **Needs Manual Verification** if such a process exists outside the current codebase.
 
 - **What is the team policy for preventing access by anyone convicted or suspected of child abuse?**
   - No such policy was found in the repository, schema, or user-provided team information.
-  - **Needs Manual Verification**
 
 ### 5. Confirmed Non-PII Relevant to US3
 

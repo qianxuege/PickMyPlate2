@@ -31,7 +31,7 @@ graph TB
   end
   subgraph SupabaseCloud
     Auth[Supabase Auth]
-    PG[Postgres and RLS]
+    PG[Postgres]
     StorageAPI[Supabase Storage]
     Auth --> PG
     Auth --> StorageAPI
@@ -62,63 +62,92 @@ Install the **Markdown Preview Mermaid Support** extension (`bierner.markdown-me
 
 ## Information flow
 
+The flow is split into **two** Mermaid figures so each diagram stays within typical VS Code preview width and height (`useMaxWidth` stays on; no wide horizontal band). Subgraph and node names still align with **Architecture Diagram in Mermaid**.
+
+**Parse strategy:** When `MENU_LLM_STRATEGY=image_only` (see `backend/app.py` and `backend/llm_menu_vertex.py`), **Cloud Vision OCR is not run**. Flask still downloads the JPEG from **Supabase Storage**, but **`ocr_text` is empty** and **Vertex AI Gemini** receives the **image bytes** directly (`Part.from_data`) to produce `ParsedMenu` JSON. For other strategies (e.g. `text_first`), Vision may run before Gemini as shown in figure 1.
+
+**1 — Upload image, parse menu, save draft**
+
 ```mermaid
-flowchart LR
-  subgraph owner["Restaurant owner"]
-    O1["Pick / capture image"]
-    O2["Review & edit dishes"]
-    O3["Publish menu"]
+%%{init: {'flowchart': {'nodeSpacing': 32, 'rankSpacing': 36, 'padding': 8}}}%%
+graph TB
+  subgraph Client
+    O1[Pick or capture photo]
+    ExpoApp[Expo React Native app]
+    AsyncStore[AsyncStorage on device]
+    E1[Check file size]
+    E2[Upload to Storage]
+    E3[Processing route and pending path]
+    E4[POST parse-menu]
+    E5[Insert draft scan and dishes]
+    ExpoApp --> AsyncStore
+    O1 --> ExpoApp --> E1 --> E2 --> E3 --> E4
   end
-
-  subgraph client["Expo client"]
-    C1["Image URI + size check"]
-    C2["Signed upload to Storage"]
-    C3["Route params + pending path"]
-    C4["POST parse-menu JSON"]
-    C5["Insert scan / sections / dishes"]
-    C6["Read draft + updates"]
-    C7["RPC publish_restaurant_menu"]
+  subgraph SupabaseCloud
+    Auth[Supabase Auth]
+    PG[Postgres]
+    StorageAPI[Supabase Storage]
+    Auth --> PG
+    Auth --> StorageAPI
   end
-
-  subgraph bucket["Storage: menu-uploads"]
-    OBJ["Object: userId/filename.jpg"]
+  subgraph Server
+    Flask[Flask menu API]
   end
-
-  subgraph api["Flask"]
-    DL["Download object (service role)"]
-    OCR["OCR text"]
-    LLM["Structured ParsedMenu"]
+  subgraph GoogleCloud
+    Vision[Cloud Vision OCR]
+    Vertex[Vertex AI Gemini]
   end
-
-  subgraph db["Postgres"]
-    RMS["restaurant_menu_scans"]
-    RMSEC["restaurant_menu_sections"]
-    RMD["restaurant_menu_dishes"]
-    REST["restaurants.published_menu_scan_id"]
-  end
-
-  O1 --> C1 --> C2 --> OBJ
-  C2 --> C3 --> C4
-  C4 --> DL --> OBJ
-  DL --> OCR --> LLM
-  LLM -->|"JSON response"| C5 --> RMS --> RMSEC --> RMD
-  O2 --> C6 --> RMS
-  O3 --> C7 --> REST
+  ExpoApp --> Auth
+  E2 --> StorageAPI
+  E4 --> Flask
+  StorageAPI --> Flask
+  Flask --> Vision
+  Flask --> Vertex
+  Vertex --> E5
+  E5 --> PG
 ```
+
+**2 — Review or edit draft, then publish**
+
+```mermaid
+%%{init: {'flowchart': {'nodeSpacing': 32, 'rankSpacing': 36, 'padding': 8}}}%%
+graph TB
+  subgraph Client
+    O2[Review and edit dishes]
+    O3[Publish when ready]
+    ExpoApp[Expo React Native app]
+    E6[Load draft for editor]
+    E7[publish_restaurant_menu]
+    O2 --> ExpoApp --> E6
+    O3 --> ExpoApp --> E7
+  end
+  subgraph SupabaseCloud
+    Auth[Supabase Auth]
+    PG[Postgres]
+    Auth --> PG
+  end
+  ExpoApp --> Auth
+  E6 --> PG
+  E7 --> PG
+```
+
+**Where edits live after the owner changes the menu:** Updates from **review / add dish / edit dish** are written with the Supabase client to **Postgres** tables (`restaurant_menu_scans`, `restaurant_menu_sections`, `restaurant_menu_dishes`, etc.). That is **not** a new write to the **`menu-uploads`** bucket—the original scan photo stays in **Supabase Storage** unless the owner replaces it with another upload flow. Optional **dish photos** use the **`dish-images`** bucket (separate from menu PDFs/JPEGs). **Supabase Storage** = files; **Postgres** = structured menu rows and publish pointer.
+
+Note that **Postgres** holds draft rows (`restaurant_menu_scans` / sections / dishes) and, after publish, `restaurants.published_menu_scan_id`. Figure 2 omits **Server** / **GoogleCloud** and **StorageAPI** edges because this path is session + Postgres only.
 
 **Data moved (direction):**
 
-| Data                                                         | From → to                                  |
-| ------------------------------------------------------------ | ------------------------------------------ |
-| Menu image bytes                                             | Device → Supabase Storage (`menu-uploads`) |
-| `storage_bucket`, `storage_path`, `user_preferences`         | Client → Flask                             |
-| Supabase access token (optional/required per `REQUIRE_AUTH`) | Client → Flask `Authorization`             |
-| Image bytes                                                  | Storage → Flask (service role download)    |
-| OCR string                                                   | Vision → Flask (in memory)                 |
-| `ParsedMenu` JSON                                            | Flask → Client                             |
-| Scan/section/dish rows                                       | Client → Postgres (via Supabase client)    |
-| Draft reads / edits                                          | Postgres → Client                          |
-| Publish intent (`target_scan_id`)                            | Client → Postgres RPC                      |
+| Data                                                         | From → to                                     |
+| ------------------------------------------------------------ | --------------------------------------------- |
+| Menu image bytes                                             | Device → Supabase Storage (`menu-uploads`)    |
+| `storage_bucket`, `storage_path`, `user_preferences`         | Client → Flask                                |
+| Supabase access token (optional/required per `REQUIRE_AUTH`) | Client → Flask `Authorization`                |
+| Image bytes                                                  | Storage → Flask (service role download)       |
+| OCR text (when not `image_only`)                             | Vision → Flask (in memory)                    |
+| `ParsedMenu` JSON                                            | Flask → Client                                |
+| Scan/section/dish rows                                       | Client → Postgres (via Supabase client)       |
+| Draft reads / edits                                          | Postgres → Client                             |
+| Publish intent (`target_scan_id`)                            | Client → Postgres (`publish_restaurant_menu`) |
 
 ---
 

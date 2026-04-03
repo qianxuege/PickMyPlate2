@@ -1129,23 +1129,23 @@ Each **rationale** below is a **comparison**: what we picked **instead of** othe
 
 ### `public.restaurant_menu_dishes`
 
-| Column                      | Type            | Purpose                  | Size                         |
-| --------------------------- | --------------- | ------------------------ | ---------------------------- |
-| `id`                        | `uuid`          | PK / stable dish id      | 16 B                         |
-| `section_id`                | `uuid`          | FK                       | 16 B                         |
-| `sort_order`                | `int`           | Ordering in section      | 4 B                          |
-| `name`                      | `text`          | Dish title               | variable                     |
-| `description`               | `text`          | Blurb                    | variable (often 0–500 chars) |
-| `price_amount`              | `numeric(12,2)` | Sortable price           | ~12–20 B typical             |
-| `price_currency`            | `text`          | ISO 4217                 | ~5–10 B                      |
-| `price_display`             | `text`          | Original string          | variable                     |
-| `spice_level`               | `int`           | 0–3                      | 4 B                          |
-| `tags`                      | `text[]`        | Preference chips         | array header + strings       |
-| `ingredients`               | `text[]`        | Ingredient list          | variable                     |
-| `image_url`                 | `text`          | Public URL or null       | variable                     |
-| `needs_review`              | `boolean`       | Review UI flag           | 1 B                          |
-| `is_featured` / `is_new`    | `boolean`       | Highlights (US7 overlap) | 1 B each                     |
-| `created_at` / `updated_at` | `timestamptz`   | Audit                    | 8 B each                     |
+| Column                      | Type            | Purpose                                                 | Size                         |
+| --------------------------- | --------------- | ------------------------------------------------------- | ---------------------------- |
+| `id`                        | `uuid`          | PK / stable dish id                                     | 16 B                         |
+| `section_id`                | `uuid`          | FK                                                      | 16 B                         |
+| `sort_order`                | `int`           | Ordering in section                                     | 4 B                          |
+| `name`                      | `text`          | Dish title                                              | variable                     |
+| `description`               | `text`          | Blurb                                                   | variable (often 0–500 chars) |
+| `price_amount`              | `numeric(12,2)` | Sortable price                                          | ~12–20 B typical             |
+| `price_currency`            | `text`          | ISO 4217                                                | ~5–10 B                      |
+| `price_display`             | `text`          | Original string                                         | variable                     |
+| `spice_level`               | `int`           | 0–3                                                     | 4 B                          |
+| `tags`                      | `text[]`        | Preference chips                                        | array header + strings       |
+| `ingredients`               | `text[]`        | Ingredient list                                         | variable                     |
+| `image_url`                 | `text`          | Public URL of dish photo in **`dish-images`** (or null) | variable                     |
+| `needs_review`              | `boolean`       | Review UI flag                                          | 1 B                          |
+| `is_featured` / `is_new`    | `boolean`       | Highlights (US7 overlap)                                | 1 B each                     |
+| `created_at` / `updated_at` | `timestamptz`   | Audit                                                   | 8 B each                     |
 
 **Typical dish row** (name + short description + a few tags): **≈ 400–1500 B** depending on text/array payload.
 
@@ -1163,6 +1163,18 @@ Each **rationale** below is a **comparison**: what we picked **instead of** othe
 | `name` (path) | `{auth.uid()}/{filename}.jpg`                      | ~40–120 B typical                                  |
 
 Metadata rows in `storage.objects` are small (hundreds of bytes) plus the **binary object** size above.
+
+### Storage bucket `dish-images` (`storage.objects`)
+
+Owner **dish** photos (library upload or AI-generated artwork from Flask) live in a **separate** bucket from **`menu-uploads`**. The mobile client uses bucket id **`dish-images`** (`RESTAURANT_DISH_IMAGES_BUCKET` in `lib/restaurant-dish-photo-upload.ts`); Flask may override the bucket name with **`DISH_IMAGES_BUCKET`** in `backend/app.py` but defaults to the same id.
+
+| Field / aspect    | Purpose                                                                                                                                                                                                 | Size / shape                                 |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| **Object body**   | JPEG from owner **pick-and-upload** (re-encoded on device, **≤ 5,242,880 B** / 5 MiB in client code) or **PNG** bytes from Vertex image generation uploaded by the backend                              | Variable up to client/server limits per flow |
+| **`name` (path)** | **`{auth.uid()}/restaurant-dishes/{dishId}.jpg`** for uploads—first path segment must match **`auth.uid()`** for Storage RLS; generated assets may use paths produced server-side under the same bucket | ~60–160 B typical                            |
+| **Postgres link** | **`public.restaurant_menu_dishes.image_url`** stores the **public** URL returned after upload (or updated by AI-image routes) so diners and owners load the same string                                 | `text`, variable length                      |
+
+**RLS / access:** Objects are not world-readable unless bucket policy makes them so; the app relies on Supabase **public URL** strings written into **`image_url`** consistent with project Storage settings. Service-role Flask and signed-in owners use the same bucket for different operations (download for processing vs upload).
 
 ---
 
@@ -1192,13 +1204,14 @@ Assumptions: **frontend** = Expo app process on device; **backend** = Supabase +
 
 ### What counts as PII here
 
-| Data                                                       | Stored where                         | Why kept                | How stored                                                      | Enters via                      | Path into storage                                       | After storage (read path)                     | Custodian (assign names) | Minors                                                                                                         |
-| ---------------------------------------------------------- | ------------------------------------ | ----------------------- | --------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------- | --------------------------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------- |
-| **Owner account email**                                    | Supabase `auth.users`                | Account recovery, login | Encrypted at rest (Supabase); bcrypt/Supabase Auth for password | Restaurant registration / login | `RestaurantRegistrationScreen` → `supabase.auth.signUp` | `supabase.auth.getSession` in clients         | _Security owner (TBD)_   | With name, forms the team’s explicit **contact PII** ceiling for owners; age not verified—see **Minors** below |
-| **Owner user UUID (`sub`)**                                | `auth.users`, `profiles`, FK columns | RLS ownership           | `uuid` columns                                                  | Signup                          | Auth triggers / inserts                                 | Every guarded query via `auth.uid()`          | _Backend lead (TBD)_     | Identifier; combine with policy                                                                                |
-| **Restaurant business phone / address** (if owner entered) | `public.restaurants`                 | Venue contact           | `text`                                                          | Onboarding / profile            | `upsertRestaurantForOwner` etc.                         | Profile screens                               | _Data owner (TBD)_       | Could include personal phone for sole proprietors                                                              |
-| **Storage object path prefix**                             | `storage.objects.name`               | Locates menu image      | Text path starting with `auth.uid()`                            | Upload                          | `uploadMenuImageFromUri` → Supabase Storage API         | Flask `download_storage_object(bucket, path)` | _Infra owner (TBD)_      | UUID links object to account                                                                                   |
-| **Menu image bytes**                                       | `menu-uploads`                       | OCR input               | Private object                                                  | Camera/library                  | Client upload                                           | Vision + Gemini in Flask (transient)          | _Infra owner (TBD)_      | May photograph patrons or receipts—**content-dependent**                                                       |
+| Data                                                       | Stored where                         | Why kept                    | How stored                                                                  | Enters via                                | Path into storage                                                                                                 | After storage (read path)                                   | Custodian (assign names)                                  | Minors                                                                                                         |
+| ---------------------------------------------------------- | ------------------------------------ | --------------------------- | --------------------------------------------------------------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **Owner account email**                                    | Supabase `auth.users`                | Account recovery, login     | Encrypted at rest (Supabase); bcrypt/Supabase Auth for password             | Restaurant registration / login           | `RestaurantRegistrationScreen` → `supabase.auth.signUp`                                                           | `supabase.auth.getSession` in clients                       | **Yao Lu** (primary owner — auth & account security)      | With name, forms the team’s explicit **contact PII** ceiling for owners; age not verified—see **Minors** below |
+| **Owner user UUID (`sub`)**                                | `auth.users`, `profiles`, FK columns | RLS ownership               | `uuid` columns                                                              | Signup                                    | Auth triggers / inserts                                                                                           | Every guarded query via `auth.uid()`                        | **Sofia Yu** (secondary owner — DB access patterns & RLS) | Identifier; combine with policy                                                                                |
+| **Restaurant business phone / address** (if owner entered) | `public.restaurants`                 | Venue contact               | `text`                                                                      | Onboarding / profile                      | `upsertRestaurantForOwner` etc.                                                                                   | Profile screens                                             | **Sofia Yu** (secondary owner — venue profile data)       | Could include personal phone for sole proprietors                                                              |
+| **Storage object path prefix**                             | `storage.objects.name`               | Locates menu image          | Text path starting with `auth.uid()`                                        | Upload                                    | `uploadMenuImageFromUri` → Supabase Storage API                                                                   | Flask `download_storage_object(bucket, path)`               | **Yao Lu** (primary owner — Storage buckets & keys)       | UUID links object to account                                                                                   |
+| **Menu image bytes**                                       | `menu-uploads`                       | OCR input                   | Private object                                                              | Camera/library                            | Client upload                                                                                                     | Vision + Gemini in Flask (transient)                        | **Yao Lu** (primary owner — Storage buckets & keys)       | May photograph patrons or receipts—**content-dependent**                                                       |
+| **Dish image bytes**                                       | `dish-images`                        | Owner dish photo / AI image | Private object or public URL per bucket policy; **`image_url`** on dish row | Add/edit dish UI; Flask dish-image routes | Client **`uploadRestaurantDishPhotoFromUri`** → Storage API; Flask **`upload_storage_object`** for generated PNGs | `restaurant_menu_dishes.image_url` → owner UI & diner views | **Yao Lu** (primary owner — Storage buckets & keys)       | Same infra custodian as **`menu-uploads`**; see **§8 → `dish-images`**                                         |
 
 ### Auditing access to PII
 
@@ -1216,7 +1229,18 @@ Assumptions: **frontend** = Expo app process on device; **backend** = Supabase +
 **Name** and **email** are stored so owners can sign in, recover access, and be distinguished in the database; they are ordinary prerequisites for a multi-tenant restaurant product, not because the product targets minors.
 
 **Does your application solicit a guardian’s permission to have that PII?**  
-**No.** There is **no** guardian consent flow, parental e-mail loop, or COPPA-style authorization step in this repository. A legal/compliance review should decide whether the product must add such a flow or restrict use to **18+** (or **13+** with consent), **document owner: legal/compliance (TBD)**.
+**No.** There is **no** guardian consent flow, parental e-mail loop, or COPPA-style authorization step in this repository.
+
+**Compliance decision plan (guardians, age, and marketing)**
+
+| Step                            | Owner                                    | Due                             | Outcome                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------- | ---------------------------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 — **Record a written stance** | **Yao Lu** (lead), **Sofia Yu** (backup) | **2026-04-21**                  | One paragraph in-repo (e.g. `docs/compliance/minors-and-signup.md` or issue closure comment): either **(A)** position the product as **18+ restaurant operators only** and list the UI/terms follow-up, **(B)** adopt the **institution’s** standard ed-tech / startup policy if the course provides one, or **(C)** note that **under-18 US users** would require **legal review** before any marketing or school rollout. |
+| 2 — **Instructor checkpoint**   | Yao Lu                                   | Same milestone week             | Single check-in email or class question: confirm whether the course mandates a specific age policy or guardian language.                                                                                                                                                                                                                                                                                                    |
+| 3 — **Backlog linkage**         | Sofia Yu                                 | Within **3 days** of step 1     | If **(A)**: create a tracked item for signup copy / terms checkbox (“I am 18+” or equivalent). If guardian consent is ever required: open a **Phase 2** ticket describing parental email or age-gate design—**not** implemented in US6 MVP.                                                                                                                                                                                 |
+| 4 — **Review at standup**       | Whole team                               | Weekly until step 1 is **Done** | Five-minute status: decision doc merged or issue closed.                                                                                                                                                                                                                                                                                                                                                                    |
+
+**Escalation:** If the team cannot agree, **primary owner (Yao Lu)** decides the documented stance for the assignment deadline; secondary owner may append a dissenting note in the same doc for the grader.
 
 **What is your team’s policy for ensuring that minors’ PII is not accessible by anyone convicted or suspected of child abuse?**  
 This codebase **does not** query any child-abuse registry or maintain a workforce eligibility database. Mitigation is **organizational**, not automated:

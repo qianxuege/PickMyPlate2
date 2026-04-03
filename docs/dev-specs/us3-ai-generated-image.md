@@ -579,7 +579,7 @@ This section lists the external technologies used to implement US3: AI Generated
 - Official documentation: [https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API)
 - Maintained by: Web platform standard; documented by MDN / browser platform vendors
 
-### Python (version based on project environment)
+### Python (3.13+)
 
 **Used For:**
 - Implementing the backend image-generation route, storage helpers, auth checks, and Vertex AI integration in `backend/app.py`, `backend/storage_supabase.py`, and `backend/image_generate_vertex.py`.

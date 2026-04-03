@@ -1052,9 +1052,9 @@ This section is evidence-based and scoped to the current repository, the SQL sch
 **How It Enters The System**
 - A user enters email into registration or login UI.
 - Confirmed entry points:
-  - [app/diner-registration.tsx](/Users/sofiayu/Desktop/2025-2026/17356/PickMyPlate2/app/diner-registration.tsx)
-  - [app/login.tsx](/Users/sofiayu/Desktop/2025-2026/17356/PickMyPlate2/app/login.tsx)
-  - [lib/link-account.ts](/Users/sofiayu/Desktop/2025-2026/17356/PickMyPlate2/lib/link-account.ts)
+  - [app/diner-registration.tsx](/app/diner-registration.tsx)
+  - [app/login.tsx](/app/login.tsx)
+  - [lib/link-account.ts](/lib/link-account.ts)
 
 **Flow Before Storage**
 - `DinerRegistrationScreen`
@@ -1073,11 +1073,11 @@ This section is evidence-based and scoped to the current repository, the SQL sch
 **Flow After Retrieval**
 - Raw email is not part of the normal US3 image-generation request payload.
 - After retrieval from auth storage, the relevant downstream artifact for US3 is the authenticated session:
-  - [lib/dish-image-api.ts](/Users/sofiayu/Desktop/2025-2026/17356/PickMyPlate2/lib/dish-image-api.ts)
+  - [lib/dish-image-api.ts](/lib/dish-image-api.ts)
   - `supabase.auth.getSession()`
   - session `access_token` becomes the `Authorization` bearer token for `POST /v1/dishes/<dish_id>/generate-image`
 - On the backend:
-  - [backend/auth_supabase.py](/Users/sofiayu/Desktop/2025-2026/17356/PickMyPlate2/backend/auth_supabase.py)
+  - [backend/auth_supabase.py](/backend/auth_supabase.py)
   - `verify_bearer_token()` decodes the JWT and exposes `sub` for authorization checks
 
 #### Auth-Linked User Identifier (`profiles.id` / `diner_menu_scans.profile_id`)
@@ -1102,10 +1102,10 @@ This section is evidence-based and scoped to the current repository, the SQL sch
 **How It Enters The System**
 - `public.profiles.id` is created from `auth.users.id`
 - Evidence:
-  - [supabase/migrations/20250324120000_profiles_pickmyplate_rls.sql](/Users/sofiayu/Desktop/2025-2026/17356/PickMyPlate2/supabase/migrations/20250324120000_profiles_pickmyplate_rls.sql)
+  - [supabase/migrations/20250324120000_profiles_pickmyplate_rls.sql](/supabase/migrations/20250324120000_profiles_pickmyplate_rls.sql)
   - trigger `handle_new_user()` inserts `new.id` into `public.profiles`
 - `public.diner_menu_scans.profile_id` is later written when a diner menu scan is persisted:
-  - [lib/persist-parsed-menu.ts](/Users/sofiayu/Desktop/2025-2026/17356/PickMyPlate2/lib/persist-parsed-menu.ts)
+  - [lib/persist-parsed-menu.ts](/lib/persist-parsed-menu.ts)
   - `persistParsedMenu(menu, profileId)` inserts `{ profile_id: profileId, restaurant_name: ... }`
 
 **Flow Before Storage**
@@ -1119,7 +1119,7 @@ This section is evidence-based and scoped to the current repository, the SQL sch
 
 **Flow After Retrieval**
 - In US3, this identifier is primarily used for backend authorization rather than display:
-  - [backend/app.py](/Users/sofiayu/Desktop/2025-2026/17356/PickMyPlate2/backend/app.py)
+  - [backend/app.py](/backend/app.py)
   - route `generate_dish_image(dish_id)`
   - reads `profile_id` from `diner_menu_scans`
   - compares it against `payload.get("sub")` from `verify_bearer_token()`
@@ -1146,7 +1146,7 @@ This section is evidence-based and scoped to the current repository, the SQL sch
 **How It Enters The System**
 - The diner enters their name during registration.
 - Evidence:
-  - [app/diner-registration.tsx](/Users/sofiayu/Desktop/2025-2026/17356/PickMyPlate2/app/diner-registration.tsx)
+  - [app/diner-registration.tsx](/app/diner-registration.tsx)
   - local state field `name`
   - `supabase.auth.signUp({ ..., options: { data: { display_name: name.trim() } } })`
 - The DB trigger copies this into `public.profiles.display_name`
@@ -1264,7 +1264,7 @@ Notes:
 
 - **Does the application solicit guardian permission?**
   - No guardian-permission workflow was found in the repository or provided schema.
-
+  
 - **What is the team policy for preventing access by anyone convicted or suspected of child abuse?**
   - No such policy was found in the repository, schema, or user-provided team information.
 

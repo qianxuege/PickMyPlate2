@@ -110,6 +110,24 @@ Use these **after** the participant has attempted sign-in (as a diner, owner, or
 - **Speed (narrow):** On a scale of 1–5, how quickly did you feel you could **enter your email and password and get past the login step**? 1 = very slow, 5 = very quick.  
 - **Clarity:** Rate how **easy to understand** the login screen and any error messages were **today**, on a scale of 1–10.
 
+### Participant survey response record
+
+Copy this block for **each participant** (or use a separate sheet and keep IDs consistent).
+
+| Field | Record here |
+| ----- | ----------- |
+| **Participant ID** (e.g. P01, initials) | |
+| **Date** | |
+| **Scenario** (diner only / owner only / both) | |
+| **Q1 — ease/speed (1–4)** | |
+| **Q1 — tap/click count** (login visible → first landing) | |
+| **Q1 — time (seconds)** | |
+| **Q2 — confidence (1–4)** | |
+| **Q3 — satisfaction (1–4)** | |
+| **Optional — speed past login step (1–5)** | |
+| **Optional — clarity of login & errors (1–10)** | |
+| **Verbatim comments** (optional quotes or themes) | |
+
 ---
 
 ## Notes for facilitators

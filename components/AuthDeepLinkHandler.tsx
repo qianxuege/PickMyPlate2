@@ -10,7 +10,9 @@ import { fetchUserRoles } from '@/lib/user-roles';
  * Supabase email confirmations redirect with tokens in the URL fragment (#access_token=…).
  * Browsers handle that for web; in Expo we must parse the opened URL and call setSession.
  */
-function parseAuthPayload(url: string): { access_token: string; refresh_token: string } | null {
+function parseAuthPayload(
+  url: string,
+): { access_token: string; refresh_token: string; type: string | null } | null {
   const hash = url.includes('#') ? url.split('#')[1] : '';
   const queryPart = url.split('?')[1]?.split('#')[0] ?? '';
   const segment = hash || queryPart;
@@ -19,7 +21,11 @@ function parseAuthPayload(url: string): { access_token: string; refresh_token: s
   const access = params.get('access_token');
   const refresh = params.get('refresh_token');
   if (!access || !refresh) return null;
-  return { access_token: access, refresh_token: refresh };
+  return {
+    access_token: access,
+    refresh_token: refresh,
+    type: params.get('type'),
+  };
 }
 
 export function AuthDeepLinkHandler() {
@@ -46,6 +52,11 @@ export function AuthDeepLinkHandler() {
 
       if (error) {
         consumedRef.current = null;
+        return;
+      }
+
+      if (tokens.type === 'recovery') {
+        router.replace('/reset-password' as never);
         return;
       }
 

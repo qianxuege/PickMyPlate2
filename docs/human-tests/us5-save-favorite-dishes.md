@@ -141,6 +141,15 @@ Ask these **after** the participant finishes the scripted tasks (save a dish, op
 
 ---
 
-## Time estimate (for planning)
+## Recording participants’ survey responses
 
-Roughly **3–4 days** for implementation is a reasonable team estimate; schedule **30–45 minutes** per participant for this human test (setup, tasks, short survey), plus synthesis time.
+Fill in **one row per participant** after each session. Use an anonymous **ID or code** (not full names) if you are sharing this file outside the research team.
+
+| Participant (ID / code) | Date | Q1 rating (1–4) | Q1 taps | Q1 time (s) | Q2 rating (1–4) | Q2 taps | Q2 time (s) | Q3 rating (1–4) | Q3 notes (why / memory / comparison / other) |
+| ----------------------- | ---- | --------------- | ------- | ----------- | --------------- | ------- | ----------- | --------------- | -------------------------------------------- |
+|                         |      |                 |         |             |                 |         |             |                 |                                              |
+|                         |      |                 |         |             |                 |         |             |                 |                                              |
+|                         |      |                 |         |             |                 |         |             |                 |                                              |
+|                         |      |                 |         |             |                 |         |             |                 |                                              |
+
+**Additional comments (optional):** use the space below for quotes, usability issues, or anything that does not fit the table.

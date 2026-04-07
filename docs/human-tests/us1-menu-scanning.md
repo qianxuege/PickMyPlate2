@@ -249,18 +249,27 @@ Place the menu flat on a table under normal indoor lighting before handing the d
 
 | Field | Response |
 |---|---|
-| Tester name | |
-| Tester's team | |
-| Date | |
-| Device | |
-| Task 1 — scan entry found unaided? | Yes / No |
-| Task 2 — processing time (seconds) | |
-| Task 3 — errors noticed in digital menu | |
-| Task 4 — navigated back without help? | Yes / No |
-| Task 5 — error handling appropriate? | Yes / No / Not tested |
-| Time-to-first-scroll (seconds) | |
-| Would rely on app (Q1, 1–5) | |
-| Q2 verbatim response | |
-| Q3 verbatim response | |
-| Overall: Pass / Fail | |
-| Follow-up actions (if Fail) | |
+| Tester name | Eric Du |
+| Tester's team | Different team (17-766) |
+| Date | 2026-04-07 |
+| Device | Physical phone via Expo Go |
+| Task 1 — scan entry found unaided? | Yes |
+| Task 2 — processing time (seconds) | Noticeably long (tester flagged as a friction point) |
+| Task 3 — errors noticed in digital menu | None recorded |
+| Task 4 — navigated back without help? | Yes |
+| Task 5 — error handling appropriate? | Not tested |
+| Time-to-first-scroll (seconds) | Not recorded |
+| Would rely on app (Q1, 1–5) | 3.5 |
+| Q2 verbatim response | See below |
+| Q3 verbatim response | See below |
+| Overall: Pass / Fail | Conditional Pass — core flow works; processing time UX needs improvement |
+| Follow-up actions | Replace the simulated progress bar with a more honest progress indicator or an explicit "this may take 10–20 seconds" message to reduce uncertainty during the wait |
+
+**Q1 response (refined from tester's own words):**
+Score: 3.5 / 5. The scanning feature and the resulting digital menu look polished and useful, but the menu processing time feels noticeably long. During that wait he would likely fall back to the physical menu rather than holding the phone and watching the screen — which defeats the purpose of the feature in a real restaurant setting.
+
+**Q2 response (refined from tester's own words):**
+The frontend animations throughout the app feel polished and natural — the scan workflow, page transitions, and every individual screen all behave smoothly. The one exception is the progress bar on the processing screen: it appears to be a simulated animation rather than a real reflection of backend progress. This created a moment of genuine doubt about whether the menu was actually being processed or whether something had stalled silently.
+
+**Q3 response (refined from tester's own words):**
+He would miss the AI-generated dish image feature most. When visiting an unfamiliar restaurant with no prior knowledge of what dishes look like, being able to see a visual preview — even if AI-generated rather than a real photo — makes a meaningful difference to the ordering decision. He considers it one of the more valuable parts of the overall app experience.

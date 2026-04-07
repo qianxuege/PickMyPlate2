@@ -1,18 +1,12 @@
 import { useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import {
-  BackButton,
-  InputField,
-  PreferencePill,
-  PrimaryButton,
-  ScreenContainer,
-} from '@/components';
+import { BackButton, PreferencePill, PrimaryButton, ScreenContainer } from '@/components';
 import { useActiveRole } from '@/contexts/ActiveRoleContext';
-import { Colors, Spacing, Typography } from '@/constants/theme';
+import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 import { navigateAfterAuth } from '@/lib/auth-navigation';
 import { upsertRestaurantForOwner } from '@/lib/restaurant-setup';
 import { supabase } from '@/lib/supabase';
@@ -30,13 +24,25 @@ const CUISINE_OPTIONS = [
   'Korean',
 ];
 
+const PRICE_OPTIONS = ['$', '$$', '$$$', '$$$$'] as const;
+
+function paramString(v: string | string[] | undefined): string {
+  if (typeof v === 'string') return v;
+  if (Array.isArray(v) && typeof v[0] === 'string') return v[0];
+  return '';
+}
+
 export default function RestaurantRegistration2Screen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ restaurantName?: string | string[] }>();
+  const params = useLocalSearchParams<{
+    restaurantName?: string | string[];
+    address?: string | string[];
+    phone?: string | string[];
+  }>();
   const { refreshRoles } = useActiveRole();
   const [cuisines, setCuisines] = useState<string[]>([]);
-  const [location, setLocation] = useState('');
+  const [priceRange, setPriceRange] = useState('');
   const [loading, setLoading] = useState(false);
 
   const toggleCuisine = (value: string) => {
@@ -48,6 +54,15 @@ export default function RestaurantRegistration2Screen() {
   };
 
   const onContinue = async () => {
+    const addressFromReg = paramString(params.address).trim();
+    if (!addressFromReg) {
+      Alert.alert(
+        'Missing address',
+        'Go back and complete restaurant registration with your business address.',
+        [{ text: 'OK', onPress: () => router.back() }],
+      );
+      return;
+    }
     setLoading(true);
     try {
       const { data: userData, error: userErr } = await supabase.auth.getUser();
@@ -71,10 +86,14 @@ export default function RestaurantRegistration2Screen() {
         (typeof user.user_metadata?.display_name === 'string' && user.user_metadata.display_name) ||
         'My Restaurant';
 
+      const phoneFromReg = paramString(params.phone).trim();
+
       const { error } = await upsertRestaurantForOwner({
         name,
         cuisineNames: cuisines,
-        locationShort: location.trim() || undefined,
+        address: addressFromReg,
+        phone: phoneFromReg || undefined,
+        priceRange: priceRange.trim() || undefined,
       });
 
       if (error) {
@@ -115,14 +134,26 @@ export default function RestaurantRegistration2Screen() {
           ))}
         </View>
 
-        <View style={styles.locationBlock}>
-          <Text style={styles.optionalLabel}>Location (optional)</Text>
-          <InputField
-            placeholder="City, State"
-            value={location}
-            onChangeText={setLocation}
-            containerStyle={styles.locationFieldNoLabel}
-          />
+        <Text style={styles.sectionLabel}>Price range</Text>
+        <Text style={styles.hint}>Optional. Typical cost for a meal per person.</Text>
+        <View style={styles.priceRow}>
+          {PRICE_OPTIONS.map((p) => {
+            const active = priceRange === p;
+            return (
+              <Pressable
+                key={p}
+                accessibilityRole="button"
+                accessibilityLabel={active ? `${p}, selected` : p}
+                onPress={() => setPriceRange(active ? '' : p)}
+                style={[
+                  styles.pricePill,
+                  active && { backgroundColor: Colors.primary, borderColor: Colors.primary },
+                ]}
+              >
+                <Text style={[styles.pricePillText, active && { color: Colors.white }]}>{p}</Text>
+              </Pressable>
+            );
+          })}
         </View>
 
         <PrimaryButton
@@ -152,22 +183,35 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginBottom: Spacing.base,
   },
+  hint: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.base,
+  },
   pillRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: Spacing.sm,
     marginBottom: Spacing.xxl,
   },
-  locationBlock: {
+  priceRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
     marginBottom: Spacing.xxl,
   },
-  optionalLabel: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-    marginBottom: Spacing.sm,
+  pricePill: {
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.base,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: Colors.textPlaceholder,
+    backgroundColor: Colors.white,
   },
-  locationFieldNoLabel: {
-    marginBottom: 0,
+  pricePillText: {
+    ...Typography.bodyMedium,
+    color: Colors.text,
+    fontWeight: '600',
   },
   continueButton: {
     marginTop: Spacing.base,

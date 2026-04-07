@@ -14,14 +14,25 @@ export default function RestaurantRegistrationScreen() {
   const insets = useSafeAreaInsets();
   const { refreshRoles } = useActiveRole();
   const [restaurantName, setRestaurantName] = useState('');
+  const [businessAddress, setBusinessAddress] = useState('');
+  const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const reg2Params = () => ({
+    restaurantName: restaurantName.trim(),
+    address: businessAddress.trim(),
+    phone: phone.trim(),
+  });
+
   const onCreate = async () => {
     const trimmedEmail = email.trim();
-    if (!restaurantName.trim() || !trimmedEmail || !password) {
-      Alert.alert('Missing info', 'Please fill in restaurant name, email, and password.');
+    if (!restaurantName.trim() || !businessAddress.trim() || !trimmedEmail || !password) {
+      Alert.alert(
+        'Missing info',
+        'Please fill in restaurant name, business address, email, and password.',
+      );
       return;
     }
     setLoading(true);
@@ -71,7 +82,7 @@ export default function RestaurantRegistrationScreen() {
                     await refreshRoles();
                     router.replace({
                       pathname: '/restaurant-registration-2',
-                      params: { restaurantName: restaurantName.trim() },
+                      params: reg2Params(),
                     });
                   } catch (e) {
                     Alert.alert('Error', e instanceof Error ? e.message : 'Unknown error');
@@ -88,7 +99,7 @@ export default function RestaurantRegistrationScreen() {
         return;
       }
       if (data.session) {
-        router.push('/restaurant-registration-2');
+        router.push({ pathname: '/restaurant-registration-2', params: reg2Params() });
       } else {
         Alert.alert(
           'Confirm your email',
@@ -120,6 +131,19 @@ export default function RestaurantRegistrationScreen() {
           placeholder="Your restaurant name"
           value={restaurantName}
           onChangeText={setRestaurantName}
+        />
+        <InputField
+          label="Business address"
+          placeholder="Street, city, state (customers and maps use this)"
+          value={businessAddress}
+          onChangeText={setBusinessAddress}
+        />
+        <InputField
+          label="Phone (optional)"
+          placeholder="Business phone"
+          keyboardType="phone-pad"
+          value={phone}
+          onChangeText={setPhone}
         />
         <InputField
           label="Email"

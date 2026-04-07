@@ -4,6 +4,11 @@ export type CreateRestaurantInput = {
   name: string;
   cuisineNames: string[];
   locationShort?: string;
+  /** Street / mailing address (collected at signup). */
+  address?: string;
+  phone?: string;
+  /** e.g. $, $$ — from onboarding or profile. */
+  priceRange?: string;
 };
 
 /**
@@ -32,13 +37,20 @@ export async function upsertRestaurantForOwner(input: CreateRestaurantInput): Pr
   let restaurantId: string;
 
   if (existing?.id) {
-    const { error: uErr } = await supabase
-      .from('restaurants')
-      .update({
-        name: input.name,
-        location_short: input.locationShort?.trim() || null,
-      })
-      .eq('id', existing.id);
+    const patch: Record<string, string | null> = {
+      name: input.name,
+      location_short: input.locationShort?.trim() || null,
+    };
+    if (input.address !== undefined) {
+      patch.address = input.address.trim() || null;
+    }
+    if (input.phone !== undefined) {
+      patch.phone = input.phone.trim() || null;
+    }
+    if (input.priceRange !== undefined) {
+      patch.price_range = input.priceRange.trim() || null;
+    }
+    const { error: uErr } = await supabase.from('restaurants').update(patch).eq('id', existing.id);
 
     if (uErr) return { error: uErr };
     restaurantId = existing.id;
@@ -49,6 +61,9 @@ export async function upsertRestaurantForOwner(input: CreateRestaurantInput): Pr
         owner_id: user.id,
         name: input.name,
         location_short: input.locationShort?.trim() || null,
+        address: input.address?.trim() || null,
+        phone: input.phone?.trim() || null,
+        price_range: input.priceRange?.trim() || null,
       })
       .select('id')
       .single();

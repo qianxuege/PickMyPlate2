@@ -186,7 +186,7 @@ export default function RestaurantProfileScreen() {
             <View style={styles.heroText}>
               <Text style={styles.venueName}>{form.name.trim() || 'Your restaurant'}</Text>
               <Text style={styles.venueMeta}>
-                {[cuisineDisplay || form.specialty || '—', form.price_range || '—'].filter(Boolean).join(' · ')}
+                {cuisineDisplay || form.specialty || '—'}
               </Text>
             </View>
           </View>

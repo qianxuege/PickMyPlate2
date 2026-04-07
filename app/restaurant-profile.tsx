@@ -9,8 +9,10 @@ import { InputField, PrimaryButton, RestaurantTabScreenLayout, SecondaryButton }
 import { useActiveRole } from '@/contexts/ActiveRoleContext';
 import { restaurantRoleTheme } from '@/constants/role-theme';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
+import { pickAndUploadRestaurantLogo } from '@/lib/restaurant-logo-upload';
 import {
   fetchRestaurantProfile,
+  updateRestaurantLogoUrl,
   upsertRestaurantProfileFromForm,
   type RestaurantProfileUpdate,
 } from '@/lib/restaurant-profile';
@@ -60,6 +62,7 @@ export default function RestaurantProfileScreen() {
   const [cuisineDisplay, setCuisineDisplay] = useState('');
   const [form, setForm] = useState<RestaurantProfileUpdate>(emptyForm());
   const [savedForm, setSavedForm] = useState<RestaurantProfileUpdate>(emptyForm());
+  const [uploadLogoLoading, setUploadLogoLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -116,11 +119,57 @@ export default function RestaurantProfileScreen() {
     }
   };
 
+  const runLogoUpload = async (source: 'camera' | 'library') => {
+    setUploadLogoLoading(true);
+    try {
+      const result = await pickAndUploadRestaurantLogo(source);
+      if (!result.ok) {
+        if ('cancelled' in result && result.cancelled) return;
+        Alert.alert('Upload failed', 'error' in result ? result.error : 'Something went wrong.');
+        return;
+      }
+      const { error } = await updateRestaurantLogoUrl(result.publicUrl);
+      if (error) {
+        Alert.alert('Could not save logo', error.message);
+        return;
+      }
+      await load();
+    } finally {
+      setUploadLogoLoading(false);
+    }
+  };
+
   const onUploadLogo = () => {
-    Alert.alert(
-      'Upload logo',
-      'Image uploads will be available in a future update. For now you can paste an image URL in edit mode if your project supports logo URLs.'
-    );
+    if (uploadLogoLoading) return;
+    Alert.alert('Upload logo', 'Choose how to add your restaurant logo.', [
+      { text: 'Photo library', onPress: () => void runLogoUpload('library') },
+      { text: 'Take photo', onPress: () => void runLogoUpload('camera') },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
+  const onRemoveLogo = () => {
+    if (uploadLogoLoading || !form.logo_url) return;
+    Alert.alert('Remove logo?', 'You can upload a new logo anytime.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: async () => {
+          setUploadLogoLoading(true);
+          try {
+            const { error } = await updateRestaurantLogoUrl(null);
+            if (error) {
+              Alert.alert('Could not remove logo', error.message);
+              return;
+            }
+            await load();
+          } finally {
+            setUploadLogoLoading(false);
+          }
+        },
+      },
+    ]);
   };
 
   const setField = <K extends keyof RestaurantProfileUpdate>(key: K, value: RestaurantProfileUpdate[K]) => {
@@ -231,9 +280,19 @@ export default function RestaurantProfileScreen() {
             accessibilityRole="button"
             accessibilityLabel="Upload restaurant logo"
             onPress={onUploadLogo}
-            style={[styles.uploadCard, { borderColor: t.cardAccentBorder, backgroundColor: t.primaryLight }]}
+            disabled={uploadLogoLoading}
+            style={({ pressed }) => [
+              styles.uploadCard,
+              { borderColor: t.cardAccentBorder, backgroundColor: t.primaryLight },
+              (pressed || uploadLogoLoading) && styles.uploadCardPressed,
+            ]}
           >
-            {form.logo_url ? (
+            {uploadLogoLoading ? (
+              <View style={styles.uploadInner}>
+                <ActivityIndicator size="large" color={t.primary} />
+                <Text style={styles.uploadHint}>Uploading…</Text>
+              </View>
+            ) : form.logo_url ? (
               <Image
                 source={{ uri: form.logo_url }}
                 style={styles.uploadImage}
@@ -244,10 +303,20 @@ export default function RestaurantProfileScreen() {
               <View style={styles.uploadInner}>
                 <MaterialCommunityIcons name="image-plus-outline" size={36} color={t.primary} />
                 <Text style={[styles.uploadTitle, { color: t.primaryDark }]}>Upload logo</Text>
-                <Text style={styles.uploadHint}>Tap to add when uploads are enabled</Text>
+                <Text style={styles.uploadHint}>Tap to choose a photo or take one with the camera</Text>
               </View>
             )}
           </Pressable>
+          {form.logo_url && !uploadLogoLoading ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Remove restaurant logo"
+              onPress={onRemoveLogo}
+              style={({ pressed }) => [styles.removeLogoBtn, pressed && styles.removeLogoBtnPressed]}
+            >
+              <Text style={styles.removeLogoText}>Remove logo</Text>
+            </Pressable>
+          ) : null}
 
           <Text style={styles.sectionTitle}>Restaurant details</Text>
           <InputField
@@ -524,6 +593,22 @@ const styles = StyleSheet.create({
   uploadImage: {
     width: '100%',
     minHeight: 140,
+  },
+  uploadCardPressed: {
+    opacity: 0.92,
+  },
+  removeLogoBtn: {
+    alignSelf: 'flex-start',
+    marginBottom: Spacing.xl,
+    paddingVertical: Spacing.sm,
+  },
+  removeLogoBtnPressed: {
+    opacity: 0.75,
+  },
+  removeLogoText: {
+    ...Typography.bodyMedium,
+    color: Colors.textSecondary,
+    fontWeight: '600',
   },
   uploadTitle: {
     ...Typography.bodyMedium,

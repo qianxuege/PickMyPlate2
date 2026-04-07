@@ -127,3 +127,23 @@ export async function upsertRestaurantProfileFromForm(
 
   return { error: error ?? null };
 }
+
+/**
+ * Persist logo URL for the current owner's restaurant (immediate save; no form Save required).
+ */
+export async function updateRestaurantLogoUrl(logoUrl: string | null): Promise<{ error: Error | null }> {
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  const user = userData?.user;
+  if (userError || !user) return { error: userError ?? new Error('Not signed in') };
+
+  const { data: existing } = await supabase.from('restaurants').select('id').eq('owner_id', user.id).maybeSingle();
+
+  if (!existing?.id) return { error: new Error('No restaurant found. Complete setup first.') };
+
+  const { error } = await supabase
+    .from('restaurants')
+    .update({ logo_url: logoUrl?.trim() || null })
+    .eq('id', existing.id);
+
+  return { error: error ?? null };
+}

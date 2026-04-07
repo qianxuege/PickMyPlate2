@@ -131,6 +131,24 @@ Each question maps to **one of the three salient metrics** above. Use these **af
 
 - 4 Very easy. There was a clear error message and the forget password button sends an email to her user account that enables her to sign back in.
 
+### Participant survey response record 2
+
+**Participant Name**
+
+- Scarlett Huang
+
+**Q1 — How easy and fast was it to sign in and reach the screen where you browse menus (diner) or manage your restaurant (owner)?**
+
+- 4 Very easy. Seamless experience in creating an account for both diner and restaurant owner, it's super quick and the registration screens cover all the necessary information for the users to get started.
+
+**Q2 — After you had signed in successfully once, then closed the app completely and opened it again, how well did things match what you expected?**
+
+- 4 Exactly what she expected. Signing in again was very intuitive and she can easily tell the difference between the diner and restaurant owner screens with the color difference and labels. Linking is also very smooth. When she used the wrong password in linking, the app prompted her to use the same password, and then after linking it brought her to the correct page without requiring her to sign in again.
+
+**Q3 - If you had a failed sign-in during this test (wrong password, typo, or an error message): how easy was it to understand what went wrong and get back to a successful sign-in on your own?**
+
+- 4 Very easy. There was a clear error message and the forget password button sends an email to her user account that enables her to sign back in, with a clear message indicating that she should open the link on the same device that the mobile app is on.
+
 ---
 
 ## Notes for facilitators

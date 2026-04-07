@@ -97,8 +97,7 @@ Each question maps to **one of the three salient metrics** above. Use these **af
 **Metric 1 — Login funnel completion & time**
 
 1. **How easy and fast was it to sign in and reach the screen where you browse menus (diner) or manage your restaurant (owner)?**  
-   **Scale:** 1 (Very difficult / slow) → 4 (Very easy / fast).  
-   **Also record:** number of **taps/clicks** from opening the login screen until the participant reaches **diner home**, **restaurant home**, or **role picker** (whichever is the first successful landing), and **elapsed time** in seconds for that path.
+   **Scale:** 1 (Very difficult / slow) → 4 (Very easy / fast).
 
 **Metric 2 — Second-session return without login confusion**
 
@@ -111,23 +110,23 @@ Each question maps to **one of the three salient metrics** above. Use these **af
    **Scale:** 1 (Very hard / unclear) → 4 (Very easy / clear).  
    **If the participant never had a failed attempt:** record **N/A** for Q3 and note that behavioral data for recovery was not collected this session.
 
-### Participant survey response record
+### Participant survey response record 1
 
-Copy this block for **each participant** (or use a separate sheet and keep IDs consistent).
+**Participant Name**
 
-| Field                                                    | Record here |
-| -------------------------------------------------------- | ----------- |
-| **Participant ID** (e.g. P01, initials)                  |             |
-| **Date**                                                 |             |
-| **Scenario** (diner only / owner only / both)            |             |
-| **Q1 — ease/speed (1–4)**                                |             |
-| **Q1 — tap/click count** (login visible → first landing) |             |
-| **Q1 — time (seconds)**                                  |             |
-| **Q2 — persistence / reopen (1–4)** (metric 2)           |             |
-| **Q3 — error recovery (1–4)** or **N/A** (metric 3)      |             |
-| **Optional — speed past login step (1–5)**               |             |
-| **Optional — clarity of login & errors (1–10)**          |             |
-| **Verbatim comments** (optional quotes or themes)        |             |
+- Scarlett Huang
+
+**Q1 — How easy and fast was it to sign in and reach the screen where you browse menus (diner) or manage your restaurant (owner)?**
+
+- 3 Relatively easy. Was able to create an account for both diner and restaurant owner relatively quickly. However, on the restaurant side the create account process didn't fill in all the important information needed for a restaurant, so she had to go back to fill in things like restaurant address later in the profile page. It would be better to have it in the create account process as well.
+
+**Q2 — After you had signed in successfully once, then closed the app completely and opened it again, how well did things match what you expected?**
+
+- 3 Mostly what she expected. Signing in again was very intuitive and she can easily tell the difference between the diner and restaurant owner screens with the color difference and labels. However, she didn't like that she had to log in again after the accounts were linked (when she creates a diner account first and then the user account). It would be better if after linking the account, the app directly logs in with the credentials.
+
+**Q3 - If you had a failed sign-in during this test (wrong password, typo, or an error message): how easy was it to understand what went wrong and get back to a successful sign-in on your own?**
+
+- 4 Very easy. There was a clear error message and the forget password button sends an email to her user account that enables her to sign back in.
 
 ---
 
@@ -135,8 +134,3 @@ Copy this block for **each participant** (or use a separate sheet and keep IDs c
 
 - Keep **Expo and Flask running** for the whole session; if menu or parse features are exercised after login, a missing backend shows up as failures unrelated to auth.
 - Run tests on **real devices** and **real network** at least once; simulators alone can hide timing and persistence issues.
-- Record **role** (diner vs owner) when logging observations; the same screen can feel fine for one persona and wrong for the other.
-- For **survey Q1** (metric 1), log **tap count** and **seconds to first successful post-login screen** (stopwatch from login visible → diner home, restaurant home, or role picker).
-- **Survey Q2** (metric 2) only applies if the participant completed the **Persistence** step (force-close, reopen); if not, mark Q2 **N/A** and rerun or note the gap.
-- **Survey Q3** (metric 3) needs at least one **intentional failed attempt** in the script; if skipped, mark **N/A** and note that recovery was not exercised.
-- If sign-in “works” but the user sees **no role found**, that usually points to **data/setup** (`user_roles`), not the UI—fix accounts before blaming testers.

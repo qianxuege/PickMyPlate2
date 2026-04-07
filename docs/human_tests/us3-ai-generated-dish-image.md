@@ -126,25 +126,29 @@ Use the template below for each classmate trial.
 
 ```md
 ### Tester
-- Name:
-- Team:
-- Date:
-- Device:
+- Name: Scarlett
+- Team: Gradient
+- Date: 4/7
+- Device: Mac + iPhone 16 pro max
 
 ### Observations
-- Could open dish page without help: Yes / No
-- Could find and use `View AI Image`: Yes / No
-- Image appeared on dish detail page: Yes / No
+- Could open dish page without help: Yes
+- Could find and use `View AI Image`: Yes
+- Image appeared on dish detail page: Yes 
 - First-run generation time:
-- Second-run or reopen appeared cached: Yes / No / Not tested
-- Tester understood image was approximate: Yes / No
+- Second-run or reopen appeared cached: Yes
+- Tester understood image was approximate: Yes
 
 ### Survey Responses
-1.
-2.
-3.
+1. Before you saw the generated image, how clearly could you picture the dish, and what became clearer after the image appeared?
+- before i saw the image, i might not be able to fully imagine the dish but with the image, the feature of the picture (like the sesame, or the pudding shape) helps me visualize it better. (my dish was sesame pudding)
+2. If this dish arrived looking somewhat different from the image, would that feel acceptable or misleading to you? Why?
+- it might, as i was expecting the real dish match the AI generated
+3. In a real ordering situation, would having this image make you more likely, less likely, or no more likely to consider ordering the dish? Explain what drove that reaction.
+- i think more likely, as the picture always gonna look better and help me better visualize what would i get for my dish
+
 
 ### Outcome
-- Passed / Failed
-- Follow-up changes needed:
+- Passed
+- Follow-up changes needed: N/A
 ```

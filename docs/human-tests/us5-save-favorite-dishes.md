@@ -59,37 +59,29 @@ After the prerequisites above, confirm the following so favorites work end to en
 
 ## Instructions for the participant
 
-Facilitators should **not** name exact tab labels unless the participant is stuck; the goal is to see whether navigation and affordances are discoverable.
+Treat the session like **one restaurant visit**. Facilitators should **not** name exact tab labels (e.g. tab names for “saved dishes”) unless you are stuck; we are testing whether you can spot how to save and find dishes on your own.
 
 1. **Sign in** as a diner (use the credentials the team provides).
 
 2. **Find a dish** you might order (browse the menu, search, or open a dish you already see).
 
-3. **Save the dish** using the control meant for “liking” or saving it (in this build: the **heart** on the dish row or dish detail). Confirm visually that it looks “on” or saved after you tap.
+3. **Save the dish** using the control for liking or saving it (in this build: the **heart** on the dish row or dish detail). Confirm it looks saved after you tap.
 
-4. **Find your saved dishes** without being told exactly where they live. Open the screen that should list everything you saved.
+4. **Find your saved dishes** without being told exactly where that list lives. Open the screen that should show everything you saved.
 
 5. **Confirm the dish appears** in that list.
 
-6. **Remove** one saved dish using whatever control the app offers (e.g. heart again, or remove on the favorites list).
+6. **Remove** one saved dish using whatever the app offers (e.g. heart again, or a control on the saved list).
 
-7. **Brief debrief** (verbal): say in your own words whether you would use this on a real night out and why or why not.
+7. **Optional same-visit use:** If it feels natural, **open your saved list again** or **save another dish** before we wrap—like you might while still at the table deciding.
 
----
-
-## Facilitator checklist (maps to human AC)
-
-| Human AC              | What to watch for                                                                |
-| --------------------- | -------------------------------------------------------------------------------- |
-| Understand add/remove | Can they save and unsave without step-by-step help after the first task?         |
-| Locate saved dishes   | Time and hesitation to open the favorites / saved list; wrong guesses are data.  |
-| Remembering / value   | Do they describe the list as useful for reordering or recalling what they liked? |
+8. **Post-session ratings:** The facilitator will ask you **three short questions** on a **1–4 scale**.
 
 ---
 
 ## Three salient metrics for satisfaction
 
-These are **actionable** (they tie to behavior and decisions), not vanity counts in isolation. They align with _The Lean Startup_ (measure what changes what you build), _The Mom Test_ (learn from concrete past behavior and specifics, not flattery), and typical product metrics (activation, engagement quality, retention signals).
+These are **actionable** (they tie to behavior and decisions), not vanity counts in isolation. They align with _The Lean Startup_ (measure what changes what you build), _The Mom Test_ (learn from concrete past behavior and specifics, not flattery), and typical product metrics (activation, engagement quality). **Metric 3 is deliberately human-verifiable** in a single session: we **ask participants directly** whether saved dishes would help them **find dishes again** and **remember what they liked**—matching the human AC that users **report** that benefit. It is **not** a cohort metric that needs analytics or a 7-day wait.
 
 ### 1. Task success rate and time-to-first-saved-dish
 
@@ -97,59 +89,60 @@ These are **actionable** (they tie to behavior and decisions), not vanity counts
 
 **Why it matters:** This is a classic **activation / usability** signal. Ries emphasizes metrics that show whether the product “sticks” for real users; if people cannot complete the core loop, optimization elsewhere is wasted. It also avoids _Mom Test_ failure modes: you are observing behavior, not asking “Was it easy?”
 
-### 2. Repeat use of favorites within the session (or stated intent tied to a concrete scenario)
+### 2. Repeat use of favorites within the session
 
-**What to measure:** Whether participants return to the favorites screen again, save a second dish, or—if the session is short—describe a **specific** future situation (“next time at this place…”) where they would open saved dishes.
+**What to measure:** Whether participants **reuse saved dishes during the same test session**—frame the session as **one restaurant visit**—by **returning to the favorites screen again** or **saving a second dish**. If neither happens, capture **same-visit** intent in debrief (e.g. “I’d open the list again before deciding”) or, only if the session is too short, a **concrete** “next time at…” line.
 
-**Why it matters:** This gets at **engagement quality** and remembered value, not just a one-off tap. _The Mom Test_ pushes you away from hypotheticals like “Would you use this?” toward specifics; _Lean Startup_ cares whether behavior recurs enough to justify the feature in the next iteration.
+**Why it matters:** This is **in-visit engagement depth**, distinct from whether bookmarks feel useful **on a later night out** (Metric 3). _The Mom Test_ favors specifics over vague “I’d use this”; _Lean Startup_ cares whether the feature invites **another pass** in the same sitting, not only a single successful tap.
 
-### 3. 7-day (or next-visit) return to favorites among early adopters
+### 3. Do participants say saved dishes help them find and remember?
 
-**What to measure:** In a pilot or beta, the share of diners who **open the favorites screen again** within a week or on a second app session.
+**Plain language:** After they have used bookmarks today, **how many people agree** (on the 1–4 survey and optional debrief) that **saved dishes would help them find something again** or **remember what they enjoyed**—the same outcomes as the user story. This checks the human AC: _Users report that bookmarking helps them remember dishes they liked._
 
-**Why it matters:** Short-term task success can hide shallow novelty. **Retention** and **repeat behavior** are the honest test of whether favorites create “personal value beyond a single dining experience,” as the story claims. Cohort-style thinking (who came back and did what) matches _Lean Startup_ learning milestones better than a single launch-day spike.
+**What to measure:** Share of participants who **rate Q3 highly** (e.g. 3 or 4), plus any comments about what they use the feature for (**re-find / reorder**, **memory**, **both**, or **nothing useful**).
+
+**Why it matters:** Human AC requires **reported** benefit, not only that the UI works. That is **measurable in the room** with **Q3** and one short debrief question. This is **perceived value on a later outing**, not repeat use **during the same session** (Metric 2). Longitudinal retention (e.g. reopen favorites next week) stays a **separate product metric** if you add instrumentation later.
 
 ---
 
 ## Post-session survey (User Story 5 — saved / favorite dishes)
 
-Ask these **after** the participant finishes the scripted tasks (save a dish, open the saved list, remove a save). The facilitator should **also log behavioral data** where noted so Likert answers can be compared to what actually happened.
+Ask these **after** the participant finishes the scripted tasks (save a dish, open the saved list, remove a save). **Each question maps in order to Metric 1, Metric 2, and Metric 3** in **Three salient metrics for satisfaction**. **Q2** is about willingness to **reuse saved dishes during this session** (treat it like **one restaurant visit**). **Q3** is about whether bookmarks would help you **find or remember dishes on a later real outing**—not repeat use during the test.
 
-### 1. Saving a dish as a favorite
+### 1. Maps to Metric 1 — Task success and time-to-first-saved-dish (full loop)
 
-**Question:** How easy and fast was it to **save a dish you liked** using the app (e.g. the heart on a dish or dish detail)?
+**Question:** Thinking about the **whole flow**—**saving a dish** you liked **and then opening your saved-dishes list** so you could **see it there**—how **easy and fast** was that combined experience?
 
 **Scale:** **1** — Very difficult / slow → **4** — Very easy / fast
 
-**Facilitator (objective):** From when the target dish is on screen until the UI clearly shows it as **saved/favorited**, record **number of taps** and **elapsed time** (same start/end definition for every participant).
+### 2. Maps to Metric 2 — Repeat use of favorites within the session (or concrete future scenario)
 
-### 2. Finding your saved dishes
-
-**Question:** How easy was it to **open the screen that lists your saved dishes** and confirm the dish you saved was there?
-
-**Scale:** **1** — Very difficult → **4** — Very easy
-
-**Facilitator (objective):** Record **taps** and **time** from task start (“find your saved dishes”) until the **saved-dishes list** is visible and the participant indicates they see the dish (or gives up).
-
-### 3. Future ordering when you’re unsure
-
-**Question:** Based on your experience using the **saved dishes** feature today, do you think it will help you **look back at dishes** or **decide what to order more quickly** the next time you’re **unsure what to get**?
+**Question:** After you’d used saved dishes **once** (saved something and seen your list), how much did you feel like **using them again before you were done with this session**—as if this were **one restaurant visit**—for example **opening the saved-dishes list another time** or **bookmarking another dish**?
 
 **Scale:** **1** — Not at all · **2** — A little · **3** — Quite a bit · **4** — A great deal
 
-**Facilitator (optional):** Ask **why** only after they pick a number (one follow-up sentence is enough); note whether they cite **memory**, **comparison**, or **something else**.
+### 3. Maps to Metric 3 — Do participants say saved dishes help them find and remember?
+
+**Question:** Based only on what you did today—bookmarking dishes, seeing them on your saved list, and removing one—how much do you think saved dishes would help you **after you’ve left** or on a **later visit**, when you want to **find a dish again** or **remember what you enjoyed**?
+
+**Scale:** **1** — Not at all · **2** — A little · **3** — Quite a bit · **4** — A great deal
 
 ---
 
-## Recording participants’ survey responses
+## Survey response 1
 
-Fill in **one row per participant** after each session. Use an anonymous **ID or code** (not full names) if you are sharing this file outside the research team.
+**Participant Name**
 
-| Participant (ID / code) | Date | Q1 rating (1–4) | Q1 taps | Q1 time (s) | Q2 rating (1–4) | Q2 taps | Q2 time (s) | Q3 rating (1–4) | Q3 notes (why / memory / comparison / other) |
-| ----------------------- | ---- | --------------- | ------- | ----------- | --------------- | ------- | ----------- | --------------- | -------------------------------------------- |
-|                         |      |                 |         |             |                 |         |             |                 |                                              |
-|                         |      |                 |         |             |                 |         |             |                 |                                              |
-|                         |      |                 |         |             |                 |         |             |                 |                                              |
-|                         |      |                 |         |             |                 |         |             |                 |                                              |
+- Scarlett Huang
 
-**Additional comments (optional):** use the space below for quotes, usability issues, or anything that does not fit the table.
+**Q1 – Thinking about the whole flow—saving a dish you liked and then opening your saved-dishes list so you could see it there—how easy and fast was that combined experience?**
+
+- 4 Very easy and fast. She was able to save a dish in one tap from the main menu, and she found the heart icon tab immediately and got to that screen in the next tap. The whole process was unprompted and took only 2 taps.
+
+**Q2 — After you’d used saved dishes once (saved something and seen your list), how much did you feel like using them again before you were done with this session—as if this were one restaurant visit—for example opening the saved-dishes list another time or bookmarking another dish?**
+
+- 3 Quite a bit. She said she would open the favorites tab again during the same meal to compare what she’d saved before deciding. She'd also add dishes right after she finishes her meal and if she likes the meal. During the test, she saved several other dishes and reopened the page without prompting. However, she worried the list could feel crowded if she saved many items and wanted filter or search on that page.
+
+**Q3 — Based only on what you did today—bookmarking dishes, seeing them on your saved list, and removing one—how much do you think saved dishes would help you after you’ve left or on a later visit, when you want to find a dish again or remember what you enjoyed?**
+
+- 4 A great deal. She said it would help her remember dish names and restaurants when planning a return visit or recommending dishes to friends. She liked that favorites show which restaurant each dish came from. **Verbatim:** “I’d use it so I don’t forget what I actually liked last time.”

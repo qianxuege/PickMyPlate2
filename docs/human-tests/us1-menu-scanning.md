@@ -268,6 +268,9 @@ Place the menu flat on a table under normal indoor lighting before handing the d
 **Q1 response (refined from tester's own words):**
 Score: 3.5 / 5. The scanning feature and the resulting digital menu look polished and useful, but the menu processing time feels noticeably long. During that wait he would likely fall back to the physical menu rather than holding the phone and watching the screen — which defeats the purpose of the feature in a real restaurant setting.
 
+**Note on Q1 — processing time constraint:**
+The long processing time flagged in Q1 is currently a hard constraint of the underlying large language model pipeline. LLM inference latency is not trivially reducible at the application level; meaningful improvements would require either a faster model, streaming token output piped to the UI, or background processing with a push notification when the menu is ready. The recommended near-term mitigation therefore remains a UX fix — replacing the simulated progress bar with an honest wait-time message — rather than a performance optimization, which is out of scope for the current sprint.
+
 **Q2 response (refined from tester's own words):**
 The frontend animations throughout the app feel polished and natural — the scan workflow, page transitions, and every individual screen all behave smoothly. The one exception is the progress bar on the processing screen: it appears to be a simulated animation rather than a real reflection of backend progress. This created a moment of genuine doubt about whether the menu was actually being processed or whether something had stalled silently.
 

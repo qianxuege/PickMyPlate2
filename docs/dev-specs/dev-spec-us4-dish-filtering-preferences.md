@@ -285,30 +285,48 @@ React components do not expose classic public/private methods. Below, **exported
 
 ## 7. Technologies, libraries, and APIs
 
-Versions are from `PickMyPlate2/package.json` at documentation time. Patch versions may drift with lockfiles; pin in your deployment docs if required.
+**Version sources:** Client versions from `PickMyPlate2/package.json`; backend constraints from `PickMyPlate2/backend/requirements.txt`; Python runtime from team deployment target (**3.13+**). Where only a **range** is pinned in `requirements.txt`, the installed **patch** level is whatever `pip` resolves at deploy time (record `pip freeze` in deployment notes if a fully pinned build is required).
 
-| Technology | Version (repo) | Used for | Why chosen (project context) | Author / source | Documentation |
-|------------|----------------|----------|------------------------------|-----------------|---------------|
+| Technology | Version (repo / team) | Used for | Why chosen (project context) | Author / source | Documentation |
+|------------|------------------------|----------|------------------------------|-----------------|---------------|
 | TypeScript | ~5.9.2 (dev) | Typed client code | Type safety for menu schema and Supabase usage | Microsoft | https://www.typescriptlang.org/docs/ |
 | React | 19.1.0 | UI | Standard for Expo apps | Meta | https://react.dev/ |
 | React Native | 0.81.5 | Native mobile UI | Expo’s supported renderer | Meta | https://reactnative.dev/docs/getting-started |
 | Expo SDK | ~54.0.33 | Build, runtime, modules | Simplified RN toolchain for course/startup apps | Expo | https://docs.expo.dev/ |
 | Expo Router | ~6.0.23 | File-based navigation | Deep links and screens (`diner-menu`, processing) | Expo | https://docs.expo.dev/router/introduction/ |
 | @supabase/supabase-js | ^2.100.0 | DB + auth client | Hosted Postgres + RLS + auth | Supabase | https://supabase.com/docs/reference/javascript/introduction |
-| Supabase (platform) | *(your project)* | PostgreSQL, Auth, Storage, PostgREST | Backend-as-a-service | Supabase | https://supabase.com/docs |
+| Supabase (platform) | *(project-specific)* | PostgreSQL, Auth, Storage, PostgREST | Backend-as-a-service | Supabase | https://supabase.com/docs |
+| PostgreSQL | *(major/minor per Supabase project settings)* | Long-term relational storage | Provided by Supabase; exact server version is shown in the Supabase dashboard for the linked project | PostgreSQL Global Development Group | https://www.postgresql.org/docs/ |
 | @expo/vector-icons | ^15.0.3 | Icons (e.g. spice flames) | Bundled with Expo | Expo | https://docs.expo.dev/guides/icons/ |
 | expo-image | ~3.0.11 | Dish thumbnails | Performance vs RN Image | Expo | https://docs.expo.dev/versions/latest/sdk/image/ |
 | @react-navigation/native | ^7.1.8 | Navigation core (used by Expo Router) | Industry standard | React Navigation | https://reactnavigation.org/docs/getting-started/ |
-| Python / Flask | *(backend; version not pinned in snippet)* | Menu parse HTTP API | Existing backend in repo | Pallets / PSF | https://flask.palletsprojects.com/ |
-| Google Vertex AI / Gemini | *(backend env)* | LLM menu extraction | Used by `llm_menu_vertex.py` | Google Cloud | https://cloud.google.com/vertex-ai/docs |
+| Python | **≥ 3.13** (team runtime target) | Interpreter for Flask menu-parse API | Team standard / course environment | Python Software Foundation | https://docs.python.org/3/ |
+| Flask | **`>=3.0,<4`** in `backend/requirements.txt` (Flask 3.x line) | HTTP API for `/v1/parse-menu` and related routes | Lightweight, matches existing backend | Pallets | https://flask.palletsprojects.com/ |
+| google-cloud-aiplatform | **`>=1.64,<2`** in `backend/requirements.txt` | Vertex AI client SDK; `GenerativeModel` in `llm_menu_vertex.py` | Google-supported path to Gemini on Vertex | Google Cloud | https://cloud.google.com/python/docs/reference/aiplatform/latest |
+| Vertex AI / Gemini (model) | Default **`gemini-2.0-flash-001`** (`GEMINI_MODEL` env in `llm_menu_vertex.py`; overridable) | LLM menu JSON extraction | Chosen for structured JSON and latency/cost tradeoffs in menu parsing | Google Cloud | https://cloud.google.com/vertex-ai/docs |
+| google-cloud-vision | **`>=3.7,<4`** in `backend/requirements.txt` | OCR path used before/with LLM in parse pipeline | Google Vision API for text extraction | Google Cloud | https://cloud.google.com/vision/docs |
+| Other backend deps | See `backend/requirements.txt` (e.g. `httpx`, `PyJWT`, `supabase` Python client, `Pillow`) | Auth, HTTP, Supabase from server, imaging | Supporting parse and storage integration | Various | See PyPI pages per package |
 
 **Not used for US4 filtering:** There is **no** dedicated RPC for “apply filters”; Supabase RPC is not part of this story in code.
+
+### 7.1 What is not version-pinned in this repository
+
+- **PostgreSQL server build:** Determined by Supabase, not a file in this repo; record the dashboard value in deployment runbooks if the course requires an exact `x.y` server version.
+- **Exact Flask / SDK patch releases:** `requirements.txt` uses compatible ranges; for a byte-for-byte reproducible environment, commit a **`requirements.lock`** or `pip freeze` output from a known-good deploy.
+- **Gemini server-side revisions:** Google may update model behavior independently of the pinned **SDK** range; the **model ID** string is the team’s declared interface (`gemini-2.0-flash-001` unless overridden).
 
 ---
 
 ## 8. Database — long-term storage for US4
 
-**Why sizes are estimates, not measured from “the” database:** This specification was produced from the **repository** (SQL migrations and application code), not from a live connection to your Supabase project. The authors do **not** have credentials or network access to query your deployed database. Even with access, **per-table on-disk bytes** depend on **how many rows you have**, **average text length** (`description`, `ingredients`, labels), **indexes**, **TOAST**, and PostgreSQL **page alignment**—so schema alone cannot yield a single exact number. The tables below give **order-of-magnitude hints** (fixed types like UUID/timestamptz vs variable `text`). For **measured** sizes in your environment, use PostgreSQL/Supabase tooling, for example: `pg_total_relation_size('public.diner_scanned_dishes')`, `pg_relation_size` for heap vs indexes, or row-level `pg_column_size(row.*)` on samples.
+### 8.0 Theoretical vs measured storage (compliance labeling)
+
+| Kind | What this spec contains | How to obtain measured byte counts |
+|------|-------------------------|-----------------------------------|
+| **Theoretical / schema-derived** | Per-field **order-of-magnitude** notes and illustrative row totals below | N/A — not taken from a live database |
+| **Measured (optional addendum)** | *Not included in this document* unless the team runs SQL against staging/prod and pastes results here | Run in Supabase SQL Editor or `psql`, e.g. `SELECT pg_size_pretty(pg_total_relation_size('public.diner_scanned_dishes'));` for table+indexes; `SELECT pg_column_size(t.*) FROM public.diner_scanned_dishes t LIMIT 100;` for a **sample** of row payload sizes |
+
+**Why the tables below are not “measured byte counts”:** This specification was produced from the **repository** (SQL migrations and application code), not from a guaranteed live export of your Supabase project. **Per-table on-disk bytes** depend on **row count**, **average text length** (`description`, `ingredients`, labels), **indexes**, **TOAST**, and **page alignment**—so schema alone cannot yield one exact number without querying a specific database instance. The columns labeled **“Per-field size (estimated)”** are **educated bounds** from PostgreSQL type semantics (e.g. UUID 16 bytes on-disk type width, `timestamptz` 8 bytes), not a substitute for `pg_total_relation_size`.
 
 ### 8.1 Tables that store preference data (diner)
 
@@ -336,7 +354,7 @@ Versions are from `PickMyPlate2/package.json` at documentation time. Patch versi
 | | | `ingredients` | Display / detail; **not used in filter logic in app** | can be larger per dish |
 | | | `spice_level`, `name`, `description`, prices, `image_url` | UI / detail | variable |
 
-**Whole-row / table totals (illustrative only):** A single `diner_scanned_dishes` payload might fall in the **hundreds to a few thousand bytes** range for typical menus, driven mostly by `description` and `ingredients`; `tags` alone are often **tens of bytes**. **Total table size** = sum over all rows plus indexes; measure in prod/staging if the assignment requires a concrete number.
+**Whole-row / table totals (theoretical / illustrative only — not measured):** A single `diner_scanned_dishes` **logical row** might fall in the **hundreds to a few thousand bytes** range for typical menus, driven mostly by `description` and `ingredients`; `tags` alone are often **tens of bytes** before overhead. **Total relation size on disk** = data + indexes + bloat; use §8.0 SQL if instructors require **measured** values for a named environment (e.g. staging) and date the capture in the doc.
 
 ---
 
@@ -382,9 +400,14 @@ Applies to the **US4 filtering feature** and its dependencies (load preferences,
 | `profiles`, diner preference tables, and related diner data access in app code | Yano Li (diner preference storage and access logic) | GitHub PR review for any change that queries or mutates these tables; Supabase dashboard logs; code-level inspection of API usage in the client. |
 | Menu parse Flask service / deployment | Yao Lu | Application logging, rate limits, and secrets handling for the parse service; reviewed when deploying or changing `backend/`. |
 
-**Team procedures (routine):** Review database-related access through **GitHub PRs**, **Supabase dashboard logs**, and **code-level inspection** of routes and Supabase client usage.
+**Team procedures (routine):** Review database-related access through **GitHub PRs**, **Supabase dashboard logs**, and **code-level inspection** of routes and Supabase client usage. Merges to `main` that touch persistence or auth require at least **one reviewer** who is not the author.
 
-**Non-routine access:** Discussed and agreed **within the team before execution** (e.g., ad-hoc SQL, production debugging, or dashboard access outside normal development).
+**Non-routine access (expanded):** Ad-hoc access includes **manual SQL** against Supabase, **exporting** customer data, **sharing dashboard login** with someone outside the usual maintainers, **rotating** service keys, or **restoring** backups for investigation.
+
+1. **Before execution:** The person requesting access posts a short written request (**Slack or email**) stating **purpose**, **scope** (which project/tables or which service), and **time window**. **Two team members** must acknowledge approval: for **Supabase/DB and diner PII paths**, **Yano Li** (or **Cici Ge** if Yano is unavailable); for **Flask parse / GCP**, **Yao Lu** (or the other owners if Yao is unavailable).
+2. **Logging:** The requester adds a dated entry to a **team access log** (shared doc or repo `docs/` note — location chosen by team) with: date, requester, approvers, what was done, and approximate end time. Supabase **dashboard audit / logs** are retained per Supabase plan; the team **screenshots or copies** relevant log lines into the access log for **non-routine** events when feasible.
+3. **Escalation:** If access involves **suspected breach**, **lawful demand**, or **scope beyond the request**, **stop**, preserve evidence, and escalate to the **course instructor / faculty advisor** and **institutional IT/security** per CMU policy. Routine “prod is down” debugging follows the same approval path but may use a **time-boxed** window (e.g. 2 hours) documented in the access log.
+4. **After execution:** Confirm **keys rotated** if credentials were exposed; note completion in the access log.
 
 ### 10.3 Minors
 
@@ -392,7 +415,13 @@ Applies to the **US4 filtering feature** and its dependencies (load preferences,
 - The team **does not knowingly solicit or store minors’ PII** as a product goal.
 - **Guardian permission flows are not implemented** because the app **does not target children**; there is no dedicated parental-consent UI in the reviewed schema and flows.
 - The repository **does not** encode age verification; if a minor signs up like any other user, standard account data may exist—handled under general auth and privacy practices, not a child-directed product policy.
-- **Child-safety / restricted-access policy for convicted or suspected abusers:** Not separately encoded in application logic; follow **institutional** and **platform (Supabase / hosting)** policies where applicable.
+
+**Team policy — access to minors’ data and child safety (in addition to institutional rules):**
+
+- **No special in-app workflow** exists to label accounts as minors; therefore the team treats **all** account data as sensitive and applies the same **least privilege** and **RLS** assumptions as for adults.
+- **Personnel access:** Team members with **production database**, **Supabase service role**, or **raw export** capability must **not** use that access to browse user content for personal reasons. **Conviction for child sexual abuse** or **active law-enforcement investigation** for such offenses: the team **revokes** that person’s access to production systems and shared secrets **immediately** upon **confirmed notice** to the **primary owner (Yano Li)** or **secondary owner (Cici Ge)** (or the remaining owner if one is implicated). This is **not** a substitute for **institutional employment checks** or **legal reporting**; it is the **team’s operational** rule for who may hold keys.
+- **Suspected platform abuse:** Reports of grooming or illegal content are **escalated to institutional authorities** and **Supabase/Google** abuse channels as appropriate; the app does **not** attempt to investigate or adjudicate allegations internally beyond **preserving logs** and **suspending access** per advisor direction.
+- **Institution and platform:** The team still **complies** with **CMU** policies and **Supabase / GCP** terms; the bullets above **add** team-specific key-handling rules where the course rubric expects an explicit team statement.
 
 ---
 
@@ -416,4 +445,12 @@ The repository may not yet contain Jest/Detox tests for US4; recommended cases:
 
 ---
 
-*Document generated from codebase paths under `PickMyPlate2/` and `PickMyPlate2/backend/`.* Owners, merge metadata, and team policies updated per team input (2026).
+## 13. Residual unknowns (what is not determined from this repository alone)
+
+- **Exact PostgreSQL server version string** for your Supabase project (e.g. `15.8`) — read from the Supabase dashboard, not from this git repo.
+- **Exact pip-resolved patch versions** of Flask and Google SDKs at deploy time — only **compatible ranges** are in `requirements.txt` unless the team adds a lockfile or `pip freeze` artifact.
+- **Measured table sizes** — require running §8.0 SQL against a **named** environment; not embedded here until captured and dated.
+
+---
+
+*Document generated from codebase paths under `PickMyPlate2/` and `PickMyPlate2/backend/`.* Owners, merge metadata, and team policies updated per team input (2026); §7–8, §10.2–10.3, and §13 revised for reviewer feedback (technology pins, storage labeling, audit detail, minors/child-safety policy).

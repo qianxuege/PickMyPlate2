@@ -8,8 +8,7 @@ Instructions for a person exercising the login feature in PickMyPlate, how we me
 
 1. **Frontend and backend both running**  
    PickMyPlate expects **two** processes: the Expo app (frontend) and the Flask API (backend). Start **both** before testing.
-
-   - **Frontend (Expo):** From the project root: `npm install`, then `npm start`. Open the app in Expo Go, a simulator, or a web build as your team usually does.  
+   - **Frontend (Expo):** From the project root: `npm install`, then `npm start`. Open the app in Expo Go, a simulator, or a web build as your team usually does.
    - **Backend (Flask):** In a **second** terminal, set up once (venv, deps, env file), then start the API:
 
    ```bash
@@ -93,40 +92,42 @@ Instructions for a person exercising the login feature in PickMyPlate, how we me
 
 ## Survey questions (login — User Story 8)
 
-Use these **after** the participant has attempted sign-in (as a diner, owner, or both, depending on your test plan). Where noted, the facilitator should **record behavior**, not only the scale response.
+Each question maps to **one of the three salient metrics** above. Use these **after** the participant has followed the **What to do** steps (including **persistence**: close app, reopen). Where noted, the facilitator should **record behavior**, not only the scale response.
+
+**Metric 1 — Login funnel completion & time**
 
 1. **How easy and fast was it to sign in and reach the screen where you browse menus (diner) or manage your restaurant (owner)?**  
    **Scale:** 1 (Very difficult / slow) → 4 (Very easy / fast).  
    **Also record:** number of **taps/clicks** from opening the login screen until the participant reaches **diner home**, **restaurant home**, or **role picker** (whichever is the first successful landing), and **elapsed time** in seconds for that path.
 
-2. **How confident did you feel that you were in the right place in the app for what you wanted to do today**—for example, browsing and saving preferences as a diner, or uploading or editing your menu as an owner—**right after you finished signing in?**  
-   **Scale:** 1 (Not confident at all) → 4 (Very confident).
+**Metric 2 — Second-session return without login confusion**
 
-3. **How satisfied were you with signing in and getting to your part of PickMyPlate during this session?**  
-   **Scale:** 1 — very dissatisfied · 2 — somewhat dissatisfied · 3 — somewhat satisfied · 4 — very satisfied.
+2. **After you had signed in successfully once, then closed the app completely and opened it again** (as in the test script): how well did things **match what you expected**—for example, still signed in and in the **right area** of the app for a diner (browsing) vs a restaurant owner (managing the menu), **without** feeling stuck on the wrong home screen?  
+   **Scale:** 1 (Not at all what I expected / confusing) → 4 (Exactly what I expected / very clear).
 
-**Optional add-ons** (use if you want extra signal without overloading the session):
+**Metric 3 — Error recovery after a failed attempt**
 
-- **Speed (narrow):** On a scale of 1–5, how quickly did you feel you could **enter your email and password and get past the login step**? 1 = very slow, 5 = very quick.  
-- **Clarity:** Rate how **easy to understand** the login screen and any error messages were **today**, on a scale of 1–10.
+3. **If** you had a **failed** sign-in during this test (wrong password, typo, or an error message): how **easy was it to understand what went wrong** and **get back to a successful sign-in** on your own—for example fixing the password, retrying, or using forgot password?  
+   **Scale:** 1 (Very hard / unclear) → 4 (Very easy / clear).  
+   **If the participant never had a failed attempt:** record **N/A** for Q3 and note that behavioral data for recovery was not collected this session.
 
 ### Participant survey response record
 
 Copy this block for **each participant** (or use a separate sheet and keep IDs consistent).
 
-| Field | Record here |
-| ----- | ----------- |
-| **Participant ID** (e.g. P01, initials) | |
-| **Date** | |
-| **Scenario** (diner only / owner only / both) | |
-| **Q1 — ease/speed (1–4)** | |
-| **Q1 — tap/click count** (login visible → first landing) | |
-| **Q1 — time (seconds)** | |
-| **Q2 — confidence (1–4)** | |
-| **Q3 — satisfaction (1–4)** | |
-| **Optional — speed past login step (1–5)** | |
-| **Optional — clarity of login & errors (1–10)** | |
-| **Verbatim comments** (optional quotes or themes) | |
+| Field                                                    | Record here |
+| -------------------------------------------------------- | ----------- |
+| **Participant ID** (e.g. P01, initials)                  |             |
+| **Date**                                                 |             |
+| **Scenario** (diner only / owner only / both)            |             |
+| **Q1 — ease/speed (1–4)**                                |             |
+| **Q1 — tap/click count** (login visible → first landing) |             |
+| **Q1 — time (seconds)**                                  |             |
+| **Q2 — persistence / reopen (1–4)** (metric 2)           |             |
+| **Q3 — error recovery (1–4)** or **N/A** (metric 3)      |             |
+| **Optional — speed past login step (1–5)**               |             |
+| **Optional — clarity of login & errors (1–10)**          |             |
+| **Verbatim comments** (optional quotes or themes)        |             |
 
 ---
 
@@ -135,5 +136,7 @@ Copy this block for **each participant** (or use a separate sheet and keep IDs c
 - Keep **Expo and Flask running** for the whole session; if menu or parse features are exercised after login, a missing backend shows up as failures unrelated to auth.
 - Run tests on **real devices** and **real network** at least once; simulators alone can hide timing and persistence issues.
 - Record **role** (diner vs owner) when logging observations; the same screen can feel fine for one persona and wrong for the other.
-- For **survey Q1**, log **tap count** and **seconds to first successful post-login screen** (stopwatch from login visible → diner home, restaurant home, or role picker).
+- For **survey Q1** (metric 1), log **tap count** and **seconds to first successful post-login screen** (stopwatch from login visible → diner home, restaurant home, or role picker).
+- **Survey Q2** (metric 2) only applies if the participant completed the **Persistence** step (force-close, reopen); if not, mark Q2 **N/A** and rerun or note the gap.
+- **Survey Q3** (metric 3) needs at least one **intentional failed attempt** in the script; if skipped, mark **N/A** and note that recovery was not exercised.
 - If sign-in “works” but the user sees **no role found**, that usually points to **data/setup** (`user_roles`), not the UI—fix accounts before blaming testers.

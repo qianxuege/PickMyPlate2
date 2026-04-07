@@ -122,23 +122,26 @@ Use the template below for each classmate trial.
 
 ```md
 ### Tester
-- Name:
-- Team:
-- Date:
-- Device:
+- Name: Scarlett
+- Team: Gradient
+- Date: 4/7
+- Device: Mac + iPhone 16 pro max
 
 ### Observations
-- Could open dish page without help: Yes / No
-- Could find flavor tags: Yes / No
-- Could find ingredients or placeholder: Yes / No
-- Could find dietary indicators or placeholder: Yes / No
-- Could return to full menu easily: Yes / No
-- Dish page load time:
+- Could open dish page without help: Yes
+- Could find flavor tags: Yes
+- Could find ingredients or placeholder: Yes
+- Could find dietary indicators or placeholder: Yes
+- Could return to full menu easily: Yes
+- Dish page load time: 1sec
 
 ### Survey Responses
-1. 
-2. 
-3. 
+1. After looking at that dish page, what do you expect the dish to taste like, and what on the page led you to that conclusion?
+ - for chicken hamburger, i expect this would taste crispy and just as a normal burger, i was informed by the key ingredient anf the spice tags (which is not spicy)
+2. If you were actually ordering right now, what information, if any, would you still want before deciding on this dish?
+- dietary restrictions such as contain nuts/seafood
+3. How smooth was it to move from the menu to dish details and back to the menu? Rate it from 1 to 5 and explain the moment that most affected your score.
+- very smooth 4/5 with 1 or seconds lagging which is fine
 
 ### Outcome
 - Passed / Failed

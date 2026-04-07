@@ -160,22 +160,22 @@ Ask the tester **after** they finish. Questions are indirect where helpful; each
 
 ## Tester record (fill in for Gradescope / PDF)
 
-**Tester name:** _______________________  
-**Andrew ID (if CMU peer):** _______________________  
-**Team (if not your team):** _______________________  
-**Date / app build:** _______________________  
+**Tester name:** Andrew  
+**Andrew ID (if CMU peer):** andrewx  
+**Team (if not your team):** six degrees  
+**Date / app build:** 2026-04-07 (peer acceptance run)  
 
-**Run #** (increment if you revise the app and re-test): _______
+**Run #** (increment if you revise the app and re-test): 1
 
 | Question | Response |
 |----------|----------|
-| Q1 | |
-| Q2 | |
-| Q3 | |
+| Q1 | Would use **either** the **preference chips** to narrow the menu **or** take a **whole pass over the full menu**—not locked into only one approach; choice would depend on how hungry he was and how long the menu felt. |
+| Q2 | **None** — no moment where the app felt like it showed the **wrong** dishes, **too few**, or **too many** for the filters/search he tried. |
+| Q3 | In a **real** restaurant night, he would **ask the waiter** to get **menu information** rather than depending on the app alone for that. (Still useful for narrowing a digital menu in the test, but staff remains his default for “what should I know about this menu.”) |
 
-**Satisfied enough that they’d pay / use it (tester’s own words):** _______________________
+ **Satisfied with the overall implementation** of filtering and search—chips and full-menu browsing worked as expected (see Q2). Q3 still reflects his **personal habit** of asking waitstaff for some menu information in person; that does not change his **overall satisfaction** with how the feature is built.
 
-**Notes (optional):** _______________________
+**Notes (optional):** Same external tester as US7 acceptance (Andrew / six degrees). Q3 remains useful **Mom Test–style** context alongside overall satisfaction.
 
 ---
 

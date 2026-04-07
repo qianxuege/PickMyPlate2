@@ -144,6 +144,6 @@ Use the template below for each classmate trial.
 - very smooth 4/5 with 1 or seconds lagging which is fine
 
 ### Outcome
-- Passed / Failed
-- Follow-up changes needed:
+- Passed
+- Follow-up changes needed: N/A
 ```

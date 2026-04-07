@@ -12,7 +12,7 @@ import { supabase } from '@/lib/supabase';
 export default function RestaurantRegistrationScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { refreshRoles } = useActiveRole();
+  const { refreshRoles, setActiveRole } = useActiveRole();
   const [restaurantName, setRestaurantName] = useState('');
   const [businessAddress, setBusinessAddress] = useState('');
   const [phone, setPhone] = useState('');
@@ -51,7 +51,7 @@ export default function RestaurantRegistrationScreen() {
         if (isDuplicateEmailSignupError(error)) {
           Alert.alert(
             'Link to your existing account?',
-            'This email already has an account. Sign in with the same password to add restaurant access to it.',
+            'This email already has an account. Enter the password you already use for it—we sign you in and add restaurant access. One account, one password; linking does not add a second password. Next you’ll continue restaurant set-up where you left off.',
             [
               { text: 'Cancel', style: 'cancel' },
               {
@@ -80,6 +80,7 @@ export default function RestaurantRegistrationScreen() {
                       return;
                     }
                     await refreshRoles();
+                    await setActiveRole('restaurant');
                     router.replace({
                       pathname: '/restaurant-registration-2',
                       params: reg2Params(),
@@ -99,6 +100,8 @@ export default function RestaurantRegistrationScreen() {
         return;
       }
       if (data.session) {
+        await refreshRoles();
+        await setActiveRole('restaurant');
         router.push({ pathname: '/restaurant-registration-2', params: reg2Params() });
       } else {
         Alert.alert(

@@ -12,7 +12,7 @@ import { supabase } from '@/lib/supabase';
 export default function DinerRegistrationScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { refreshRoles } = useActiveRole();
+  const { refreshRoles, setActiveRole } = useActiveRole();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -40,7 +40,7 @@ export default function DinerRegistrationScreen() {
         if (isDuplicateEmailSignupError(error)) {
           Alert.alert(
             'Link to your existing account?',
-            'This email already has an account. Sign in with the same password to add diner access to it.',
+            'This email already has an account. Enter the password you already use for it—we sign you in and add diner access. You still have one account and one password; linking does not create a new password or change your existing one (use Forgot password on the login screen only if you need to reset).',
             [
               { text: 'Cancel', style: 'cancel' },
               {
@@ -69,6 +69,7 @@ export default function DinerRegistrationScreen() {
                       return;
                     }
                     await refreshRoles();
+                    await setActiveRole('diner');
                     router.replace('/diner-personalization/1');
                   } catch (e) {
                     Alert.alert('Error', e instanceof Error ? e.message : 'Unknown error');
@@ -85,6 +86,8 @@ export default function DinerRegistrationScreen() {
         return;
       }
       if (data.session) {
+        await refreshRoles();
+        await setActiveRole('diner');
         router.push('/diner-personalization/1');
       } else {
         Alert.alert(

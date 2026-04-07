@@ -248,17 +248,26 @@ Place the menu flat on a table before handing the device to the tester.
 
 | Field | Response |
 |---|---|
-| Tester name | |
-| Tester's team | |
-| Date | |
-| Device | |
-| Task 1 — upload entry found unaided? | Yes / No |
-| Total end-to-end time (upload → published) | minutes |
-| Number of items requiring correction | |
-| Task 3 — publish step completed unaided? | Yes / No |
-| Task 4 — published menu confirmed in Menu tab? | Yes / No |
-| Q1 score (1–5) | |
-| Q2 verbatim response | |
-| Q3 verbatim response | |
-| Overall: Pass / Fail | |
-| Follow-up actions (if Fail) | |
+| Tester name | Eric Du |
+| Tester's team | Different team (17-766) |
+| Date | 2026-04-07 |
+| Device | Physical phone via Expo Go |
+| Task 1 — upload entry found unaided? | Yes |
+| Total end-to-end time (upload → published) | Within threshold (no time concern raised) |
+| Number of items requiring correction | None recorded |
+| Task 3 — publish step completed unaided? | Yes |
+| Task 4 — published menu confirmed in Menu tab? | Yes |
+| Q1 score (1–5) | 4.5 |
+| Q2 verbatim response | See below |
+| Q3 verbatim response | See below |
+| Overall: Pass / Fail | **Pass** — with one product gap identified for follow-up |
+| Follow-up actions | Add support for extracting and importing images that are already embedded in the physical menu; in the interim, surface a clearer prompt during the review step so owners know image upload is optional but available |
+
+**Q1 response (refined from tester's own words):**
+Score: 4.5 / 5. The AI-powered features — automatically generating dish descriptions and images during the upload process — save a significant amount of manual work compared to building a digital menu from scratch. This alone makes the feature meaningfully faster than any alternative a restaurant owner would otherwise have.
+
+**Q2 response (refined from tester's own words):**
+No friction moments were noticed. Every part of the upload flow felt smooth and stable — the transitions, the processing feedback, and the review interface all behaved as expected without any confusion or hesitation.
+
+**Q3 response (refined from tester's own words):**
+Yes, he would use it — but one gap would give him pause: the app cannot recognize or extract images that are already embedded in the physical printed menu, so those images are simply not carried over to the digital version. A restaurant owner who has invested in professional food photography for their printed menu would need to re-upload each image manually during the review step. This friction is not a blocker but it is a noticeable inconvenience, particularly for owners with larger menus or existing photo assets.

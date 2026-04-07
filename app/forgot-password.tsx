@@ -37,7 +37,7 @@ export default function ForgotPasswordScreen() {
       }
       Alert.alert(
         'Check your email',
-        'If an account exists for that address, we sent a link to reset your password. Open it on this phone so PickMyPlate can finish the reset.',
+        'If an account exists for that address, we sent a link to reset your password. Open the link on this same device (the one running PickMyPlate / Expo Go) so the app can open the reset screen.',
         [{ text: 'OK', onPress: () => router.back() }],
       );
     } catch (e) {
@@ -55,7 +55,10 @@ export default function ForgotPasswordScreen() {
         <View style={{ height: insets.top + 36 }} />
         <Text style={styles.heading}>Forgot password?</Text>
         <Text style={styles.subtitle}>
-          Enter your email and we will send you a link to reset your password.
+          Enter your email and we will send you a link to reset your password. Open that link on the{' '}
+          <Text style={styles.subtitleEmphasis}>same phone or device</Text> where you run PickMyPlate (e.g.
+          Expo Go)—so the app can open the reset screen. Links opened only on another device or in a desktop
+          browser may not return you here.
         </Text>
         <InputField
           label="Email"
@@ -91,6 +94,10 @@ const styles = StyleSheet.create({
     ...Typography.body,
     color: Colors.textSecondary,
     marginBottom: Spacing.xl,
+  },
+  subtitleEmphasis: {
+    fontWeight: '700',
+    color: Colors.text,
   },
   emailField: {
     marginBottom: Spacing.xl,

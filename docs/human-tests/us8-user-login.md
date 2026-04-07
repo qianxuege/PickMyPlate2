@@ -36,6 +36,9 @@ Instructions for a person exercising the login feature in PickMyPlate, how we me
 5. **Optional but useful**  
    Wrong-password flow is easier to judge if you know a **correct** password for one account and deliberately use a **wrong** password for another attempt.
 
+6. **Password reset on mobile**  
+   If you test **Forgot password**, the email contains a link that deep-links into the app. The tester must **open that link on the same device** where PickMyPlate runs (e.g. the phone with **Expo Go**, or the simulator / emulator you used to open the app). Opening the link only on a laptop browser usually **will not** open the in-app reset flow, because the redirect target is tied to the dev client on that device.
+
 ---
 
 ## What to do (login flow)
@@ -54,7 +57,7 @@ Instructions for a person exercising the login feature in PickMyPlate, how we me
    You should see a **clear error** (e.g. an alert such as “Sign in failed” with a short message). Fix the password or email and try again.
 
 5. **Expected — recovery**  
-   Use **Forgot password?** if you need to reset via email (follow the link or code your project uses). After a mistake, you should understand **what went wrong** and **what to do next** without contacting support.
+   Use **Forgot password?** if you need to reset via email. **Open the reset link on the same device** running the app (see prerequisite 6). After a mistake, you should understand **what went wrong** and **what to do next** without contacting support.
 
 6. **Persistence**  
    Fully close the app (or kill the process), reopen it, and confirm you remain **signed in** and can reach the right experience without re-entering password every time (within normal session limits your team defines).
@@ -134,3 +137,4 @@ Each question maps to **one of the three salient metrics** above. Use these **af
 
 - Keep **Expo and Flask running** for the whole session; if menu or parse features are exercised after login, a missing backend shows up as failures unrelated to auth.
 - Run tests on **real devices** and **real network** at least once; simulators alone can hide timing and persistence issues.
+- **Password reset:** Confirm testers open the email link **on the device with the app**. If they only open it on a desktop, they may think reset is broken when the app never receives the deep link.

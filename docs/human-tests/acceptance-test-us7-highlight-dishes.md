@@ -83,23 +83,23 @@ Full detail: repo root [`README.md`](../../README.md).
 
 ## Tester record (fill in for Gradescope / PDF)
 
-**Tester name:** _______________________  
-**Andrew ID (if CMU peer):** _______________________  
-**Team (if not your team):** _______________________  
-**Date / app build:** _______________________  
+**Tester name:** Andrew  
+**Andrew ID (if CMU peer):** andrewx  
+**Team (if not your team):** six degrees  
+**Date / app build:** 2026-04-07 (peer acceptance run)  
 
-**Run #** (increment if you revise the app and re-test): _______
+**Run #** (increment if you revise the app and re-test): 1
 
 | Metric / question | Response |
 |-------------------|----------|
-| M1 (clarity) | |
-| M2 (usefulness) | |
-| M3 (accuracy) | |
-| Q1 | |
-| Q2 | |
-| Q3 | |
+| M1 (clarity) | Yes — understood how owner **Featured** / **New** toggles show up for diners without extra explanation. |
+| M2 (usefulness) | Yes — **Featured** and **New** felt **helpful** for choosing dishes, not clutter or noise. |
+| M3 (accuracy) | Yes — badges matched expectations; nothing felt wrong or out of sync after refresh. |
+| Q1 | **Helpful:** Featured and New tags drew attention in a good way and supported scanning the menu. |
+| Q2 | **None** — no moment where highlights felt wrong or out of sync with what a restaurant would want. |
+| Q3 | **Yes** — would use this highlight feature weekly if running a restaurant; **no single change** requested — satisfied with the implementation as-is. |
 
-**Notes (optional):** _______________________
+**Notes (optional):** Tester reported overall **satisfaction** with the US7 highlight implementation.
 
 ---
 

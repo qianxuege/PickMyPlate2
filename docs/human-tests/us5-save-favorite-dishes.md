@@ -146,3 +146,23 @@ Ask these **after** the participant finishes the scripted tasks (save a dish, op
 **Q3 — Based only on what you did today—bookmarking dishes, seeing them on your saved list, and removing one—how much do you think saved dishes would help you after you’ve left or on a later visit, when you want to find a dish again or remember what you enjoyed?**
 
 - 4 A great deal. She said it would help her remember dish names and restaurants when planning a return visit or recommending dishes to friends. She liked that favorites show which restaurant each dish came from. **Verbatim:** “I’d use it so I don’t forget what I actually liked last time.”
+
+---
+
+## Survey response 2
+
+**Participant Name**
+
+- Scarlett Huang
+
+**Q1 – Thinking about the whole flow—saving a dish you liked and then opening your saved-dishes list so you could see it there—how easy and fast was that combined experience?**
+
+- 4 Very easy and fast. As mentioned above.
+
+**Q2 — After you’d used saved dishes once (saved something and seen your list), how much did you feel like using them again before you were done with this session—as if this were one restaurant visit—for example opening the saved-dishes list another time or bookmarking another dish?**
+
+- 4 A great deal. She said the favorites list is now very easily usable even when there are many saved dishes, since she can search by the dish or restaurant names, the dishes are grouped by restaurant names, and each restaurant group is collapsible.
+
+**Q3 — Based only on what you did today—bookmarking dishes, seeing them on your saved list, and removing one—how much do you think saved dishes would help you after you’ve left or on a later visit, when you want to find a dish again or remember what you enjoyed?**
+
+- 4 A great deal, same as above.

@@ -123,6 +123,40 @@ describe('ActiveRoleProvider — initial state', () => {
 
     expect(result.current.activeRole).toBe('restaurant');
   });
+
+  it('sets activeRole to null when dual-role account has no valid saved role', async () => {
+    // No entry in AsyncStorage — saved value missing
+    mockGetSession.mockResolvedValue({
+      data: { session: { user: { id: 'uid-1' }, access_token: 'tok' } },
+      error: null,
+    });
+    mockFetchUserRoles.mockResolvedValue(['diner', 'restaurant']);
+
+    const { result } = renderWithProvider(() => useActiveRole());
+
+    await act(async () => { await Promise.resolve(); });
+    await act(async () => { await Promise.resolve(); });
+
+    expect(result.current.roles).toEqual(['diner', 'restaurant']);
+    expect(result.current.activeRole).toBeNull();
+  });
+
+  it('clears roles and sets bootstrapped after fetchUserRoles error during bootstrap', async () => {
+    mockGetSession.mockResolvedValue({
+      data: { session: { user: { id: 'uid-1' }, access_token: 'tok' } },
+      error: null,
+    });
+    mockFetchUserRoles.mockRejectedValue(new Error('network error'));
+
+    const { result } = renderWithProvider(() => useActiveRole());
+
+    await act(async () => { await Promise.resolve(); });
+    await act(async () => { await Promise.resolve(); });
+
+    expect(result.current.roles).toEqual([]);
+    expect(result.current.activeRole).toBeNull();
+    expect(result.current.bootstrapped).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -155,7 +189,7 @@ describe('setActiveRole', () => {
 // ---------------------------------------------------------------------------
 
 describe('signOut', () => {
-  it('clears session, roles, and activeRole', async () => {
+  it('calls supabase signOut and clears roles and activeRole', async () => {
     mockGetSession.mockResolvedValue({
       data: { session: { user: { id: 'uid-1' }, access_token: 'tok' } },
       error: null,
@@ -211,7 +245,7 @@ describe('refreshRoles', () => {
     expect(result.current.roles).toEqual([]);
   });
 
-  it('re-fetches roles from Supabase when session exists', async () => {
+  it('re-fetches roles via fetchUserRoles when session exists', async () => {
     mockGetSession.mockResolvedValue({
       data: { session: { user: { id: 'uid-1' }, access_token: 'tok' } },
       error: null,
@@ -230,5 +264,27 @@ describe('refreshRoles', () => {
 
     expect(roles).toEqual(['diner', 'restaurant']);
     expect(result.current.roles).toEqual(['diner', 'restaurant']);
+  });
+
+  it('returns empty array and clears roles when fetchUserRoles throws', async () => {
+    mockGetSession.mockResolvedValue({
+      data: { session: { user: { id: 'uid-1' }, access_token: 'tok' } },
+      error: null,
+    });
+    mockFetchUserRoles.mockResolvedValue(['diner']);
+
+    const { result } = renderWithProvider(() => useActiveRole());
+    await act(async () => { await Promise.resolve(); });
+    await act(async () => { await Promise.resolve(); });
+
+    mockFetchUserRoles.mockRejectedValue(new Error('fetch error'));
+    let roles: string[] = ['placeholder'];
+    await act(async () => {
+      roles = await result.current.refreshRoles();
+    });
+
+    expect(roles).toEqual([]);
+    expect(result.current.roles).toEqual([]);
+    expect(result.current.activeRole).toBeNull();
   });
 });

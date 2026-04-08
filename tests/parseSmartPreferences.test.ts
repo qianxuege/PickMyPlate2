@@ -67,7 +67,7 @@ describe('parsePreferenceText — allergy patterns', () => {
   it('parses "I have a X allergy" into an allergy tag', () => {
     const result = parsePreferenceText("I have a nut allergy");
     expect(result).toHaveLength(1);
-    expect(result[0].category).toBe('allergy');
+    expect(result[0]).toMatchObject<ParsedSmartTag>({ category: 'allergy', label: 'Nut allergy' });
   });
 });
 
@@ -85,7 +85,7 @@ describe('parsePreferenceText — dislike patterns', () => {
   it('parses "I do not like X" into a dislike tag', () => {
     const result = parsePreferenceText('I do not like olives');
     expect(result).toHaveLength(1);
-    expect(result[0].category).toBe('dislike');
+    expect(result[0]).toMatchObject<ParsedSmartTag>({ category: 'dislike', label: 'No Olives' });
   });
 
   it('parses "dislike X" into a dislike tag', () => {
@@ -97,7 +97,7 @@ describe('parsePreferenceText — dislike patterns', () => {
   it('parses "hate X" into a dislike tag', () => {
     const result = parsePreferenceText('hate anchovies');
     expect(result).toHaveLength(1);
-    expect(result[0].category).toBe('dislike');
+    expect(result[0]).toMatchObject<ParsedSmartTag>({ category: 'dislike', label: 'No Anchovies' });
   });
 
   it('parses "no X" into a dislike tag', () => {
@@ -139,19 +139,19 @@ describe('parsePreferenceText — preference patterns', () => {
   it('recognises "halal" as a preference tag', () => {
     const result = parsePreferenceText('halal');
     expect(result).toHaveLength(1);
-    expect(result[0].category).toBe('preference');
+    expect(result[0]).toMatchObject<ParsedSmartTag>({ category: 'preference', label: 'Halal' });
   });
 
   it('recognises "high protein" as a preference tag', () => {
     const result = parsePreferenceText('high protein');
     expect(result).toHaveLength(1);
-    expect(result[0].category).toBe('preference');
+    expect(result[0]).toMatchObject<ParsedSmartTag>({ category: 'preference', label: 'High Protein' });
   });
 
   it('falls back to preference for unrecognised free text', () => {
     const result = parsePreferenceText('warm meals only');
     expect(result).toHaveLength(1);
-    expect(result[0].category).toBe('preference');
+    expect(result[0]).toMatchObject<ParsedSmartTag>({ category: 'preference', label: 'Warm meals only' });
   });
 });
 
@@ -163,18 +163,22 @@ describe('parsePreferenceText — clause splitting', () => {
   it('splits on comma to produce multiple tags', () => {
     const result = parsePreferenceText("allergic to peanuts, don't like cilantro");
     expect(result).toHaveLength(2);
-    expect(result[0].category).toBe('allergy');
-    expect(result[1].category).toBe('dislike');
+    expect(result[0]).toMatchObject<ParsedSmartTag>({ category: 'allergy', label: 'Peanuts allergy' });
+    expect(result[1]).toMatchObject<ParsedSmartTag>({ category: 'dislike', label: 'No Cilantro' });
   });
 
   it('splits on "and" to produce multiple tags', () => {
     const result = parsePreferenceText('keto and halal');
     expect(result).toHaveLength(2);
+    expect(result[0]).toMatchObject<ParsedSmartTag>({ category: 'preference', label: 'Keto' });
+    expect(result[1]).toMatchObject<ParsedSmartTag>({ category: 'preference', label: 'Halal' });
   });
 
   it('splits on semicolon to produce multiple tags', () => {
     const result = parsePreferenceText('loves sushi; no onions');
     expect(result).toHaveLength(2);
+    expect(result[0]).toMatchObject<ParsedSmartTag>({ category: 'like', label: 'Loves Sushi' });
+    expect(result[1]).toMatchObject<ParsedSmartTag>({ category: 'dislike', label: 'No onions' });
   });
 
   it('deduplicates identical tags in the same input', () => {

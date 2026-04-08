@@ -66,6 +66,13 @@ function restaurantGroupLabel(row: DinerFavoriteListItem): string {
   return n && n.length > 0 ? n : 'Restaurant';
 }
 
+/** Stable group id: partner restaurants by `restaurantId`, else each menu scan is its own group. */
+function restaurantGroupKey(row: DinerFavoriteListItem): string {
+  if (row.restaurantId) return `restaurant:${row.restaurantId}`;
+  if (row.scanId) return `scan:${row.scanId}`;
+  return `dish:${row.dishId}`;
+}
+
 export default function DinerFavoritesScreen() {
   useGuardActiveRole('diner');
   const router = useRouter();
@@ -88,19 +95,25 @@ export default function DinerFavoritesScreen() {
   const groupedByRestaurant = useMemo(() => {
     const map = new Map<string, DinerFavoriteListItem[]>();
     for (const row of filteredItems) {
-      const label = restaurantGroupLabel(row);
-      const list = map.get(label) ?? [];
+      const key = restaurantGroupKey(row);
+      const list = map.get(key) ?? [];
       list.push(row);
-      map.set(label, list);
+      map.set(key, list);
     }
-    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0], undefined, { sensitivity: 'base' }));
+    return [...map.entries()].sort((a, b) => {
+      const labelA = restaurantGroupLabel(a[1][0]!);
+      const labelB = restaurantGroupLabel(b[1][0]!);
+      const cmp = labelA.localeCompare(labelB, undefined, { sensitivity: 'base' });
+      if (cmp !== 0) return cmp;
+      return a[0].localeCompare(b[0]);
+    });
   }, [filteredItems]);
 
-  const toggleRestaurantSection = useCallback((label: string) => {
+  const toggleRestaurantSection = useCallback((groupKey: string) => {
     setCollapsedRestaurants((prev) => {
       const next = new Set(prev);
-      if (next.has(label)) next.delete(label);
-      else next.add(label);
+      if (next.has(groupKey)) next.delete(groupKey);
+      else next.add(groupKey);
       return next;
     });
   }, []);
@@ -279,18 +292,19 @@ export default function DinerFavoritesScreen() {
                 <Text style={styles.muted}>Try a different search, or clear the field to see all favorites.</Text>
               </View>
             ) : null}
-            {groupedByRestaurant.map(([restaurantLabel, rows]) => {
-              const collapsed = collapsedRestaurants.has(restaurantLabel);
+            {groupedByRestaurant.map(([groupKey, rows]) => {
+              const sectionLabel = restaurantGroupLabel(rows[0]!);
+              const collapsed = collapsedRestaurants.has(groupKey);
               return (
                 <View
-                  key={restaurantLabel}
+                  key={groupKey}
                   style={[styles.stackCard, { borderColor: FIG.stackBorder }, stackCardShadow]}
                 >
                   <Pressable
-                    onPress={() => toggleRestaurantSection(restaurantLabel)}
+                    onPress={() => toggleRestaurantSection(groupKey)}
                     style={({ pressed }) => [styles.stackHeader, pressed && styles.stackHeaderPressed]}
                     accessibilityRole="button"
-                    accessibilityLabel={`${restaurantLabel}, ${rows.length} saved dishes`}
+                    accessibilityLabel={`${sectionLabel}, ${rows.length} saved dishes`}
                     accessibilityState={{ expanded: !collapsed }}
                   >
                     <MaterialCommunityIcons
@@ -304,7 +318,7 @@ export default function DinerFavoritesScreen() {
                         numberOfLines={1}
                         ellipsizeMode="tail"
                       >
-                        {restaurantLabel}
+                        {sectionLabel}
                       </Text>
                     </View>
                     <Text style={styles.stackHeaderCount} numberOfLines={1}>

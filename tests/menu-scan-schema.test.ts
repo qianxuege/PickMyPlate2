@@ -72,11 +72,13 @@ describe('validateParsedMenu', () => {
   it('returns error when input is null', () => {
     const result = validateParsedMenu(null);
     expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toMatch(/body must be an object/);
   });
 
   it('returns error when input is a primitive string', () => {
     const result = validateParsedMenu('not an object');
     expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toMatch(/body must be an object/);
   });
 
   it('returns error when schema_version is wrong', () => {
@@ -102,6 +104,7 @@ describe('validateParsedMenu', () => {
     (menu.sections as Array<Record<string, unknown>>)[0].id = '';
     const result = validateParsedMenu(menu);
     expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toMatch(/Invalid section at index 0/);
   });
 
   it('returns error when a section is missing title', () => {
@@ -109,6 +112,7 @@ describe('validateParsedMenu', () => {
     (menu.sections as Array<Record<string, unknown>>)[0].title = '';
     const result = validateParsedMenu(menu);
     expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toMatch(/Invalid section at index 0/);
   });
 
   it('returns error when a dish has invalid spice_level', () => {
@@ -117,6 +121,7 @@ describe('validateParsedMenu', () => {
     items[0].spice_level = 5;
     const result = validateParsedMenu(menu);
     expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toMatch(/Invalid section at index 0/);
   });
 
   it('returns error when a dish price is missing currency', () => {

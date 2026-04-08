@@ -12,16 +12,27 @@ import { supabase } from '@/lib/supabase';
 export default function RestaurantRegistrationScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { refreshRoles } = useActiveRole();
+  const { refreshRoles, setActiveRole } = useActiveRole();
   const [restaurantName, setRestaurantName] = useState('');
+  const [businessAddress, setBusinessAddress] = useState('');
+  const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const reg2Params = () => ({
+    restaurantName: restaurantName.trim(),
+    address: businessAddress.trim(),
+    phone: phone.trim(),
+  });
+
   const onCreate = async () => {
     const trimmedEmail = email.trim();
-    if (!restaurantName.trim() || !trimmedEmail || !password) {
-      Alert.alert('Missing info', 'Please fill in restaurant name, email, and password.');
+    if (!restaurantName.trim() || !businessAddress.trim() || !trimmedEmail || !password) {
+      Alert.alert(
+        'Missing info',
+        'Please fill in restaurant name, business address, email, and password.',
+      );
       return;
     }
     setLoading(true);
@@ -40,7 +51,7 @@ export default function RestaurantRegistrationScreen() {
         if (isDuplicateEmailSignupError(error)) {
           Alert.alert(
             'Link to your existing account?',
-            'This email already has an account. Sign in with the same password to add restaurant access to it.',
+            'This email already has an account. Enter the password you already use for it—we sign you in and add restaurant access. One account, one password; linking does not add a second password. Next you’ll continue restaurant set-up where you left off.',
             [
               { text: 'Cancel', style: 'cancel' },
               {
@@ -69,9 +80,10 @@ export default function RestaurantRegistrationScreen() {
                       return;
                     }
                     await refreshRoles();
+                    await setActiveRole('restaurant');
                     router.replace({
                       pathname: '/restaurant-registration-2',
-                      params: { restaurantName: restaurantName.trim() },
+                      params: reg2Params(),
                     });
                   } catch (e) {
                     Alert.alert('Error', e instanceof Error ? e.message : 'Unknown error');
@@ -88,7 +100,9 @@ export default function RestaurantRegistrationScreen() {
         return;
       }
       if (data.session) {
-        router.push('/restaurant-registration-2');
+        await refreshRoles();
+        await setActiveRole('restaurant');
+        router.push({ pathname: '/restaurant-registration-2', params: reg2Params() });
       } else {
         Alert.alert(
           'Confirm your email',
@@ -120,6 +134,19 @@ export default function RestaurantRegistrationScreen() {
           placeholder="Your restaurant name"
           value={restaurantName}
           onChangeText={setRestaurantName}
+        />
+        <InputField
+          label="Business address"
+          placeholder="Street, city, state (customers and maps use this)"
+          value={businessAddress}
+          onChangeText={setBusinessAddress}
+        />
+        <InputField
+          label="Phone (optional)"
+          placeholder="Business phone"
+          keyboardType="phone-pad"
+          value={phone}
+          onChangeText={setPhone}
         />
         <InputField
           label="Email"

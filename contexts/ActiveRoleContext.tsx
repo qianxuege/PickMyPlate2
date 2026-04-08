@@ -93,7 +93,12 @@ export function ActiveRoleProvider({ children }: { children: React.ReactNode }) 
   }, [applyRoles]);
 
   const refreshRoles = useCallback(async () => {
-    const userId = session?.user?.id;
+    // Read session from Supabase, not only React state — after signIn (e.g. link diner + restaurant)
+    // the in-memory session can lag one tick behind; stale state would clear roles incorrectly.
+    const { data } = await supabase.auth.getSession();
+    const next = data.session ?? null;
+    setSession(next);
+    const userId = next?.user?.id;
     if (!userId) {
       setRoles([]);
       setActiveRoleState(null);
@@ -106,7 +111,7 @@ export function ActiveRoleProvider({ children }: { children: React.ReactNode }) 
       setActiveRoleState(null);
       return [];
     }
-  }, [session?.user?.id, applyRoles]);
+  }, [applyRoles]);
 
   const setActiveRole = useCallback(async (role: AppRole) => {
     await AsyncStorage.setItem(ACTIVE_APP_ROLE_STORAGE_KEY, role);

@@ -24,6 +24,10 @@ export type LinkRestaurantResult =
   | { status: 'auth_failed'; message: string }
   | { status: 'role_failed'; message: string };
 
+/**
+ * Link second role to an existing auth user. Calls `signInWithPassword` — the password must be the
+ * account’s current password. Supabase does not store two passwords; merging roles does not change the password.
+ */
 export async function linkRestaurantToExistingAccount(
   email: string,
   password: string
@@ -49,6 +53,7 @@ export type LinkDinerResult =
   | { status: 'auth_failed'; message: string }
   | { status: 'role_failed'; message: string };
 
+/** @see linkRestaurantToExistingAccount — same password semantics. */
 export async function linkDinerToExistingAccount(
   email: string,
   password: string

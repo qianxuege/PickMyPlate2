@@ -19,7 +19,7 @@ module.exports = {
         jsx: 'react',
         esModuleInterop: true,
         allowSyntheticDefaultImports: true,
-        strict: false,
+        strict: true,
         paths: { '@/*': ['./*'] },
       },
     }],

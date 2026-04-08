@@ -132,29 +132,37 @@ Whenever your DHCP IP changes (new network, router lease), update **`EXPO_PUBLIC
 
 ---
 
-## Three salient metrics (for satisfaction / “would they pay”)
+## Three salient metrics (record after the run)
 
-These map to **task success**, **effort**, and **trust** (Lean Startup / Mom Test style: behavior + pain, not only “do you like it”).
+**Who the tester is:** The person walking through Parts A–B should be in the **diner** role (same as the user story). They do **not** pay for the product in our model—**restaurant owners** are the paying customers; **diners** use the app for free. The metrics still matter because **owners only get value if diners actually use** filter and search successfully and find them helpful.
 
-| # | Metric | Why it matters |
-|---|--------|----------------|
-| **M1 — Task success** | Did the tester **complete** filter + search flows **without help** after reading these instructions? | If a paying user cannot finish core jobs, the feature fails regardless of visual polish. |
-| **M2 — Cognitive effort** | How **confusing** were chip AND semantics vs search scope (this menu only)? | Misunderstanding “this restaurant only” or “all tags required” causes abandonment. |
-| **M3 — Perceived value** | Would they **use** search/chips on a **real** night out vs scrolling the full PDF menu? | Proxies willingness to pay / retention better than a generic 1–5 “like.” |
+| # | Metric (what you record) | Why it matters (plain language) |
+|---|---------------------------|-------------------------------|
+| **M1 — Task success** | Did the tester finish **all** of Parts A and B **without you explaining steps** beyond what’s written above? | If a real diner can’t get through the flow on their own, the feature isn’t shippable—no amount of UI polish fixes “I give up.” |
+| **M2 — Cognitive effort** | After using chips and search, was it **obvious** what the chips did (especially **all selected tags must match**) and that search only applies to **this menu / this scan**? | If people are confused, they’ll ignore chips and search and scroll the whole list—then the feature may as well not exist. |
+| **M3 — Diner usefulness (adoption signal)** | Would this tester **choose** to use chips and/or search on a future visit with a long digital menu, or would they mostly scroll? Why? | Diners don’t pay us, but if they **won’t use** the tools, restaurants have little reason to offer this app—so this is our best **human** signal that the diner side is worth investing in for owners. |
+
+**How the survey maps to metrics**
+
+| Metric | What the survey is probing |
+|--------|----------------------------|
+| **M1** | **Q2** (wrong/too few/too many) catches breakdowns in **correctness** and clarity—if something felt broken, they probably needed help or lost trust (hurts M1). |
+| **M2** | **Q1** asks **how** they’d use chips vs search vs scrolling—directly reflects whether the mental model felt easy (M2). Optional Likert on “I understood the filters” also supports M2. |
+| **M3** | **Q3** asks **only the diner**: whether they’d **use** filter + search in real life and what’s missing—**not** whether they’d pay (they don’t). That answer is the main input for M3. |
 
 ---
 
 ## Three-question survey (after completing Parts A & B)
 
-Ask the tester **after** they finish. Questions are indirect where helpful; each ties to **M1–M3**.
+Ask the tester **after** they finish. All questions are for the **diner** who just ran the script.
 
-| # | Question | Maps to |
-|---|----------|---------|
-| **Q1** | “Imagine you’re at this restaurant tonight. After what you just did, would you rely on the **chips** to narrow the menu, stick to **search**, use **both**, or ignore them and scroll? What’s the **one** thing that drove that choice?” | M2, M3 |
-| **Q2** | “Was there any moment you thought the app was showing the **wrong** dishes, **too few**, or **too many**? Describe the **shortest** example — or say ‘none.’” | M1, M2 |
-| **Q3** | “If this were a **paid** app feature (filter + search for the menu in your hands), what would have to be **true** for you to say it’s worth money — and what’s **still missing**?” | M3 |
+| # | Question (diner) | Primary metric |
+|---|------------------|----------------|
+| **Q1** | “Imagine you’re at this restaurant tonight. After what you just did, would you rely on the **chips** to narrow the menu, stick to **search**, use **both**, or ignore them and scroll? What’s the **one** thing that drove that choice?” | **M2** (and supports **M3**) |
+| **Q2** | “Was there any moment you thought the app was showing the **wrong** dishes, **too few**, or **too many**? Describe the **shortest** example — or say ‘none.’” | **M1** (and **M2** if confusion caused mistrust) |
+| **Q3** | “**You’re the diner** (the app is free for you; restaurants would pay for this kind of experience.) Next time you’re at a restaurant with a **long digital menu like this**, how likely are you to use **filter chips and/or search** again—and what’s **one** thing that would make you **more** likely to use them (or what’s still missing)?” | **M3** |
 
-**Optional Likert (add only if your team wants a number):** “How strongly do you agree: ‘I understood what the filters were doing’ (1–5).” — use as supplement, not replacement for Q2.
+**Optional Likert (add only if your team wants a number):** “How strongly do you agree: ‘I understood what the filters were doing’ (1–5).” — ties to **M2**; use as supplement, not replacement for Q2.
 
 ---
 
@@ -171,11 +179,11 @@ Ask the tester **after** they finish. Questions are indirect where helpful; each
 |----------|----------|
 | Q1 | Would use **either** the **preference chips** to narrow the menu **or** take a **whole pass over the full menu**—not locked into only one approach; choice would depend on how hungry he was and how long the menu felt. |
 | Q2 | **None** — no moment where the app felt like it showed the **wrong** dishes, **too few**, or **too many** for the filters/search he tried. |
-| Q3 | In a **real** restaurant night, he would **ask the waiter** to get **menu information** rather than depending on the app alone for that. (Still useful for narrowing a digital menu in the test, but staff remains his default for “what should I know about this menu.”) |
+| Q3 | *(Interpreted for updated Q3 — diner usefulness / would use again:)* **Moderately likely** to use chips/search on a long digital menu again; would still **ask the waiter** for some menu information in person. **More likely** if the menu is very long or dietary filters matter; staff remains a default for “what should I know about this dish?” |
 
- **Satisfied with the overall implementation** of filtering and search—chips and full-menu browsing worked as expected (see Q2). Q3 still reflects his **personal habit** of asking waitstaff for some menu information in person; that does not change his **overall satisfaction** with how the feature is built.
+ **Satisfied with the overall implementation** of filtering and search—chips and full-menu browsing worked as expected (see Q2). Q3 reflects **diner** tradeoffs (digital tools vs asking staff), not payment.
 
-**Notes (optional):** Same external tester as US7 acceptance (Andrew / six degrees). Q3 remains useful **Mom Test–style** context alongside overall satisfaction.
+**Notes (optional):** Same external tester as US7 acceptance (Andrew / six degrees). Original run used an older Q3 (“paid app feature”); row above restated in line with **diner-focused** Q3 for the record.
 
 ---
 

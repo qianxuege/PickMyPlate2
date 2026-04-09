@@ -124,18 +124,20 @@ describe('fetchRestaurantProfile', () => {
 // ---------------------------------------------------------------------------
 
 describe('updateRestaurantProfile', () => {
-  it('returns no error on successful update', async () => {
-    mockFrom.mockReturnValue(makeChain({ data: null, error: null }));
+  it('updates the restaurants table with eq("id") and returns no error', async () => {
+    const chain = makeChain({ data: null, error: null });
+    mockFrom.mockReturnValue(chain);
     const { error } = await updateRestaurantProfile('rest-1', validPayload());
     expect(error).toBeNull();
+    expect(mockFrom).toHaveBeenCalledWith('restaurants');
+    expect(chain.eq as jest.Mock).toHaveBeenCalledWith('id', 'rest-1');
   });
 
   it('trims whitespace from fields before saving', async () => {
     const chain = makeChain({ data: null, error: null });
     mockFrom.mockReturnValue(chain);
     await updateRestaurantProfile('rest-1', validPayload({ name: '  Cafe  ', specialty: '  Italian  ' }));
-    const updateFn = chain.update as jest.Mock;
-    expect(updateFn).toHaveBeenCalledWith(
+    expect(chain.update as jest.Mock).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'Cafe', specialty: 'Italian' })
     );
   });
@@ -159,25 +161,48 @@ describe('upsertRestaurantProfileFromForm', () => {
   });
 
   it('updates existing restaurant when one exists', async () => {
+    const tablesSeen: string[] = [];
     let callCount = 0;
-    mockFrom.mockImplementation(() => {
+    mockFrom.mockImplementation((table: string) => {
+      tablesSeen.push(table);
       callCount++;
       if (callCount === 1) return makeChain({ data: { id: 'rest-1' }, error: null }); // existing lookup
       return makeChain({ data: null, error: null }); // update
     });
     const { error } = await upsertRestaurantProfileFromForm(validPayload());
     expect(error).toBeNull();
+    expect(tablesSeen[0]).toBe('restaurants'); // lookup
+    expect(tablesSeen[1]).toBe('restaurants'); // update via updateRestaurantProfile
   });
 
   it('inserts new restaurant when none exists', async () => {
+    const tablesSeen: string[] = [];
     let callCount = 0;
-    mockFrom.mockImplementation(() => {
+    mockFrom.mockImplementation((table: string) => {
+      tablesSeen.push(table);
       callCount++;
       if (callCount === 1) return makeChain({ data: null, error: null }); // no existing
       return makeChain({ data: null, error: null }); // insert
     });
     const { error } = await upsertRestaurantProfileFromForm(validPayload());
     expect(error).toBeNull();
+    expect(tablesSeen[0]).toBe('restaurants');
+    expect(tablesSeen[1]).toBe('restaurants');
+  });
+
+  it('falls through to insert when existing-restaurant lookup errors (documents bug: lookup error is ignored)', async () => {
+    // The implementation uses `const { data: existing }` without destructuring the error,
+    // so a lookup failure silently falls through to the insert path.
+    let callCount = 0;
+    mockFrom.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) return makeChain({ data: null, error: { message: 'lookup error' } }); // erroring lookup
+      return makeChain({ data: null, error: null }); // insert proceeds anyway
+    });
+    const { error } = await upsertRestaurantProfileFromForm(validPayload());
+    // Bug: lookup error is swallowed; insert runs and succeeds
+    expect(error).toBeNull();
+    expect(callCount).toBe(2); // both lookup and insert were called
   });
 });
 
@@ -198,14 +223,24 @@ describe('updateRestaurantLogoUrl', () => {
     expect(error?.message).toMatch(/no restaurant found/i);
   });
 
-  it('updates logo_url and returns no error', async () => {
+  it('returns "No restaurant found" when lookup query itself errors (documents: lookup error is rewritten)', async () => {
+    // Implementation drops the lookup error and replaces it with a generic message.
+    mockFrom.mockReturnValue(makeChain({ data: null, error: { message: 'db timeout' } }));
+    const { error } = await updateRestaurantLogoUrl('https://example.com/logo.png');
+    expect(error?.message).toMatch(/no restaurant found/i); // original 'db timeout' is swallowed
+  });
+
+  it('updates the restaurants table with eq("id") and returns no error', async () => {
+    const updateChain = makeChain({ data: null, error: null });
     let callCount = 0;
     mockFrom.mockImplementation(() => {
       callCount++;
-      if (callCount === 1) return makeChain({ data: { id: 'rest-1' }, error: null }); // existing
-      return makeChain({ data: null, error: null }); // update
+      if (callCount === 1) return makeChain({ data: { id: 'rest-1' }, error: null }); // lookup
+      return updateChain; // update
     });
     const { error } = await updateRestaurantLogoUrl('https://example.com/logo.png');
     expect(error).toBeNull();
+    expect(mockFrom).toHaveBeenNthCalledWith(2, 'restaurants');
+    expect(updateChain.eq as jest.Mock).toHaveBeenCalledWith('id', 'rest-1');
   });
 });

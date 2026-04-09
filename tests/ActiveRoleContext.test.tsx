@@ -288,3 +288,67 @@ describe('refreshRoles', () => {
     expect(result.current.activeRole).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// onAuthStateChange — async handler registered inside useEffect
+// ---------------------------------------------------------------------------
+
+describe('onAuthStateChange handler', () => {
+  /** Render the provider and return the captured auth-state-change callback. */
+  async function renderAndGetHandler() {
+    const { result } = renderWithProvider(() => useActiveRole());
+    // flush the initial getSession IIFE
+    await act(async () => { await Promise.resolve(); });
+
+    // The handler was registered synchronously during useEffect
+    const handler = mockOnAuthStateChange.mock.calls[0][0] as (
+      event: string,
+      session: unknown
+    ) => Promise<void>;
+    return { result, handler };
+  }
+
+  it('loads roles when a signed-in session arrives via the listener', async () => {
+    mockFetchUserRoles.mockResolvedValue(['diner']);
+    const { result, handler } = await renderAndGetHandler();
+
+    await act(async () => {
+      await handler('SIGNED_IN', { user: { id: 'uid-2' }, access_token: 'tok2' });
+    });
+    await act(async () => { await Promise.resolve(); });
+
+    expect(result.current.roles).toEqual(['diner']);
+    expect(result.current.activeRole).toBe('diner');
+  });
+
+  it('clears roles and activeRole when a null session arrives via the listener', async () => {
+    // Bootstrap with a session first
+    mockGetSession.mockResolvedValue({
+      data: { session: { user: { id: 'uid-1' }, access_token: 'tok' } },
+      error: null,
+    });
+    mockFetchUserRoles.mockResolvedValue(['diner']);
+    const { result, handler } = await renderAndGetHandler();
+    await act(async () => { await Promise.resolve(); }); // flush applyRoles
+
+    // Simulate sign-out event via listener
+    await act(async () => {
+      await handler('SIGNED_OUT', null);
+    });
+
+    expect(result.current.roles).toEqual([]);
+    expect(result.current.activeRole).toBeNull();
+  });
+
+  it('clears roles when fetchUserRoles throws inside the listener', async () => {
+    mockFetchUserRoles.mockRejectedValue(new Error('listener fetch error'));
+    const { result, handler } = await renderAndGetHandler();
+
+    await act(async () => {
+      await handler('SIGNED_IN', { user: { id: 'uid-2' }, access_token: 'tok2' });
+    });
+
+    expect(result.current.roles).toEqual([]);
+    expect(result.current.activeRole).toBeNull();
+  });
+});

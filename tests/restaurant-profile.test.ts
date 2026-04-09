@@ -73,49 +73,45 @@ describe('fetchRestaurantProfile', () => {
 
   it('returns profile with cuisine labels joined', async () => {
     let callCount = 0;
-    mockFrom.mockImplementation(() => {
+    const lookupChain = makeChain({
+      data: { id: 'rest-1', owner_id: 'uid-1', name: 'Cafe', specialty: null,
+              location_short: null, address: null, phone: null, hours_text: null,
+              website: null, logo_url: null, price_range: null },
+      error: null,
+    });
+    mockFrom.mockImplementation((table: string) => {
       callCount++;
-      if (callCount === 1) {
-        // restaurants
-        return makeChain({
-          data: { id: 'rest-1', owner_id: 'uid-1', name: 'Cafe', specialty: null,
-                  location_short: null, address: null, phone: null, hours_text: null,
-                  website: null, logo_url: null, price_range: null },
-          error: null,
-        });
-      }
-      if (callCount === 2) {
-        // restaurant_cuisine_types
-        return makeChain({ data: [{ cuisine_id: 'c-1' }], error: null });
-      }
-      // cuisines
-      return makeChain({ data: [{ name: 'Italian' }], error: null });
+      if (callCount === 1) return lookupChain;                                          // restaurants
+      if (callCount === 2) return makeChain({ data: [{ cuisine_id: 'c-1' }], error: null }); // junction
+      return makeChain({ data: [{ name: 'Italian' }], error: null });                   // cuisines
     });
 
     const snapshot = await fetchRestaurantProfile();
     expect(snapshot).not.toBeNull();
     expect(snapshot?.restaurant.name).toBe('Cafe');
     expect(snapshot?.cuisineLabels).toBe('Italian');
+    expect(mockFrom).toHaveBeenNthCalledWith(1, 'restaurants');
+    expect(lookupChain.eq as jest.Mock).toHaveBeenCalledWith('owner_id', 'uid-1');
   });
 
   it('falls back to specialty when no cuisines are linked', async () => {
     let callCount = 0;
-    mockFrom.mockImplementation(() => {
+    const lookupChain = makeChain({
+      data: { id: 'rest-1', owner_id: 'uid-1', name: 'Cafe', specialty: 'Fusion',
+              location_short: null, address: null, phone: null, hours_text: null,
+              website: null, logo_url: null, price_range: null },
+      error: null,
+    });
+    mockFrom.mockImplementation((table: string) => {
       callCount++;
-      if (callCount === 1) {
-        return makeChain({
-          data: { id: 'rest-1', owner_id: 'uid-1', name: 'Cafe', specialty: 'Fusion',
-                  location_short: null, address: null, phone: null, hours_text: null,
-                  website: null, logo_url: null, price_range: null },
-          error: null,
-        });
-      }
-      // restaurant_cuisine_types — empty
-      return makeChain({ data: [], error: null });
+      if (callCount === 1) return lookupChain;                     // restaurants
+      return makeChain({ data: [], error: null });                  // junction — empty
     });
 
     const snapshot = await fetchRestaurantProfile();
     expect(snapshot?.cuisineLabels).toBe('Fusion');
+    expect(mockFrom).toHaveBeenNthCalledWith(1, 'restaurants');
+    expect(lookupChain.eq as jest.Mock).toHaveBeenCalledWith('owner_id', 'uid-1');
   });
 });
 
@@ -163,31 +159,35 @@ describe('upsertRestaurantProfileFromForm', () => {
   it('updates existing restaurant when one exists', async () => {
     const tablesSeen: string[] = [];
     let callCount = 0;
+    const lookupChain = makeChain({ data: { id: 'rest-1' }, error: null });
     mockFrom.mockImplementation((table: string) => {
       tablesSeen.push(table);
       callCount++;
-      if (callCount === 1) return makeChain({ data: { id: 'rest-1' }, error: null }); // existing lookup
-      return makeChain({ data: null, error: null }); // update
+      if (callCount === 1) return lookupChain;                       // existing lookup
+      return makeChain({ data: null, error: null });                  // update
     });
     const { error } = await upsertRestaurantProfileFromForm(validPayload());
     expect(error).toBeNull();
     expect(tablesSeen[0]).toBe('restaurants'); // lookup
     expect(tablesSeen[1]).toBe('restaurants'); // update via updateRestaurantProfile
+    expect(lookupChain.eq as jest.Mock).toHaveBeenCalledWith('owner_id', 'uid-1');
   });
 
   it('inserts new restaurant when none exists', async () => {
     const tablesSeen: string[] = [];
     let callCount = 0;
+    const lookupChain = makeChain({ data: null, error: null });
     mockFrom.mockImplementation((table: string) => {
       tablesSeen.push(table);
       callCount++;
-      if (callCount === 1) return makeChain({ data: null, error: null }); // no existing
-      return makeChain({ data: null, error: null }); // insert
+      if (callCount === 1) return lookupChain;                       // no existing
+      return makeChain({ data: null, error: null });                  // insert
     });
     const { error } = await upsertRestaurantProfileFromForm(validPayload());
     expect(error).toBeNull();
     expect(tablesSeen[0]).toBe('restaurants');
     expect(tablesSeen[1]).toBe('restaurants');
+    expect(lookupChain.eq as jest.Mock).toHaveBeenCalledWith('owner_id', 'uid-1');
   });
 
   it('falls through to insert when existing-restaurant lookup errors (documents bug: lookup error is ignored)', async () => {
@@ -231,16 +231,19 @@ describe('updateRestaurantLogoUrl', () => {
   });
 
   it('updates the restaurants table with eq("id") and returns no error', async () => {
+    const lookupChain = makeChain({ data: { id: 'rest-1' }, error: null });
     const updateChain = makeChain({ data: null, error: null });
     let callCount = 0;
     mockFrom.mockImplementation(() => {
       callCount++;
-      if (callCount === 1) return makeChain({ data: { id: 'rest-1' }, error: null }); // lookup
-      return updateChain; // update
+      if (callCount === 1) return lookupChain; // lookup
+      return updateChain;                       // update
     });
     const { error } = await updateRestaurantLogoUrl('https://example.com/logo.png');
     expect(error).toBeNull();
+    expect(mockFrom).toHaveBeenNthCalledWith(1, 'restaurants');
     expect(mockFrom).toHaveBeenNthCalledWith(2, 'restaurants');
+    expect(lookupChain.eq as jest.Mock).toHaveBeenCalledWith('owner_id', 'uid-1');
     expect(updateChain.eq as jest.Mock).toHaveBeenCalledWith('id', 'rest-1');
   });
 });

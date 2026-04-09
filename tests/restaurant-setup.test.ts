@@ -53,38 +53,126 @@ describe('upsertRestaurantForOwner', () => {
     expect(error?.message).toMatch(/not signed in/i);
   });
 
+  it('returns the auth error object when getUser itself errors', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null }, error: new Error('auth service error') });
+    const { error } = await upsertRestaurantForOwner({ name: 'Cafe', cuisineNames: [] });
+    expect(error?.message).toBe('auth service error');
+  });
+
   it('returns error when cuisine lookup fails', async () => {
     mockFrom.mockReturnValue(makeChain({ data: null, error: { message: 'cuisine error' } }));
     const { error } = await upsertRestaurantForOwner({ name: 'Cafe', cuisineNames: ['Italian'] });
     expect(error?.message).toBe('cuisine error');
   });
 
-  it('updates existing restaurant and returns no error', async () => {
+  it('runs update on restaurants table and delete on cuisine links for existing restaurant', async () => {
+    const tablesSeen: string[] = [];
+    const chainAt: Array<Record<string, unknown>> = [];
     let callCount = 0;
-    mockFrom.mockImplementation(() => {
+    mockFrom.mockImplementation((table: string) => {
       callCount++;
-      if (callCount === 1) return makeChain({ data: [], error: null });             // cuisines lookup
-      if (callCount === 2) return makeChain({ data: { id: 'rest-1' }, error: null }); // existing restaurant
-      if (callCount === 3) return makeChain({ data: null, error: null });             // update
-      if (callCount === 4) return makeChain({ data: null, error: null });             // delete cuisine links
-      return makeChain({ data: null, error: null });
+      tablesSeen.push(table);
+      const c = callCount === 1 ? makeChain({ data: [], error: null })              // cuisines
+               : callCount === 2 ? makeChain({ data: { id: 'rest-1' }, error: null }) // existing
+               : makeChain({ data: null, error: null });                              // update / delete
+      chainAt.push(c);
+      return c;
     });
     const { error } = await upsertRestaurantForOwner({ name: 'Cafe', cuisineNames: [] });
     expect(error).toBeNull();
+    expect(tablesSeen[0]).toBe('cuisines');
+    expect(tablesSeen[1]).toBe('restaurants');   // lookup
+    expect(tablesSeen[2]).toBe('restaurants');   // update
+    expect(tablesSeen[3]).toBe('restaurant_cuisine_types'); // delete
+    expect(chainAt[2].update as jest.Mock).toHaveBeenCalled();
   });
 
-  it('inserts new restaurant and returns no error', async () => {
+  it('returns error when restaurant update fails', async () => {
     let callCount = 0;
     mockFrom.mockImplementation(() => {
       callCount++;
-      if (callCount === 1) return makeChain({ data: [], error: null });               // cuisines lookup
-      if (callCount === 2) return makeChain({ data: null, error: null });              // no existing restaurant
-      if (callCount === 3) return makeChain({ data: { id: 'rest-new' }, error: null }); // insert
-      if (callCount === 4) return makeChain({ data: null, error: null });              // delete cuisine links
-      return makeChain({ data: null, error: null });
+      if (callCount === 1) return makeChain({ data: [], error: null });                            // cuisines
+      if (callCount === 2) return makeChain({ data: { id: 'rest-1' }, error: null });              // existing
+      return makeChain({ data: null, error: { message: 'update failed' } });                       // update fails
+    });
+    const { error } = await upsertRestaurantForOwner({ name: 'Cafe', cuisineNames: [] });
+    expect(error?.message).toBe('update failed');
+  });
+
+  it('runs insert on restaurants table and delete on cuisine links for new restaurant', async () => {
+    const tablesSeen: string[] = [];
+    const chainAt: Array<Record<string, unknown>> = [];
+    let callCount = 0;
+    mockFrom.mockImplementation((table: string) => {
+      callCount++;
+      tablesSeen.push(table);
+      const c = callCount === 1 ? makeChain({ data: [], error: null })                   // cuisines
+               : callCount === 2 ? makeChain({ data: null, error: null })                // no existing
+               : callCount === 3 ? makeChain({ data: { id: 'rest-new' }, error: null })  // insert
+               : makeChain({ data: null, error: null });                                  // delete
+      chainAt.push(c);
+      return c;
     });
     const { error } = await upsertRestaurantForOwner({ name: 'New Cafe', cuisineNames: [] });
     expect(error).toBeNull();
+    expect(tablesSeen[2]).toBe('restaurants');   // insert
+    expect(tablesSeen[3]).toBe('restaurant_cuisine_types'); // delete
+    expect(chainAt[2].insert as jest.Mock).toHaveBeenCalled();
+  });
+
+  it('returns error when restaurant insert fails', async () => {
+    let callCount = 0;
+    mockFrom.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) return makeChain({ data: [], error: null });                     // cuisines
+      if (callCount === 2) return makeChain({ data: null, error: null });                   // no existing
+      return makeChain({ data: null, error: { message: 'insert failed' } });                // insert fails
+    });
+    const { error } = await upsertRestaurantForOwner({ name: 'New Cafe', cuisineNames: [] });
+    expect(error?.message).toBe('insert failed');
+  });
+
+  it('returns error when insert returns no id', async () => {
+    let callCount = 0;
+    mockFrom.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) return makeChain({ data: [], error: null });    // cuisines
+      if (callCount === 2) return makeChain({ data: null, error: null });  // no existing
+      return makeChain({ data: {}, error: null });                         // insert returns no id
+    });
+    const { error } = await upsertRestaurantForOwner({ name: 'New Cafe', cuisineNames: [] });
+    expect(error?.message).toMatch(/missing restaurant id/i);
+  });
+
+  it('returns error when deleting cuisine links fails', async () => {
+    let callCount = 0;
+    mockFrom.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) return makeChain({ data: [], error: null });               // cuisines
+      if (callCount === 2) return makeChain({ data: { id: 'rest-1' }, error: null }); // existing
+      if (callCount === 3) return makeChain({ data: null, error: null });              // update succeeds
+      return makeChain({ data: null, error: { message: 'delete links failed' } });    // delete fails
+    });
+    const { error } = await upsertRestaurantForOwner({ name: 'Cafe', cuisineNames: [] });
+    expect(error?.message).toBe('delete links failed');
+  });
+
+  it('deletes then re-inserts cuisine links and returns error when junction insert fails', async () => {
+    const tablesSeen: string[] = [];
+    let callCount = 0;
+    mockFrom.mockImplementation((table: string) => {
+      callCount++;
+      tablesSeen.push(table);
+      if (callCount === 1) return makeChain({ data: [{ id: 'c-1' }], error: null });  // cuisines found
+      if (callCount === 2) return makeChain({ data: { id: 'rest-1' }, error: null }); // existing
+      if (callCount === 3) return makeChain({ data: null, error: null });              // update
+      if (callCount === 4) return makeChain({ data: null, error: null });              // delete links
+      return makeChain({ data: null, error: { message: 'junction error' } });         // junction insert fails
+    });
+    const { error } = await upsertRestaurantForOwner({ name: 'Cafe', cuisineNames: ['Italian'] });
+    expect(error?.message).toBe('junction error');
+    expect(tablesSeen[3]).toBe('restaurant_cuisine_types'); // delete
+    expect(tablesSeen[4]).toBe('restaurant_cuisine_types'); // insert
   });
 });
 

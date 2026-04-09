@@ -46,19 +46,24 @@ beforeEach(() => {
 
 describe('isDuplicateEmailSignupError', () => {
   it('returns true for message containing "already"', () => {
-    expect(isDuplicateEmailSignupError(new Error('User already exists'))).toBe(true);
+    // 'taken' does not contain 'registered' or 'user already' — isolates the "already" clause
+    expect(isDuplicateEmailSignupError(new Error('account already taken'))).toBe(true);
   });
 
   it('returns true for message containing "registered"', () => {
+    // does not contain 'already' — isolates the "registered" clause
     expect(isDuplicateEmailSignupError(new Error('Email is registered'))).toBe(true);
   });
 
-  it('returns true for message containing "user already"', () => {
-    expect(isDuplicateEmailSignupError(new Error('user already registered'))).toBe(true);
+  it('is case-insensitive (lowercases before matching)', () => {
+    expect(isDuplicateEmailSignupError(new Error('USER ALREADY EXISTS'))).toBe(true);
   });
 
-  it('returns true when message contains both "email address" and "registered"', () => {
-    expect(isDuplicateEmailSignupError(new Error('This email address is already registered'))).toBe(true);
+  it('returns true for real-world Supabase-style messages (clauses are defensively overlapping)', () => {
+    // These also satisfy the "already" / "registered" clauses; the implementation is
+    // intentionally redundant for robustness across Supabase versions.
+    expect(isDuplicateEmailSignupError(new Error('user already exists'))).toBe(true);
+    expect(isDuplicateEmailSignupError(new Error('This email address has been registered'))).toBe(true);
   });
 
   it('returns false for an unrelated error message', () => {
@@ -78,8 +83,15 @@ describe('linkRestaurantToExistingAccount', () => {
     if (result.status === 'auth_failed') expect(result.message).toBe('invalid credentials');
   });
 
+  it('returns auth_failed when sign-in succeeds but user id is missing', async () => {
+    mockSignIn.mockResolvedValue({ data: { user: null }, error: null });
+    const result = await linkRestaurantToExistingAccount('user@example.com', 'pw');
+    expect(result.status).toBe('auth_failed');
+    if (result.status === 'auth_failed') expect(result.message).toBe('No user id returned.');
+  });
+
   it('returns already_restaurant when user already has restaurant role', async () => {
-    mockFetchUserRoles.mockResolvedValue(['diner', 'restaurant']);
+    mockFetchUserRoles.mockResolvedValue(['restaurant']);
     const result = await linkRestaurantToExistingAccount('user@example.com', 'pw');
     expect(result.status).toBe('already_restaurant');
   });
@@ -91,9 +103,10 @@ describe('linkRestaurantToExistingAccount', () => {
     if (result.status === 'role_failed') expect(result.message).toBe('role upsert failed');
   });
 
-  it('returns linked on success', async () => {
+  it('returns linked on success and calls signInWithPassword with correct credentials', async () => {
     const result = await linkRestaurantToExistingAccount('user@example.com', 'pw');
     expect(result.status).toBe('linked');
+    expect(mockSignIn).toHaveBeenCalledWith({ email: 'user@example.com', password: 'pw' });
   });
 });
 
@@ -109,8 +122,15 @@ describe('linkDinerToExistingAccount', () => {
     if (result.status === 'auth_failed') expect(result.message).toBe('invalid credentials');
   });
 
+  it('returns auth_failed when sign-in succeeds but user id is missing', async () => {
+    mockSignIn.mockResolvedValue({ data: { user: null }, error: null });
+    const result = await linkDinerToExistingAccount('user@example.com', 'pw');
+    expect(result.status).toBe('auth_failed');
+    if (result.status === 'auth_failed') expect(result.message).toBe('No user id returned.');
+  });
+
   it('returns already_diner when user already has diner role', async () => {
-    mockFetchUserRoles.mockResolvedValue(['diner', 'restaurant']);
+    mockFetchUserRoles.mockResolvedValue(['diner']);
     const result = await linkDinerToExistingAccount('user@example.com', 'pw');
     expect(result.status).toBe('already_diner');
   });
@@ -122,8 +142,9 @@ describe('linkDinerToExistingAccount', () => {
     if (result.status === 'role_failed') expect(result.message).toBe('role upsert failed');
   });
 
-  it('returns linked on success', async () => {
+  it('returns linked on success and calls signInWithPassword with correct credentials', async () => {
     const result = await linkDinerToExistingAccount('user@example.com', 'pw');
     expect(result.status).toBe('linked');
+    expect(mockSignIn).toHaveBeenCalledWith({ email: 'user@example.com', password: 'pw' });
   });
 });

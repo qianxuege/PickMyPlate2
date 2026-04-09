@@ -122,6 +122,26 @@ describe('toggleDishFavorite', () => {
     mockFrom.mockReturnValue(makeChain({ data: null, error: { message: 'select error' } }));
     await expect(toggleDishFavorite('dish-1')).rejects.toThrow('select error');
   });
+
+  it('throws when the delete query errors', async () => {
+    let callCount = 0;
+    mockFrom.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) return makeChain({ data: { dish_id: 'dish-1' }, error: null }); // existing found
+      return makeChain({ data: null, error: { message: 'delete error' } }); // delete fails
+    });
+    await expect(toggleDishFavorite('dish-1')).rejects.toThrow('delete error');
+  });
+
+  it('throws when the insert query errors', async () => {
+    let callCount = 0;
+    mockFrom.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) return makeChain({ data: null, error: null }); // not existing
+      return makeChain({ data: null, error: { message: 'insert error' } }); // insert fails
+    });
+    await expect(toggleDishFavorite('dish-1')).rejects.toThrow('insert error');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -171,17 +191,53 @@ describe('fetchDinerFavoritesList', () => {
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({
       dishId: 'dish-1',
+      favoritedAt: '2025-01-01T00:00:00Z',
       name: 'Spring Roll',
       restaurantName: 'Test Restaurant',
       scanId: 'scan-1',
       priceAmount: 8.99,
       priceCurrency: 'USD',
+      priceDisplay: '$8.99',
       spiceLevel: 1,
+      imageUrl: null,
     });
   });
 
   it('throws when the favorites query errors', async () => {
     mockFrom.mockReturnValue(makeChain({ data: null, error: { message: 'favs error' } }));
     await expect(fetchDinerFavoritesList()).rejects.toThrow('favs error');
+  });
+
+  it('throws when the dishes query errors', async () => {
+    let callCount = 0;
+    mockFrom.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) return makeChain({ data: [{ dish_id: 'dish-1', created_at: '2025-01-01T00:00:00Z' }], error: null });
+      return makeChain({ data: null, error: { message: 'dishes error' } }); // diner_scanned_dishes fails
+    });
+    await expect(fetchDinerFavoritesList()).rejects.toThrow('dishes error');
+  });
+
+  it('throws when the sections query errors', async () => {
+    let callCount = 0;
+    mockFrom.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) return makeChain({ data: [{ dish_id: 'dish-1', created_at: '2025-01-01T00:00:00Z' }], error: null });
+      if (callCount === 2) return makeChain({ data: [{ id: 'dish-1', name: 'Spring Roll', price_amount: null, price_currency: 'USD', price_display: null, spice_level: 0, image_url: null, section_id: 'sec-1' }], error: null });
+      return makeChain({ data: null, error: { message: 'sections error' } }); // diner_menu_sections fails
+    });
+    await expect(fetchDinerFavoritesList()).rejects.toThrow('sections error');
+  });
+
+  it('throws when the scans query errors', async () => {
+    let callCount = 0;
+    mockFrom.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) return makeChain({ data: [{ dish_id: 'dish-1', created_at: '2025-01-01T00:00:00Z' }], error: null });
+      if (callCount === 2) return makeChain({ data: [{ id: 'dish-1', name: 'Spring Roll', price_amount: null, price_currency: 'USD', price_display: null, spice_level: 0, image_url: null, section_id: 'sec-1' }], error: null });
+      if (callCount === 3) return makeChain({ data: [{ id: 'sec-1', scan_id: 'scan-1' }], error: null });
+      return makeChain({ data: null, error: { message: 'scans error' } }); // diner_menu_scans fails
+    });
+    await expect(fetchDinerFavoritesList()).rejects.toThrow('scans error');
   });
 });

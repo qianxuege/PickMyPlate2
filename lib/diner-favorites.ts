@@ -5,6 +5,8 @@ export type DinerFavoriteListItem = {
   favoritedAt: string;
   name: string;
   restaurantName: string | null;
+  /** Partner QR–linked scans only; use for grouping so same display name ≠ same business */
+  restaurantId: string | null;
   scanId: string | null;
   priceAmount: number | null;
   priceCurrency: string;
@@ -128,6 +130,30 @@ export async function fetchDinerFavoritesList(): Promise<DinerFavoriteListItem[]
 
   if (scanErr) throw new Error(scanErr.message);
 
+  const dinerScanToRestaurantId = new Map<string, string>();
+  if (scanIds.length > 0) {
+    const { data: qrLinks, error: qrErr } = await supabase
+      .from('diner_partner_qr_scans')
+      .select('diner_scan_id, source_scan_id')
+      .eq('profile_id', user.id)
+      .in('diner_scan_id', scanIds);
+    if (!qrErr && qrLinks?.length) {
+      const sourceIds = [...new Set(qrLinks.map((r) => r.source_scan_id as string))];
+      const { data: rmsRows, error: rmsErr } = await supabase
+        .from('restaurant_menu_scans')
+        .select('id, restaurant_id')
+        .in('id', sourceIds);
+      if (!rmsErr && rmsRows?.length) {
+        const rmsById = new Map((rmsRows ?? []).map((r) => [r.id as string, String(r.restaurant_id)]));
+        for (const link of qrLinks) {
+          const ds = link.diner_scan_id as string;
+          const rid = rmsById.get(link.source_scan_id as string);
+          if (rid) dinerScanToRestaurantId.set(ds, rid);
+        }
+      }
+    }
+  }
+
   const sectionToScan = new Map((sections ?? []).map((s) => [s.id as string, s.scan_id as string]));
   const scanMeta = new Map(
     (scans ?? []).map((s) => [s.id as string, { name: (s.restaurant_name as string | null)?.trim() || null }])
@@ -143,12 +169,14 @@ export async function fetchDinerFavoritesList(): Promise<DinerFavoriteListItem[]
     const secId = d.section_id as string;
     const scanId = sectionToScan.get(secId) ?? null;
     const restaurantName = scanId ? scanMeta.get(scanId)?.name ?? null : null;
+    const restaurantId = scanId ? dinerScanToRestaurantId.get(scanId) ?? null : null;
 
     out.push({
       dishId,
       favoritedAt: f.created_at as string,
       name: d.name as string,
       restaurantName,
+      restaurantId,
       scanId,
       priceAmount: d.price_amount as number | null,
       priceCurrency: (d.price_currency as string) || 'USD',

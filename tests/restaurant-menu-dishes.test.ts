@@ -43,19 +43,24 @@ beforeEach(() => {
 
 describe('getRestaurantSectionNextDishSortOrder', () => {
   it('returns 0 when the section has no dishes', async () => {
-    mockFrom.mockImplementation(() => makeChain({ data: [], error: null }));
+    mockFrom.mockReturnValue(makeChain({ data: [], error: null }));
     const result = await getRestaurantSectionNextDishSortOrder('sec-1');
     expect(result).toBe(0);
   });
 
-  it('returns max sort_order + 1 when dishes exist', async () => {
-    mockFrom.mockImplementation(() => makeChain({ data: [{ sort_order: 4 }], error: null }));
+  it('queries restaurant_menu_dishes with correct section filter, order, and limit', async () => {
+    const chain = makeChain({ data: [{ sort_order: 4 }], error: null });
+    mockFrom.mockReturnValue(chain);
     const result = await getRestaurantSectionNextDishSortOrder('sec-1');
     expect(result).toBe(5);
+    expect(mockFrom).toHaveBeenCalledWith('restaurant_menu_dishes');
+    expect(chain.eq as jest.Mock).toHaveBeenCalledWith('section_id', 'sec-1');
+    expect(chain.order as jest.Mock).toHaveBeenCalledWith('sort_order', { ascending: false });
+    expect(chain.limit as jest.Mock).toHaveBeenCalledWith(1);
   });
 
   it('throws when Supabase returns an error', async () => {
-    mockFrom.mockImplementation(() => makeChain({ data: null, error: { message: 'DB error' } }));
+    mockFrom.mockReturnValue(makeChain({ data: null, error: { message: 'DB error' } }));
     await expect(getRestaurantSectionNextDishSortOrder('sec-1')).rejects.toBeDefined();
   });
 });
@@ -65,11 +70,16 @@ describe('getRestaurantSectionNextDishSortOrder', () => {
 // ---------------------------------------------------------------------------
 
 describe('createRestaurantDishDraft', () => {
-  it('returns ok:true with dishId on success', async () => {
-    mockFrom.mockImplementation(() => makeChain({ data: { id: 'dish-99' }, error: null }));
-    const result = await createRestaurantDishDraft({ sectionId: 'sec-1', sortOrder: 0 });
+  it('inserts into restaurant_menu_dishes with correct fields and returns dishId', async () => {
+    const chain = makeChain({ data: { id: 'dish-99' }, error: null });
+    mockFrom.mockReturnValue(chain);
+    const result = await createRestaurantDishDraft({ sectionId: 'sec-1', sortOrder: 2 });
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.dishId).toBe('dish-99');
+    expect(mockFrom).toHaveBeenCalledWith('restaurant_menu_dishes');
+    expect(chain.insert as jest.Mock).toHaveBeenCalledWith(
+      expect.objectContaining({ section_id: 'sec-1', sort_order: 2, needs_review: true })
+    );
   });
 
   it('returns ok:false when Supabase returns an error', async () => {
@@ -91,13 +101,19 @@ describe('createRestaurantDishDraft', () => {
 // ---------------------------------------------------------------------------
 
 describe('touchRestaurantMenuScan', () => {
-  it('resolves without error on success', async () => {
-    mockFrom.mockImplementation(() => makeChain({ data: null, error: null }));
+  it('updates restaurant_menu_scans with last_activity_at and correct id filter', async () => {
+    const chain = makeChain({ data: null, error: null });
+    mockFrom.mockReturnValue(chain);
     await expect(touchRestaurantMenuScan('scan-1')).resolves.toBeUndefined();
+    expect(mockFrom).toHaveBeenCalledWith('restaurant_menu_scans');
+    expect(chain.eq as jest.Mock).toHaveBeenCalledWith('id', 'scan-1');
+    expect(chain.update as jest.Mock).toHaveBeenCalledWith(
+      expect.objectContaining({ last_activity_at: expect.any(String) })
+    );
   });
 
   it('throws when Supabase update returns an error', async () => {
-    mockFrom.mockImplementation(() => makeChain({ data: null, error: { message: 'update failed' } }));
+    mockFrom.mockReturnValue(makeChain({ data: null, error: { message: 'update failed' } }));
     await expect(touchRestaurantMenuScan('scan-1')).rejects.toBeDefined();
   });
 });
@@ -120,17 +136,38 @@ describe('saveRestaurantDish', () => {
     ingredients: ['beef', 'bun', 'lettuce'],
   };
 
-  it('returns ok:true on success', async () => {
-    mockFrom.mockImplementation(() => makeChain({ data: null, error: null }));
+  it('updates restaurant_menu_dishes with correct fields and touches scan', async () => {
+    let callCount = 0;
+    const dishChain = makeChain({ data: null, error: null });
+    const scanChain = makeChain({ data: null, error: null });
+    mockFrom.mockImplementation(() => { callCount++; return callCount === 1 ? dishChain : scanChain; });
+
     const result = await saveRestaurantDish(baseInput);
     expect(result.ok).toBe(true);
+    expect(mockFrom).toHaveBeenNthCalledWith(1, 'restaurant_menu_dishes');
+    expect(mockFrom).toHaveBeenNthCalledWith(2, 'restaurant_menu_scans');
+    expect(dishChain.eq as jest.Mock).toHaveBeenCalledWith('id', 'dish-1');
+    expect(dishChain.update as jest.Mock).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Burger', price_currency: 'USD', spice_level: 0, tags: [], ingredients: ['beef', 'bun', 'lettuce'] })
+    );
+    expect(scanChain.eq as jest.Mock).toHaveBeenCalledWith('id', 'scan-1');
   });
 
   it('returns ok:false when Supabase update returns an error', async () => {
-    mockFrom.mockImplementation(() => makeChain({ data: null, error: { message: 'update failed' } }));
+    mockFrom.mockReturnValue(makeChain({ data: null, error: { message: 'update failed' } }));
     const result = await saveRestaurantDish(baseInput);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toBe('update failed');
+  });
+
+  it('rejects when dish update succeeds but touchRestaurantMenuScan fails', async () => {
+    let callCount = 0;
+    mockFrom.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) return makeChain({ data: null, error: null }); // dish update succeeds
+      return makeChain({ data: null, error: { message: 'scan touch failed' } }); // scan touch fails
+    });
+    await expect(saveRestaurantDish(baseInput)).rejects.toMatchObject({ message: 'scan touch failed' });
   });
 
   it('marks needs_review true when name is empty', async () => {
@@ -157,16 +194,22 @@ describe('saveRestaurantDish', () => {
 // ---------------------------------------------------------------------------
 
 describe('updateRestaurantDishHighlightFlags', () => {
-  it('returns ok:true when is_featured flag is updated', async () => {
-    mockFrom.mockImplementation(() => makeChain({ data: null, error: null }));
+  it('updates restaurant_menu_dishes with is_featured flag and correct id filter', async () => {
+    const chain = makeChain({ data: null, error: null });
+    mockFrom.mockReturnValue(chain);
     const result = await updateRestaurantDishHighlightFlags('dish-1', { is_featured: true });
     expect(result.ok).toBe(true);
+    expect(mockFrom).toHaveBeenCalledWith('restaurant_menu_dishes');
+    expect(chain.eq as jest.Mock).toHaveBeenCalledWith('id', 'dish-1');
+    expect(chain.update as jest.Mock).toHaveBeenCalledWith({ is_featured: true });
   });
 
-  it('returns ok:true when is_new flag is updated', async () => {
-    mockFrom.mockImplementation(() => makeChain({ data: null, error: null }));
+  it('updates restaurant_menu_dishes with is_new flag and correct id filter', async () => {
+    const chain = makeChain({ data: null, error: null });
+    mockFrom.mockReturnValue(chain);
     const result = await updateRestaurantDishHighlightFlags('dish-1', { is_new: false });
     expect(result.ok).toBe(true);
+    expect(chain.update as jest.Mock).toHaveBeenCalledWith({ is_new: false });
   });
 
   it('returns ok:true without calling Supabase when no flags are provided', async () => {

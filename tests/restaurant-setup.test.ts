@@ -174,6 +174,80 @@ describe('upsertRestaurantForOwner', () => {
     expect(tablesSeen[3]).toBe('restaurant_cuisine_types'); // delete
     expect(tablesSeen[4]).toBe('restaurant_cuisine_types'); // insert
   });
+
+  // Issue 1: happy path with cuisines resolving and junction insert succeeding
+  it('returns null error when cuisines are found and all steps succeed', async () => {
+    let callCount = 0;
+    mockFrom.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) return makeChain({ data: [{ id: 'c-1' }], error: null });  // cuisines found
+      if (callCount === 2) return makeChain({ data: { id: 'rest-1' }, error: null }); // existing
+      if (callCount === 3) return makeChain({ data: null, error: null });              // update
+      if (callCount === 4) return makeChain({ data: null, error: null });              // delete links
+      return makeChain({ data: null, error: null });                                   // junction insert succeeds
+    });
+    const { error } = await upsertRestaurantForOwner({ name: 'Cafe', cuisineNames: ['Italian'] });
+    expect(error).toBeNull();
+    expect(callCount).toBe(5);
+  });
+
+  // Issue 2: optional fields trimming — update path
+  it('includes trimmed optional fields in the update payload', async () => {
+    let callCount = 0;
+    const updateChain = makeChain({ data: null, error: null });
+    mockFrom.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) return makeChain({ data: [], error: null });
+      if (callCount === 2) return makeChain({ data: { id: 'rest-1' }, error: null });
+      if (callCount === 3) return updateChain;
+      return makeChain({ data: null, error: null });
+    });
+    await upsertRestaurantForOwner({
+      name: 'Cafe',
+      cuisineNames: [],
+      locationShort: '  Downtown  ',
+      address: '  123 Main St  ',
+      phone: '  555-0100  ',
+      priceRange: '  $$  ',
+    });
+    expect(updateChain.update as jest.Mock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        location_short: 'Downtown',
+        address: '123 Main St',
+        phone: '555-0100',
+        price_range: '$$',
+      })
+    );
+  });
+
+  // Issue 2: optional fields trimming — insert path
+  it('includes trimmed optional fields in the insert payload', async () => {
+    let callCount = 0;
+    const insertChain = makeChain({ data: { id: 'rest-new' }, error: null });
+    mockFrom.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) return makeChain({ data: [], error: null });
+      if (callCount === 2) return makeChain({ data: null, error: null });
+      if (callCount === 3) return insertChain;
+      return makeChain({ data: null, error: null });
+    });
+    await upsertRestaurantForOwner({
+      name: 'New Cafe',
+      cuisineNames: [],
+      locationShort: '  Uptown  ',
+      address: '  456 Oak Ave  ',
+      phone: '  555-0200  ',
+      priceRange: '  $$$  ',
+    });
+    expect(insertChain.insert as jest.Mock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        location_short: 'Uptown',
+        address: '456 Oak Ave',
+        phone: '555-0200',
+        price_range: '$$$',
+      })
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -185,6 +259,13 @@ describe('ensureRestaurantRole', () => {
     mockGetUser.mockResolvedValue(NO_USER);
     const { error } = await ensureRestaurantRole();
     expect(error?.message).toMatch(/not signed in/i);
+  });
+
+  // Issue 3: auth error parity
+  it('returns the auth error object when getUser itself errors', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null }, error: new Error('auth service error') });
+    const { error } = await ensureRestaurantRole();
+    expect(error?.message).toBe('auth service error');
   });
 
   it('returns no error on successful upsert', async () => {
@@ -209,6 +290,13 @@ describe('ensureDinerRole', () => {
     mockGetUser.mockResolvedValue(NO_USER);
     const { error } = await ensureDinerRole();
     expect(error?.message).toMatch(/not signed in/i);
+  });
+
+  // Issue 3: auth error parity
+  it('returns the auth error object when getUser itself errors', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null }, error: new Error('auth service error') });
+    const { error } = await ensureDinerRole();
+    expect(error?.message).toBe('auth service error');
   });
 
   it('returns no error on successful upsert', async () => {
@@ -236,10 +324,26 @@ describe('fetchRestaurantIdForOwner', () => {
     expect(error?.message).toMatch(/not signed in/i);
   });
 
+  // Issue 3: auth error parity
+  it('returns the auth error object when getUser itself errors', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null }, error: new Error('auth service error') });
+    const { restaurantId, error } = await fetchRestaurantIdForOwner();
+    expect(restaurantId).toBeNull();
+    expect(error?.message).toBe('auth service error');
+  });
+
   it('returns restaurantId when restaurant exists', async () => {
     mockFrom.mockReturnValue(makeChain({ data: { id: 'rest-1' }, error: null }));
     const { restaurantId, error } = await fetchRestaurantIdForOwner();
     expect(restaurantId).toBe('rest-1');
+    expect(error).toBeNull();
+  });
+
+  // Issue 4: numeric id coercion
+  it('coerces a numeric database id to string', async () => {
+    mockFrom.mockReturnValue(makeChain({ data: { id: 42 }, error: null }));
+    const { restaurantId, error } = await fetchRestaurantIdForOwner();
+    expect(restaurantId).toBe('42');
     expect(error).toBeNull();
   });
 

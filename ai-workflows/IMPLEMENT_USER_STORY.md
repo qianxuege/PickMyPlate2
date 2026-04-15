@@ -118,6 +118,9 @@ When the user approves the completed implementation following Step 7:
 5. **Pull request:** Open a PR into `main`:
    - **CLI:** `gh pr create --base main --head <branch-name> --title "…" --body "…"`
    - **Web:** use GitHub’s “Compare & pull request” after the push.
+   - **Title and body (AI):** Write a specific title and body—do not use placeholders in the final command.
+     - **Title:** One line, imperative or scoped (for example `feat(area): short outcome`), aligned with the user story and the main behavioral change; follow existing team/repo conventions when obvious from the branch or commits.
+     - **Body:** Brief context (what problem this solves), bullet list of substantive changes (files or areas only if they help reviewers), how the change maps to **Machine Acceptance Criteria** / **Human Acceptance Criteria** when those were provided, and any test or manual-check notes from Step 7. Include a story or ticket reference if the user supplied one.
 6. **Merge:** Do not merge without the user’s explicit approval on GitHub.
 
 ---
@@ -184,7 +187,7 @@ The following are **not automated** and remain human responsibilities:
 - Approving each workflow step before progression
 - Managing secrets and environment configuration
 - Approving and merging pull requests
-- Running `git push` and creating the pull request (Step 8), unless they delegate that to the AI with explicit approval
+- **Step 8 (push + PR):** The human approves each step under **Execution Mode**. Approving progression **into Step 8 after Step 7** is the explicit permission for the AI to run `git push` and create the pull request as written in Step 8—there is no separate “delegation” path beyond that approval. The human still reviews what was pushed and approves the merge on GitHub.
 
 ---
 

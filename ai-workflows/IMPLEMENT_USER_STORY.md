@@ -52,13 +52,11 @@ Each run requires:
 
 ### Step 4: Implementation (AI as builder)
 
-- Generate or modify code in the repository
-- Follow existing project structure and conventions
-- Keep changes minimal and scoped
-- Handle:
-  - loading states
-  - empty states
-  - error states
+- Propose code changes (DO NOT directly apply changes)
+- Show:
+  - files to modify
+  - exact code diffs or snippets
+- Wait for human approval before applying changes
 
 ---
 
@@ -100,6 +98,9 @@ The AI switches role to "Reviewer":
 
 - Repeat **Step 5–6 up to 2 times**
 - Stop when implementation is stable and complete
+- The AI MUST:
+  - perform at least 1 review pass
+  - perform up to 2 revision iterations if issues are found
 
 ---
 
@@ -129,6 +130,18 @@ The AI MUST NOT continue automatically without approval.
 
 ---
 
+## Assumptions
+
+If required information is missing:
+
+- The AI must:
+  - explicitly state assumptions
+  - OR ask for clarification before proceeding
+
+The AI must NOT guess or fabricate missing details.
+
+---
+
 ## Human Responsibilities
 
 The following are **not automated** and remain human responsibilities:
@@ -139,6 +152,7 @@ The following are **not automated** and remain human responsibilities:
 - Reviewing AI-generated code
 - Testing functionality manually
 - Fixing incorrect or incomplete AI output
+- Approving each workflow step before progression
 - Managing secrets and environment configuration
 - Approving and merging pull requests
 

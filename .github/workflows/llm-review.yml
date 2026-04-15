@@ -17,12 +17,21 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  id-token: write
 
 jobs:
   review:
     name: Gemini review
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    env:
+      GCP_CREDENTIALS_JSON: ${{ secrets.GCP_CREDENTIALS_JSON }}
+      GCP_PROJECT: ${{ secrets.GCP_PROJECT }}
+      GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+      GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
+      VERTEX_LOCATION: ${{ secrets.VERTEX_LOCATION }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -68,20 +77,20 @@ jobs:
             -o /tmp/pull-request.diff
 
       - name: Authenticate to Google Cloud
-        if: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && secrets.GCP_SERVICE_ACCOUNT != '' }}
+        if: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && env.GCP_SERVICE_ACCOUNT != '' }}
         id: gcp-auth-wif
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
           token_format: access_token
 
       - name: Authenticate to Google Cloud with service account JSON
-        if: ${{ (secrets.GCP_WORKLOAD_IDENTITY_PROVIDER == '' || secrets.GCP_SERVICE_ACCOUNT == '') && secrets.GCP_CREDENTIALS_JSON != '' }}
+        if: ${{ (env.GCP_WORKLOAD_IDENTITY_PROVIDER == '' || env.GCP_SERVICE_ACCOUNT == '') && env.GCP_CREDENTIALS_JSON != '' }}
         id: gcp-auth-json
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_CREDENTIALS_JSON }}
+          credentials_json: ${{ env.GCP_CREDENTIALS_JSON }}
           token_format: access_token
 
       - name: Run Gemini review
@@ -89,9 +98,6 @@ jobs:
           BASE_REF: ${{ steps.pr.outputs.base_ref }}
           CHANGED_FILES: ${{ steps.pr.outputs.changed_files }}
           GCP_ACCESS_TOKEN: ${{ steps.gcp-auth-wif.outputs.access_token || steps.gcp-auth-json.outputs.access_token }}
-          GCP_PROJECT: ${{ secrets.GCP_PROJECT }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
           HEAD_REF: ${{ steps.pr.outputs.head_ref }}
           PR_BODY: ${{ steps.pr.outputs.body }}
           PR_DIFF_PATH: /tmp/pull-request.diff
@@ -100,7 +106,6 @@ jobs:
           PR_URL: ${{ steps.pr.outputs.html_url }}
           REVIEW_JSON_PATH: /tmp/llm-review.json
           REVIEW_MARKDOWN_PATH: /tmp/llm-review.md
-          VERTEX_LOCATION: ${{ secrets.VERTEX_LOCATION }}
         run: node ./scripts/llmReview.mjs
 
       - name: Upload review artifact

@@ -31,7 +31,7 @@ Each run requires:
 
 ---
 
-### Step 2: Define Acceptance Criteria (AI)
+### Step 2: Define Acceptance Criteria (AI as product manager)
 
 - Clean and structure provided criteria
 - Ensure completeness and clarity
@@ -39,7 +39,7 @@ Each run requires:
 
 ---
 
-### Step 3: Design (AI, if applicable)
+### Step 3: Design (AI as UI/UX designer)
 
 - Define UI structure and layout
   - clean and modern UX consistent with the rest of the app's screens
@@ -50,7 +50,7 @@ Each run requires:
 
 ---
 
-### Step 4: Implementation (AI)
+### Step 4: Implementation (AI as builder)
 
 - Generate or modify code in the repository
 - Follow existing project structure and conventions
@@ -62,7 +62,9 @@ Each run requires:
 
 ---
 
-### Step 5: Review (AI)
+### Step 5: Review (AI as Reviewer Agent)
+
+The AI switches role to "Reviewer":
 
 - Evaluate implementation against:
   - acceptance criteria
@@ -98,6 +100,32 @@ Each run requires:
 
 - Repeat **Step 5–6 up to 2 times**
 - Stop when implementation is stable and complete
+
+---
+
+## Execution Mode (Human-in-the-Loop)
+
+The AI MUST execute this workflow step-by-step and STOP after each step.
+
+After each step, the AI must:
+
+1. Present output clearly
+2. Ask for approval:
+   - "Approve" → proceed to next step
+   - "Revise: <feedback>" → update current step
+
+The AI MUST NOT continue automatically without approval.
+
+---
+
+### Step Execution Rules
+
+- Step 1 → STOP and wait for approval
+- Step 2 → STOP and wait for approval
+- Step 3 → STOP and wait for approval
+- Step 4 → STOP and wait for approval BEFORE writing code to files
+- Step 5–6 → may iterate automatically up to 2 times
+- Final output → handoff to human validation
 
 ---
 

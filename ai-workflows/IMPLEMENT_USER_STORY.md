@@ -21,6 +21,18 @@ Each run requires:
 
 ---
 
+## Branch safety (before code or repo changes)
+
+Before editing files, installing dependencies, or running project commands (build, test, lint, dev server):
+
+1. Determine the current Git branch (for example `git branch --show-current`).
+2. If the branch is **`main`**, do **not** proceed with implementation. Notify the user that work must happen on a feature branch, and ask them to run something like `git checkout -b feature/<short-description>` (or switch to an existing branch), then resume the workflow.
+3. Do not treat `main` as the branch for day-to-day AI-driven edits; changes should land via pull request after review.
+
+This check applies from the start of the session and again before **Step 4** if the branch could have changed.
+
+---
+
 ## Workflow Steps
 
 ### Step 1: Understand the User Story (AI)
@@ -52,6 +64,7 @@ Each run requires:
 
 ### Step 4: Implementation (AI as builder)
 
+- Confirm the current branch is **not** `main` (see **Branch safety**). If on `main`, stop and ask the user to switch branches before proposing or applying any code.
 - Propose code changes (DO NOT directly apply changes)
 - Show:
   - files to modify
@@ -94,6 +107,21 @@ The AI switches role to "Reviewer":
 
 ---
 
+### Step 8: Push and open pull request (after user approves final work)
+
+When the user approves the completed implementation following Step 7:
+
+1. **Branch:** Confirm again you are **not** on `main`. If you are, stop; create or check out a feature branch, move commits if needed, then continue.
+2. **Review:** `git status` and `git diff` (or equivalent) so the user sees what will be published.
+3. **Commit:** If there are uncommitted changes, `git add` and `git commit` with a clear message.
+4. **Push:** `git push -u origin <branch-name>` (first push) or `git push` (branch already tracking).
+5. **Pull request:** Open a PR into `main`:
+   - **CLI:** `gh pr create --base main --head <branch-name> --title "…" --body "…"`
+   - **Web:** use GitHub’s “Compare & pull request” after the push.
+6. **Merge:** Do not merge without the user’s explicit approval on GitHub.
+
+---
+
 ## Loop
 
 - Repeat **Step 5–6 up to 2 times**
@@ -126,7 +154,8 @@ The AI MUST NOT continue automatically without approval.
 - Step 3 → STOP and wait for approval
 - Step 4 → STOP and wait for approval BEFORE writing code to files
 - Step 5–6 → may iterate automatically up to 2 times
-- Final output → handoff to human validation
+- Step 7 → human validation; continue to Step 8 only after the user approves the final implementation
+- Step 8 → push and open PR; STOP if on `main` or if the user has not approved publishing
 
 ---
 
@@ -155,6 +184,7 @@ The following are **not automated** and remain human responsibilities:
 - Approving each workflow step before progression
 - Managing secrets and environment configuration
 - Approving and merging pull requests
+- Running `git push` and creating the pull request (Step 8), unless they delegate that to the AI with explicit approval
 
 ---
 

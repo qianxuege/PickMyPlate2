@@ -1,35 +1,23 @@
 # Paste and modify the following
 
-Follow the workflow defined in:
+Follow:
 
-ai-workflows/IMPLEMENT_USER_STORY.md
-ai-workflows/RULES.md
+- `ai-workflows/IMPLEMENT_USER_STORY.md`
+- `ai-workflows/RULES.md`
 
-You MUST follow these rules strictly:
+You MUST:
 
-- Execute step-by-step
-- STOP after each step
-- Ask for approval before continuing
-- Do NOT skip steps
-- Do NOT generate or modify code until Step 4 is approved
-- Do NOT apply changes automatically — only propose them
+- Execute step-by-step; STOP after each step; ask for approval before continuing
+- Not skip steps
+- Not generate or modify code until Step 4 is approved
+- Not apply changes automatically — only propose them
 
----
-
-## Execution Mode
+## Human-in-the-loop
 
 We are running in **Human-in-the-Loop mode**:
 
-After each step:
-
-- Output results clearly
-- Then ask:
-
-"Approve to continue or provide revisions."
-
-Only continue if I say **Approve**
-
----
+After each step: output clearly, then ask: _Approve to continue or provide revisions._  
+Continue only if I say **Approve**.
 
 ## Input
 
@@ -42,10 +30,6 @@ Machine Acceptance Criteria:
 Human Acceptance Criteria:
 <PASTE>
 
----
-
 ## Start
 
-Begin with **Step 1: Understand the User Story**
-
-DO NOT proceed past Step 1 until approved.
+Begin **Step 1: Understand the User Story**. Do not proceed past Step 1 until approved.

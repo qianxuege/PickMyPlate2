@@ -14,6 +14,14 @@ These rules guide AI-generated code to ensure consistency and quality across the
 
 ---
 
+## Git and branches
+
+- **Do not** make code changes, run project commands (install, build, test, lint), or otherwise mutate the repo while the current branch is **`main`**.
+- Before any of the above, confirm the branch (for example `git branch --show-current`). If it is `main`, **stop** and tell the user to create or switch to a feature branch; continue only after they confirm they are off `main`.
+- Use a feature branch for all implementation work; merge to `main` only through a reviewed pull request.
+
+---
+
 ## 🚫 Anti-Hallucination Rules (CRITICAL)
 
 The AI MUST:

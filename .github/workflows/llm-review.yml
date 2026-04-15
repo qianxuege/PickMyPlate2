@@ -85,19 +85,11 @@ jobs:
           service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
           token_format: access_token
 
-      - name: Authenticate to Google Cloud with service account JSON
-        if: ${{ (env.GCP_WORKLOAD_IDENTITY_PROVIDER == '' || env.GCP_SERVICE_ACCOUNT == '') && env.GCP_CREDENTIALS_JSON != '' }}
-        id: gcp-auth-json
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ env.GCP_CREDENTIALS_JSON }}
-          token_format: access_token
-
       - name: Run Gemini review
         env:
           BASE_REF: ${{ steps.pr.outputs.base_ref }}
           CHANGED_FILES: ${{ steps.pr.outputs.changed_files }}
-          GCP_ACCESS_TOKEN: ${{ steps.gcp-auth-wif.outputs.access_token || steps.gcp-auth-json.outputs.access_token }}
+          GCP_ACCESS_TOKEN: ${{ steps.gcp-auth-wif.outputs.access_token }}
           HEAD_REF: ${{ steps.pr.outputs.head_ref }}
           PR_BODY: ${{ steps.pr.outputs.body }}
           PR_DIFF_PATH: /tmp/pull-request.diff

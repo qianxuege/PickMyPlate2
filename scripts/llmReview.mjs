@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import crypto from "node:crypto";
 
 const MAX_DIFF_CHARS = 120000;
 const DEFAULT_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
@@ -88,7 +89,16 @@ async function callGemini(prompt) {
     return callGeminiApi(prompt);
   }
 
-  if (process.env.GCP_ACCESS_TOKEN && process.env.GCP_PROJECT) {
+  if (process.env.GCP_PROJECT) {
+    const accessToken =
+      process.env.GCP_ACCESS_TOKEN || (await getServiceAccountAccessToken());
+    if (!accessToken) {
+      throw new Error(
+        "Missing Google Cloud auth. Set GCP_ACCESS_TOKEN or GCP_CREDENTIALS_JSON with GCP_PROJECT.",
+      );
+    }
+
+    process.env.GCP_ACCESS_TOKEN = accessToken;
     return callVertexGemini(prompt);
   }
 
@@ -146,6 +156,66 @@ async function callVertexGemini(prompt) {
   });
 
   return parseModelResponse(response, "Vertex AI");
+}
+
+async function getServiceAccountAccessToken() {
+  if (!process.env.GCP_CREDENTIALS_JSON) {
+    return "";
+  }
+
+  const credentials = JSON.parse(process.env.GCP_CREDENTIALS_JSON);
+  const now = Math.floor(Date.now() / 1000);
+  const tokenUri = credentials.token_uri || "https://oauth2.googleapis.com/token";
+  const scope = "https://www.googleapis.com/auth/cloud-platform";
+
+  const assertion = signJwt({
+    iss: credentials.client_email,
+    sub: credentials.client_email,
+    aud: tokenUri,
+    iat: now,
+    exp: now + 3600,
+    scope,
+  }, credentials.private_key);
+
+  const body = new URLSearchParams({
+    grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+    assertion,
+  });
+
+  const response = await fetch(tokenUri, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: body.toString(),
+  });
+
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(
+      `OAuth token exchange failed with ${response.status}: ${JSON.stringify(payload)}`,
+    );
+  }
+
+  return payload.access_token || "";
+}
+
+function signJwt(claims, privateKeyPem) {
+  const header = { alg: "RS256", typ: "JWT" };
+  const encodedHeader = base64UrlEncode(JSON.stringify(header));
+  const encodedClaims = base64UrlEncode(JSON.stringify(claims));
+  const signer = crypto.createSign("RSA-SHA256");
+  signer.update(`${encodedHeader}.${encodedClaims}`);
+  signer.end();
+  const signature = signer.sign(privateKeyPem);
+  return `${encodedHeader}.${encodedClaims}.${base64UrlEncode(signature)}`;
+}
+
+function base64UrlEncode(value) {
+  const buffer = Buffer.isBuffer(value) ? value : Buffer.from(value);
+  return buffer
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
 }
 
 async function parseModelResponse(response, provider) {

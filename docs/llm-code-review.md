@@ -42,6 +42,8 @@ Add these GitHub repository secrets:
 
 `GCP_CREDENTIALS_JSON` should contain the full contents of a service account key JSON file with Vertex AI access.
 
+This path does not depend on enabling the IAM Service Account Credentials API for GitHub Actions, because the workflow exchanges the service account key for an OAuth token directly inside the review script.
+
 ### Option 3: Vertex AI with GitHub OIDC Workload Identity Federation
 
 Add these GitHub repository secrets:

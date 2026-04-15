@@ -158,6 +158,7 @@ export default function LoginScreen() {
 - **[Diner personalization & smart preference tags](docs/diner-personalization.md)** — onboarding flow, rule-based tag parsing, and Supabase schema (`diner_*` tables, diner-only RLS).
 - **[Restaurant owner: login, registration, profile](docs/restaurant-owner.md)** — auth vs `restaurants` / `restaurant_cuisine_types`, restaurant-only RLS.
 - **[Dual diner + restaurant accounts](docs/account-roles.md)** — `user_roles`, role picker, and switching after login.
+- **[Automated LLM PR review](docs/llm-code-review.md)** — GitHub Actions workflow that runs Gemini on pull requests, posts a PR comment, and keeps human approval required.
 - **Diner menu scans** — `lib/menu-scan-schema.ts` defines the `ParsedMenu` API contract and `assembleParsedMenu` for DB-backed menus. Tables: `diner_menu_scans`, `diner_menu_sections`, `diner_scanned_dishes`, `diner_favorite_dishes` (see `supabase/migrations/`).
 
 ## Project Structure

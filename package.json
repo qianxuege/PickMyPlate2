@@ -10,6 +10,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
+    "llm:review": "node ./scripts/llmReview.mjs",
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
     "supabase:status": "supabase status",

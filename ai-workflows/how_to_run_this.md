@@ -1,4 +1,4 @@
-# Copy-paste prompt (edit the placeholders, then paste into the AI)
+# Copy-paste prompt (paste into the AI)
 
 Follow:
 
@@ -19,28 +19,16 @@ We are running in **Human-in-the-Loop mode**:
 After each step: output clearly, then ask: _Approve to continue or provide revisions._  
 Continue only if I say **Approve**.
 
-## Input (paste below)
+## Input (single paste)
 
-User Story ID and title (paste exactly):
-
-```
-<PASTE e.g. US4 — Dish Filtering by Preferences>
-```
-
-GitHub Issue number of the user story being implemented (paste exactly):
+GitHub user story issue URL (full link to the issue for this repo):
 
 ```
-<PASTE e.g. #12>
+<PASTE e.g. https://github.com/ORG/REPO/issues/12>
 ```
 
-User Story (As a … I want … so that …):
-
-```
-<PASTE>
-```
-
-**Do not paste Machine Acceptance Criteria or Human Acceptance Criteria here.** Load them from the GitHub issue above using this repo’s `origin` / `gh`, extract the sections from the issue body, **display them to me in Step 1**, and wait for my confirmation before proceeding.
+From this URL only: parse `owner/repo` and issue number, fetch the issue, then detect **User Story ID and title**, the **User Story** (As a … I want … so that …), **Machine Acceptance Criteria**, and **Human Acceptance Criteria** per `IMPLEMENT_USER_STORY.md`. **Show all extracted fields to me in Step 1** and wait for my confirmation. When opening the PR (**Step 8**), link and close **this same issue** (`Closes #N` / `Fixes #N` for that `N`).
 
 ## Start
 
-Begin **Step 1: Understand the User Story** (including loading the GitHub issue and showing the extracted acceptance criteria). Do not proceed past Step 1 until approved.
+Begin **Step 1: Understand the User Story**. Do not proceed past Step 1 until approved.

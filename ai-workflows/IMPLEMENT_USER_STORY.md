@@ -8,20 +8,38 @@ This workflow is tool-agnostic and is applied consistently using Claude Code, Cu
 
 ## Input Format
 
-Each run requires:
+Each run requires a single field:
 
-- **User Story**
-  (As a <user> I want <action> so that <benefit>)
+- **GitHub user story issue URL**  
+  Paste a normal issue link, for example `https://github.com/OWNER/REPO/issues/12`.  
+  Strip tracking query strings if present; ignore `#issuecomment-…` fragments for fetching (the issue number is in the path).
 
-- **User Story ID and title**
-  (Paste exactly, for example `US4 — Dish Filtering by Preferences`. Used for PR title formatting and traceability.)
+The AI derives everything else from that issue:
 
-- **GitHub Issue number of the user story being implemented**
-  (Paste exactly, for example `#12`. Used to load **Machine Acceptance Criteria** and **Human Acceptance Criteria** from that issue, to link the pull request to the issue, and to close the issue on merge.)
+| Derived (for the rest of the workflow) | Source |
+|----------------------------------------|--------|
+| `owner`, `repo`, issue **number** `N` | Parse the URL path: `github.com/<owner>/<repo>/issues/<N>` |
+| **User Story ID and title** | Issue **title** and/or issue **body** (see **Issue parsing** below) |
+| **User Story** (As a … I want … so that …) | Issue **body** (section or paragraph; see **Issue parsing**) |
+| **Machine** / **Human** acceptance criteria | Issue **body** (sections; see **Issue parsing**) |
+| PR link + close target | Same issue **`N`** in this `owner/repo` → `Closes #N` (or `Fixes #N`) in the PR body |
 
-**Machine Acceptance Criteria** and **Human Acceptance Criteria** are **not** pasted in this workflow. They live in the related GitHub issue body. The AI must load the issue (see **Step 1**), extract those sections, and **display them back to the user** for confirmation before continuing.
+**Machine Acceptance Criteria** and **Human Acceptance Criteria** are not pasted separately; they are read from the issue like the story text.
 
-If **User Story ID and title** or **GitHub Issue number** is missing, stop and ask the user for them before implementation.
+If the URL is missing, invalid, not an `/issues/<n>` link, or the issue cannot be fetched, stop and ask the user to fix the link or grant access (`gh auth`, network, etc.).
+
+### Issue parsing (AI)
+
+After fetching the issue (`title`, `body`, canonical `html_url` or construct `https://github.com/<owner>/<repo>/issues/<N>`):
+
+1. **Repository check:** Parse `owner/repo` from the pasted URL. Compare to this clone’s `origin` (normalize both from `https://github.com/o/r.git`, `git@github.com:o/r.git`, etc.). If they differ, **stop** and tell the user the issue is not for this repository unless they switch to the matching clone or paste an issue from the current repo.
+2. **User Story ID and title:** Prefer the issue **title** when it already contains the id and readable title (for example `US4 — Dish Filtering by Preferences`, `US4: Dish Filtering`, `User Story 4 – …`). Otherwise, take the first line or heading in the body that clearly identifies the story id and title (for example a line starting with `US` + number). If ambiguous, show candidates and ask the user to confirm or correct **one** canonical line to use for PR titles.
+3. **User Story (role format):** Find the paragraph or subsection that matches “As a … I want … so that …” (headings such as **User Story**, **Story**, **Description** help). If missing, say so and ask the user to point to the text or to update the issue.
+4. **Machine / Human acceptance criteria:** From the body, copy **Machine Acceptance Criteria** and **Human Acceptance Criteria** verbatim when those headings (or obvious equivalents) exist. If headings differ, infer two blocks, label them, and flag uncertainty.
+
+### Step 1 presentation
+
+In **Step 1**, the AI must **display** the canonical issue URL, parsed **`#N`**, extracted **User Story ID and title**, **User Story** text, **Machine** block, and **Human** block in a clear layout, then ask the user to confirm or correct before continuing.
 
 ---
 
@@ -41,10 +59,11 @@ This check applies from the start of the session and again before **Step 4** if 
 
 ### Step 1: Understand the User Story (AI)
 
-- **Load the GitHub issue:** Using the **GitHub Issue number** from **Input Format** and this repository (resolve `owner/repo` from `git remote get-url origin` or use `gh repo view --json nameWithOwner` when available), fetch the issue. Prefer `gh issue view <N> --json title,body,url` (strip the `#` from the pasted number if present). If `gh` is unavailable, construct the issue URL from `origin` and read the description by an equivalent tool.
-- **Extract acceptance criteria:** From the issue body, copy the **Machine Acceptance Criteria** and **Human Acceptance Criteria** sections verbatim (match the headings or labels used in the issue). If headings differ, infer the two blocks from the issue text, label what you extracted, and call out any uncertainty.
-- **Present to the user:** Show the issue **URL**, the **User Story ID and title** from input, the pasted **User Story** text, then the extracted **Machine** and **Human** criteria in a clear layout. Ask the user to confirm the extraction is correct (or to correct it) before the rest of the workflow treats them as authoritative.
-- Restate the goal clearly; align the pasted **User Story** with the issue when they should match.
+- **Parse the pasted link:** From **GitHub user story issue URL** in **Input Format**, extract `owner`, `repo`, and issue number `N` per **Issue parsing**. Run the **repository check**; do not continue on a mismatch.
+- **Load the GitHub issue:** Fetch with `gh issue view <N> --repo <owner>/<repo> --json title,body,url` (or the same without `--repo` when `origin` matches and you are in the repo). If `gh` is unavailable, read the issue via the GitHub web UI, API, or any available tool that returns **title** and **body**, then apply the same extraction rules.
+- **Extract:** Apply **Issue parsing** to obtain **User Story ID and title**, **User Story** text, **Machine Acceptance Criteria**, and **Human Acceptance Criteria**. Keep the canonical issue URL and `#N` for Step 8.
+- **Present to the user:** Per **Step 1 presentation** in **Input Format**—show URL, `#N`, id/title, story, and both criteria blocks; ask for confirmation or corrections before the rest of the workflow treats them as authoritative.
+- Restate the goal clearly from the confirmed story and criteria.
 - Identify requirements and constraints from the story and criteria.
 - Identify edge cases and failure scenarios.
 
@@ -122,16 +141,17 @@ When the user approves the completed implementation following Step 7:
 2. **Review:** `git status` and `git diff` (or equivalent) so the user sees what will be published.
 3. **Commit:** If there are uncommitted changes, `git add` and `git commit` with a clear message.
 4. **Push:** `git push -u origin <branch-name>` (first push) or `git push` (branch already tracking).
-5. **Pull request:** Open a PR into `main` that is explicitly tied to the GitHub issue from **Input Format** (same user story).
+5. **Pull request:** Open a PR into `main` that is explicitly tied to the **same** GitHub user story issue parsed in **Step 1** (same `owner/repo` and issue number `N`).
    - **CLI:** `gh pr create --base main --head <branch-name> --title "…" --body "…"`
    - **Web:** use GitHub’s “Compare & pull request” after the push; set the same title and body content as below.
    - **Title (required format):** `Completed User Story <n>: <title>`
-     - `<n>` is the numeric story id from **User Story ID and title** (for example `US4 — …` → `4`).
+     - `<n>` is the numeric story id from the **User Story ID and title** confirmed in Step 1 (for example `US4 — …` → `4`).
      - `<title>` is the human-readable title from that same line (for example `US4 — Dish Filtering by Preferences` → `Dish Filtering by Preferences`).
      - Full example: `Completed User Story 4: Dish Filtering by Preferences`
    - **Body (AI):** Write a specific body—do not ship placeholder text. Include:
-     - A line that **links and closes** the issue using a [GitHub closing keyword](https://docs.github.com/en/issues/tracking-your-work-with-issues/linking-a-pull-request-to-an-issue) and the **GitHub Issue number** from input (for example `Closes #12` or `Fixes #12`). Use the exact issue number the user provided so the PR is related to the correct issue and closes it when the PR merges.
-     - Brief context, substantive change bullets, mapping to the **Machine** / **Human** criteria from the GitHub issue (as confirmed in Step 1–2), and any test or manual-check notes from Step 7.
+     - A line that **links and closes** the user story issue using a [GitHub closing keyword](https://docs.github.com/en/issues/tracking-your-work-with-issues/linking-a-pull-request-to-an-issue) and the **same issue number `N`** from the pasted issue URL (for example `Closes #12` or `Fixes #12`). That ties the PR to the issue you loaded in Step 1 and closes it when the PR merges.
+     - Optionally the canonical issue **URL** on its own line for reviewers.
+     - Brief context, substantive change bullets, mapping to the **Machine** / **Human** criteria from that issue (as confirmed in Step 1–2), and any test or manual-check notes from Step 7.
      - Optionally repeat the **User Story ID and title** for reviewers.
 6. **Merge:** Do not merge without the user’s explicit approval on GitHub.
 
@@ -190,8 +210,8 @@ The AI must NOT guess or fabricate missing details.
 
 The following are **not automated** and remain human responsibilities:
 
-- Writing and refining user stories
-- Keeping **Machine** / **Human** acceptance criteria accurate in the GitHub issue and confirming AI extraction in Step 1
+- Writing and refining user stories in GitHub issues (clear title, story paragraph, and **Machine** / **Human** section headings so parsing in **Issue parsing** is reliable)
+- Confirming AI extraction in Step 1 when the issue layout is non-standard
 - Product and UX decision-making
 - Reviewing AI-generated code
 - Testing functionality manually

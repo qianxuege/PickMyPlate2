@@ -8,25 +8,44 @@ This workflow is tool-agnostic and works with Claude Code, Cursor, or Codex.
 
 ## Input Format
 
-Each run requires:
+Each run requires only:
 
-- **User Story ID and title**
-  (e.g. US4 — Dish Filtering by Preferences)
-
-- **GitHub Issue number** of the user story being tested
-  (e.g. #12)
-
-- **Machine Acceptance Criteria**
-  (Functional, testable conditions the tests must cover)
-
-- **Relevant lib file(s)** to test
-  (e.g. `lib/diner-preferences.ts`)
+- **GitHub Issue URL** of the user story to be tested
+  (e.g. `https://github.com/qianxuege/PickMyPlate2/issues/12`)
 
 ---
 
 ## Workflow Steps
 
-### Step 0: Branch and Issue Setup (AI)
+### Step 1: Fetch and Understand the User Story (AI)
+
+- Fetch the issue using:
+  ```bash
+  gh issue view <issue-number> --repo <owner>/<repo>
+  ```
+- Extract from the issue:
+  - User Story ID and title (e.g. US4 — Dish Filtering by Preferences)
+  - Machine acceptance criteria
+  - Any referenced files, components, or feature areas
+- Restate the goal clearly in your own words
+- Identify requirements, constraints, and edge cases
+
+---
+
+### Step 2: Identify Relevant Lib Files (AI)
+
+- Search the codebase for lib files related to the user story's feature area:
+  ```bash
+  ls lib/
+  ```
+- Read candidate files to confirm they implement the story's behavior
+- Select the lib file(s) whose exported functions directly implement the acceptance criteria
+- If multiple files are relevant, list them all and confirm before proceeding
+- If no lib file clearly maps to the story, explicitly state this and ask for human guidance before continuing
+
+---
+
+### Step 3: Branch and Issue Setup (AI)
 
 - Derive the branch name from the lib file name by removing the `lib/` prefix and `.ts` extension:
   - e.g. `lib/diner-preferences.ts` → branch: `test/us<N>-diner-preferences`
@@ -47,19 +66,7 @@ Each run requires:
 
 ---
 
-### Step 1: Understand What to Test (AI)
-
-- Read the relevant lib file(s) provided as input
-- List all exported functions to be tested
-- For each function, identify:
-  - happy path cases
-  - error / failure cases
-  - edge cases (empty input, missing user, null data)
-- Map each case to a machine acceptance criterion
-
----
-
-### Step 2: Plan the Test File (AI)
+### Step 4: Plan the Test File (AI)
 
 - Propose the test file path: `tests/<lib-filename>.test.ts`
 - Define the describe/it block structure
@@ -68,7 +75,7 @@ Each run requires:
 
 ---
 
-### Step 3: Write the Tests (AI)
+### Step 5: Write the Tests (AI)
 
 Follow the style of existing test files in `tests/`:
 
@@ -101,7 +108,7 @@ Do NOT:
 
 ---
 
-### Step 4: Run and Fix (AI)
+### Step 6: Run and Fix (AI)
 
 - Run the tests:
   ```bash
@@ -115,7 +122,7 @@ Do NOT:
 
 ---
 
-### Step 5: Commit and Push (AI)
+### Step 7: Commit and Push (AI)
 
 - Stage only the new test file:
   ```bash
@@ -127,12 +134,12 @@ Do NOT:
   ```
 - Push the branch:
   ```bash
-  git push -u origin test/us<N>-<short-description>
+  git push -u origin test/us<N>-<lib-filename>
   ```
 
 ---
 
-### Step 6: Create Pull Request (AI)
+### Step 8: Create Pull Request (AI)
 
 - Create a PR with:
   ```bash
@@ -144,7 +151,7 @@ Do NOT:
 
 ---
 
-### Step 7: Human Review and Merge (Human)
+### Step 9: Human Review and Merge (Human)
 
 The following steps are **not automated**:
 
@@ -157,10 +164,9 @@ The following steps are **not automated**:
 
 ## Human Responsibilities
 
-- Creating and checking out the branch (Step 0)
-- Providing the correct lib file(s) and issue number as input
-- Reviewing and approving the PR (Step 7)
-- Merging the PR (Step 7)
+- Providing the GitHub Issue URL as input
+- Reviewing and approving the PR (Step 9)
+- Merging the PR (Step 9)
 - Exporting and saving this chat session as evidence for submission
 
 ---

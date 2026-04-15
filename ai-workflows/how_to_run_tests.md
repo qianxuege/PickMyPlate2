@@ -13,7 +13,7 @@ You MUST follow these rules strictly:
 - Execute step-by-step
 - STOP after each step and ask for approval before continuing
 - Do NOT skip steps
-- Do NOT write any test code until Step 2 is approved
+- Do NOT write any test code until Step 4 is approved
 - Do NOT create a PR until all tests pass
 
 ---
@@ -33,25 +33,16 @@ Only continue if I say **Approve**.
 
 ## Input
 
-User Story ID and title:
-<PASTE e.g. "US4 — Dish Filtering by Preferences">
-
-GitHub Issue number of the user story being tested:
-<PASTE e.g. #12>
-
-Machine Acceptance Criteria:
-<PASTE>
-
-Lib file(s) to test:
-<PASTE e.g. lib/diner-preferences.ts>
+GitHub Issue URL of the user story to be tested:
+<PASTE e.g. https://github.com/qianxuege/PickMyPlate2/issues/12>
 
 ---
 
 ## Start
 
-Begin with **Step 0: Branch and Issue Setup**.
+Begin with **Step 1: Fetch and Understand the User Story**.
 
-Do NOT proceed past Step 0 until approved.
+Do NOT proceed past Step 1 until approved.
 
 ---
 

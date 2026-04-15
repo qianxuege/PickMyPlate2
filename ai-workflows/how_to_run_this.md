@@ -1,51 +1,34 @@
-# Paste and modify the following
+# Copy-paste prompt (paste into the AI)
 
-Follow the workflow defined in:
+Follow:
 
-ai-workflows/IMPLEMENT_USER_STORY.md
-ai-workflows/RULES.md
+- `ai-workflows/IMPLEMENT_USER_STORY.md`
+- `ai-workflows/RULES.md`
 
-You MUST follow these rules strictly:
+You MUST:
 
-- Execute step-by-step
-- STOP after each step
-- Ask for approval before continuing
-- Do NOT skip steps
-- Do NOT generate or modify code until Step 4 is approved
-- Do NOT apply changes automatically — only propose them
+- Execute step-by-step; STOP after each step; ask for approval before continuing
+- Not skip steps
+- Not generate or modify code until Step 4 is approved
+- Not apply changes automatically — only propose them
 
----
-
-## Execution Mode
+## Human-in-the-loop
 
 We are running in **Human-in-the-Loop mode**:
 
-After each step:
+After each step: output clearly, then ask: _Approve to continue or provide revisions._  
+Continue only if I say **Approve**.
 
-- Output results clearly
-- Then ask:
+## Input (single paste)
 
-"Approve to continue or provide revisions."
+GitHub user story issue URL (full link to the issue for this repo):
 
-Only continue if I say **Approve**
+```
+<PASTE e.g. https://github.com/ORG/REPO/issues/12>
+```
 
----
-
-## Input
-
-User Story:
-<PASTE>
-
-Machine Acceptance Criteria:
-<PASTE>
-
-Human Acceptance Criteria:
-<PASTE>
-
----
+From this URL only: parse `owner/repo` and issue number, fetch the issue, then detect **User Story ID and title**, the **User Story** (As a … I want … so that …), **Machine Acceptance Criteria**, and **Human Acceptance Criteria** per `IMPLEMENT_USER_STORY.md`. **Show all extracted fields to me in Step 1** and wait for my confirmation. When opening the PR (**Step 8**), link and close **this same issue** (`Closes #N` / `Fixes #N` for that `N`).
 
 ## Start
 
-Begin with **Step 1: Understand the User Story**
-
-DO NOT proceed past Step 1 until approved.
+Begin **Step 1: Understand the User Story**. Do not proceed past Step 1 until approved.

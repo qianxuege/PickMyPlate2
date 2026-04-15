@@ -1,6 +1,10 @@
 # Tool Usage Guide for LLM Workflow
 
-This document explains how to execute the workflow in `IMPLEMENT_USER_STORY.md` using different tools.
+This document explains how to **start** the workflow in different tools. The **canonical copy-and-paste prompt** is the full contents of:
+
+**`ai-workflows/how_to_run_this.md`**
+
+Open that file, paste it into your tool, replace the **GitHub user story issue URL** placeholder under **Input**, then send. The model must follow `IMPLEMENT_USER_STORY.md` and `RULES.md` for the full workflow (including Git branch rules, push, and PR steps). This file only explains how to launch that prompt in each tool.
 
 The workflow is **tool-agnostic** and works across:
 
@@ -14,14 +18,12 @@ The workflow is **tool-agnostic** and works across:
 
 For each user story:
 
-1. Provide:
-   - User Story
-   - Machine Acceptance Criteria
-   - Human Acceptance Criteria
+1. Copy **all** of `how_to_run_this.md` into the chat (or CLI), then paste one **GitHub user story issue URL** for this repository. The model parses the issue, extracts story id/title, user story text, and **Machine** / **Human** acceptance criteria, and confirms with you in Step 1 (see `IMPLEMENT_USER_STORY.md`).
+2. Follow the steps and stops defined in `IMPLEMENT_USER_STORY.md` (the prompt tells the model to do this).
+3. Perform 1–2 review/revision iterations (Steps 5–6).
+4. Complete human validation (**Step 7**), then follow **Step 8** in `IMPLEMENT_USER_STORY.md` (push and open a pull request).
 
-2. Follow the workflow steps in `IMPLEMENT_USER_STORY.md`
-3. Perform 1–2 review/revision iterations
-4. Validate manually before merging
+**Branch rule:** do not edit the repo or run project commands on `main`. See **Branch safety** in `IMPLEMENT_USER_STORY.md` and **Git and branches** in `RULES.md`.
 
 ---
 
@@ -33,85 +35,50 @@ Start Claude Code:
 claude
 ```
 
-Run iterative workflow:
+Optional iterative wrapper:
 
 ```bash
 /loop
 ```
 
-Then paste:
-
-```
-Follow the workflow in ai-workflows/IMPLEMENT_USER_STORY.md.
-
-User Story:
-<PASTE>
-
-Machine Acceptance Criteria:
-<PASTE>
-
-Human Acceptance Criteria:
-<PASTE>
-```
+Then paste the **full** contents of `ai-workflows/how_to_run_this.md`, with the **Input** issue URL filled in.
 
 Claude will:
 
 - plan
 - implement
 - review
-- revise iteratively
+- revise iteratively (within the human-in-the-loop rules in the prompt)
 
 ---
 
 ## Using Cursor
 
-1. Open Cursor chat
-2. Paste:
-
-```
-Follow the workflow in ai-workflows/IMPLEMENT_USER_STORY.md.
-
-User Story:
-<PASTE>
-
-Machine Acceptance Criteria:
-<PASTE>
-
-Human Acceptance Criteria:
-<PASTE>
-```
-
-3. Execute in phases:
-   - planning
-   - implementation
-   - review
-   - revision
-
-4. Review suggested file changes before applying
+1. Open Cursor chat (or Agent).
+2. Paste the **full** contents of `ai-workflows/how_to_run_this.md`, with the **Input** issue URL filled in.
+3. Execute in phases as the model stops for approval after each step.
+4. Review suggested file changes before applying (the prompt requires approval before applying).
 
 ---
 
 ## Using Codex / ChatGPT
 
-1. Paste the same workflow prompt
-
-2. Manually iterate through:
-   - planning
-   - implementation
-   - review
-   - revision
-
-3. Copy code into the repository as needed
+1. Paste the **full** contents of `ai-workflows/how_to_run_this.md`, with the **Input** issue URL filled in.
+2. Manually drive approvals when the model stops after each step.
+3. Apply changes in your editor or paste diffs as you approve them.
+4. After final approval, push and open a PR using **Step 8** in `IMPLEMENT_USER_STORY.md`.
 
 ---
 
 ## Best Practices
 
-- Always include acceptance criteria
+- Use **`how_to_run_this.md` as the single short prompt**; branch checks, push, and PR live in `IMPLEMENT_USER_STORY.md` and `RULES.md`.
+- Ensure the GitHub issue includes acceptance criteria in the body (the model reads them from the issue)
 - Keep prompts scoped to a single user story
 - Do not allow large unrelated file rewrites
 - Review diffs before applying changes
 - Stop after 1–2 iterations to avoid overfitting
+- Never treat `main` as the working branch for implementation; use a feature branch
 
 ---
 
@@ -130,6 +97,7 @@ Each run should produce:
 
 This workflow ensures:
 
-- consistent AI usage across tools
+- consistent AI usage across tools (same prompt: `how_to_run_this.md`)
 - repeatable development process
 - clear separation of AI and human responsibilities
+- safe branching (no direct work on `main`) and an explicit push/PR path after final approval

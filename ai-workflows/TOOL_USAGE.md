@@ -18,7 +18,7 @@ The workflow is **tool-agnostic** and works across:
 
 For each user story:
 
-1. Copy **all** of `how_to_run_this.md` into the chat (or CLI), then fill in **User Story**, **Machine Acceptance Criteria**, and **Human Acceptance Criteria**.
+1. Copy **all** of `how_to_run_this.md` into the chat (or CLI), then fill in **User Story ID and title**, **GitHub Issue number**, and **User Story**. The model loads **Machine** / **Human** acceptance criteria from that issue (see `IMPLEMENT_USER_STORY.md`).
 2. Follow the steps and stops defined in `IMPLEMENT_USER_STORY.md` (the prompt tells the model to do this).
 3. Perform 1–2 review/revision iterations (Steps 5–6).
 4. Complete human validation (**Step 7**), then follow **Step 8** in `IMPLEMENT_USER_STORY.md` (push and open a pull request).

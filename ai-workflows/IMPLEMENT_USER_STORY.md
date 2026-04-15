@@ -13,11 +13,15 @@ Each run requires:
 - **User Story**
   (As a <user> I want <action> so that <benefit>)
 
-- **Machine Acceptance Criteria**
-  (Functional, testable conditions)
+- **User Story ID and title**
+  (Paste exactly, for example `US4 — Dish Filtering by Preferences`. Used for PR title formatting and traceability.)
 
-- **Human Acceptance Criteria**
-  (UX, usability, and subjective quality expectations)
+- **GitHub Issue number of the user story being implemented**
+  (Paste exactly, for example `#12`. Used to load **Machine Acceptance Criteria** and **Human Acceptance Criteria** from that issue, to link the pull request to the issue, and to close the issue on merge.)
+
+**Machine Acceptance Criteria** and **Human Acceptance Criteria** are **not** pasted in this workflow. They live in the related GitHub issue body. The AI must load the issue (see **Step 1**), extract those sections, and **display them back to the user** for confirmation before continuing.
+
+If **User Story ID and title** or **GitHub Issue number** is missing, stop and ask the user for them before implementation.
 
 ---
 
@@ -37,17 +41,20 @@ This check applies from the start of the session and again before **Step 4** if 
 
 ### Step 1: Understand the User Story (AI)
 
-- Restate the goal clearly
-- Identify requirements and constraints
-- Identify edge cases and failure scenarios
+- **Load the GitHub issue:** Using the **GitHub Issue number** from **Input Format** and this repository (resolve `owner/repo` from `git remote get-url origin` or use `gh repo view --json nameWithOwner` when available), fetch the issue. Prefer `gh issue view <N> --json title,body,url` (strip the `#` from the pasted number if present). If `gh` is unavailable, construct the issue URL from `origin` and read the description by an equivalent tool.
+- **Extract acceptance criteria:** From the issue body, copy the **Machine Acceptance Criteria** and **Human Acceptance Criteria** sections verbatim (match the headings or labels used in the issue). If headings differ, infer the two blocks from the issue text, label what you extracted, and call out any uncertainty.
+- **Present to the user:** Show the issue **URL**, the **User Story ID and title** from input, the pasted **User Story** text, then the extracted **Machine** and **Human** criteria in a clear layout. Ask the user to confirm the extraction is correct (or to correct it) before the rest of the workflow treats them as authoritative.
+- Restate the goal clearly; align the pasted **User Story** with the issue when they should match.
+- Identify requirements and constraints from the story and criteria.
+- Identify edge cases and failure scenarios.
 
 ---
 
 ### Step 2: Define Acceptance Criteria (AI as product manager)
 
-- Clean and structure provided criteria
-- Ensure completeness and clarity
-- Resolve ambiguities where possible
+- Start from the **Machine** and **Human** criteria **loaded from the GitHub issue in Step 1** (after user confirmation).
+- Clean and structure them for implementation and review; do not invent new criteria without asking.
+- Ensure completeness and clarity; resolve ambiguities where possible or ask the human.
 
 ---
 
@@ -115,12 +122,17 @@ When the user approves the completed implementation following Step 7:
 2. **Review:** `git status` and `git diff` (or equivalent) so the user sees what will be published.
 3. **Commit:** If there are uncommitted changes, `git add` and `git commit` with a clear message.
 4. **Push:** `git push -u origin <branch-name>` (first push) or `git push` (branch already tracking).
-5. **Pull request:** Open a PR into `main`:
+5. **Pull request:** Open a PR into `main` that is explicitly tied to the GitHub issue from **Input Format** (same user story).
    - **CLI:** `gh pr create --base main --head <branch-name> --title "…" --body "…"`
-   - **Web:** use GitHub’s “Compare & pull request” after the push.
-   - **Title and body (AI):** Write a specific title and body—do not use placeholders in the final command.
-     - **Title:** One line, imperative or scoped (for example `feat(area): short outcome`), aligned with the user story and the main behavioral change; follow existing team/repo conventions when obvious from the branch or commits.
-     - **Body:** Brief context (what problem this solves), bullet list of substantive changes (files or areas only if they help reviewers), how the change maps to **Machine Acceptance Criteria** / **Human Acceptance Criteria** when those were provided, and any test or manual-check notes from Step 7. Include a story or ticket reference if the user supplied one.
+   - **Web:** use GitHub’s “Compare & pull request” after the push; set the same title and body content as below.
+   - **Title (required format):** `Completed User Story <n>: <title>`
+     - `<n>` is the numeric story id from **User Story ID and title** (for example `US4 — …` → `4`).
+     - `<title>` is the human-readable title from that same line (for example `US4 — Dish Filtering by Preferences` → `Dish Filtering by Preferences`).
+     - Full example: `Completed User Story 4: Dish Filtering by Preferences`
+   - **Body (AI):** Write a specific body—do not ship placeholder text. Include:
+     - A line that **links and closes** the issue using a [GitHub closing keyword](https://docs.github.com/en/issues/tracking-your-work-with-issues/linking-a-pull-request-to-an-issue) and the **GitHub Issue number** from input (for example `Closes #12` or `Fixes #12`). Use the exact issue number the user provided so the PR is related to the correct issue and closes it when the PR merges.
+     - Brief context, substantive change bullets, mapping to the **Machine** / **Human** criteria from the GitHub issue (as confirmed in Step 1–2), and any test or manual-check notes from Step 7.
+     - Optionally repeat the **User Story ID and title** for reviewers.
 6. **Merge:** Do not merge without the user’s explicit approval on GitHub.
 
 ---
@@ -179,7 +191,7 @@ The AI must NOT guess or fabricate missing details.
 The following are **not automated** and remain human responsibilities:
 
 - Writing and refining user stories
-- Defining acceptance criteria
+- Keeping **Machine** / **Human** acceptance criteria accurate in the GitHub issue and confirming AI extraction in Step 1
 - Product and UX decision-making
 - Reviewing AI-generated code
 - Testing functionality manually

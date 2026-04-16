@@ -8,7 +8,12 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { restaurantRoleTheme } from '@/constants/role-theme';
 import { Colors, Typography } from '@/constants/theme';
 import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
-import { MAX_DISH_INGREDIENT_ORIGIN_LEN, parseIngredientItemsFromDb } from '@/lib/restaurant-ingredient-items';
+import {
+  dishDbToIngredientFormRows,
+  MAX_DISH_INGREDIENT_ORIGIN_LEN,
+  newIngredientFormRowId,
+  type IngredientFormRow,
+} from '@/lib/restaurant-ingredient-items';
 import { supabase } from '@/lib/supabase';
 import { generateRestaurantDishImage } from '@/lib/restaurant-dish-image-api';
 import { pickAndUploadRestaurantDishPhoto } from '@/lib/restaurant-dish-photo-upload';
@@ -33,14 +38,6 @@ function parsePriceToAmount(input: string): { amount: number | null; currency: s
   const n = Number(numeric);
   return { amount: Number.isFinite(n) ? n : null, currency, display: raw };
 }
-
-function newIngredientRowId(): string {
-  return globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function'
-    ? globalThis.crypto.randomUUID()
-    : `ing-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-type IngredientFormRow = { id: string; name: string; origin: string };
 
 function parseTagsText(input: string): string[] {
   return input
@@ -104,23 +101,13 @@ export default function RestaurantEditDishScreen() {
         const priceDisplay = data.price_display ?? (data.price_amount != null ? `$${data.price_amount}` : '');
         setPriceText(priceDisplay ?? '');
 
-        const rawItems = parseIngredientItemsFromDb(
-          (data as { ingredient_items?: unknown }).ingredient_items,
+        setIngredientRows(
+          dishDbToIngredientFormRows({
+            ingredient_items: (data as { ingredient_items?: unknown }).ingredient_items,
+            ingredients: data.ingredients,
+            name: data.name,
+          }),
         );
-        const legacy = Array.isArray(data.ingredients) ? (data.ingredients as string[]) : [];
-        const rows: IngredientFormRow[] =
-          rawItems.length > 0
-            ? rawItems.map((it) => ({
-                id: newIngredientRowId(),
-                name: it.name,
-                origin: it.origin ?? '',
-              }))
-            : legacy.map((n) => ({
-                id: newIngredientRowId(),
-                name: typeof n === 'string' ? n : String(n),
-                origin: '',
-              }));
-        setIngredientRows(rows);
 
         const tags = Array.isArray(data.tags) ? data.tags : [];
         setTagsText(tags.join(', '));
@@ -141,7 +128,7 @@ export default function RestaurantEditDishScreen() {
   );
 
   const addIngredientRow = useCallback(() => {
-    setIngredientRows((prev) => [...prev, { id: newIngredientRowId(), name: '', origin: '' }]);
+    setIngredientRows((prev) => [...prev, { id: newIngredientFormRowId(), name: '', origin: '' }]);
   }, []);
 
   const removeIngredientRow = useCallback((id: string) => {
@@ -480,23 +467,20 @@ export default function RestaurantEditDishScreen() {
 
             <View style={styles.section}>
               <Text style={styles.fieldLabel}>Ingredients</Text>
-              <Text style={styles.ingredientsIntro}>
-                Add each ingredient and optionally its origin (max {MAX_DISH_INGREDIENT_ORIGIN_LEN} characters).
-              </Text>
               {ingredientRows.map((row) => (
                 <View key={row.id} style={styles.ingredientRowCard}>
                   <View style={styles.ingredientRowHeader}>
-                    <Text style={styles.ingredientRowHeading}>Item</Text>
+                    <Text style={styles.ingredientRowHeading}>Ingredient</Text>
                     <Pressable
                       accessibilityRole="button"
-                      accessibilityLabel="Remove ingredient row"
+                      accessibilityLabel="Delete ingredient row"
                       onPress={() => removeIngredientRow(row.id)}
                       hitSlop={10}
                     >
-                      <Text style={styles.removeIngredient}>Remove</Text>
+                      <Text style={styles.removeIngredient}>Delete</Text>
                     </Pressable>
                   </View>
-                  <Text style={styles.subFieldLabel}>Name</Text>
+                  <Text style={styles.subFieldLabel}>Name (editable)</Text>
                   <TextInput
                     value={row.name}
                     onChangeText={(t) => patchIngredientRow(row.id, { name: t })}
@@ -504,7 +488,7 @@ export default function RestaurantEditDishScreen() {
                     placeholderTextColor="#6A7282"
                     style={styles.input}
                   />
-                  <Text style={styles.subFieldLabel}>Origin (optional)</Text>
+                  <Text style={styles.subFieldLabel}>Origin (optional, editable)</Text>
                   <TextInput
                     value={row.origin}
                     onChangeText={(t) => patchIngredientRow(row.id, { origin: t })}
@@ -724,12 +708,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 21,
     opacity: 0.85,
-  },
-  ingredientsIntro: {
-    fontSize: 12,
-    lineHeight: 18,
-    color: '#6A7282',
-    marginBottom: 10,
   },
   ingredientRowCard: {
     borderWidth: 1,

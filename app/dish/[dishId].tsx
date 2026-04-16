@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { dinerRoleTheme } from '@/constants/role-theme';
 import { BorderRadius, Colors, Typography } from '@/constants/theme';
-import { DISH_ORIGIN_NOT_SPECIFIED, parseIngredientItemsFromDb, type DishIngredientItem } from '@/lib/restaurant-ingredient-items';
+import { parseIngredientItemsFromDb, type DishIngredientItem } from '@/lib/restaurant-ingredient-items';
 import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
 import { generateDishImage } from '@/lib/dish-image-api';
 import type { DinerPreferenceSnapshot } from '@/lib/diner-preferences';
@@ -551,9 +551,9 @@ export default function DishDetailScreen() {
                           <View style={styles.ingredientDot} />
                           <Text style={styles.ingredientText}>{titleize(item.name)}</Text>
                         </View>
-                        <Text style={styles.ingredientOriginLine}>
-                          {item.origin?.trim() ? item.origin.trim() : DISH_ORIGIN_NOT_SPECIFIED}
-                        </Text>
+                        {item.origin?.trim() ? (
+                          <Text style={styles.ingredientOriginLine}>{item.origin.trim()}</Text>
+                        ) : null}
                       </View>
                     ))
                   ) : detail.ingredients.length > 0 ? (

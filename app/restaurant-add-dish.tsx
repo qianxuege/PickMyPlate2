@@ -11,7 +11,11 @@ import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
 import { generateRestaurantDishImage } from '@/lib/restaurant-dish-image-api';
 import { pickAndUploadRestaurantDishPhoto } from '@/lib/restaurant-dish-photo-upload';
 import { generateRestaurantDishSummary } from '@/lib/restaurant-dish-summary-api';
-import { MAX_DISH_INGREDIENT_ORIGIN_LEN } from '@/lib/restaurant-ingredient-items';
+import {
+  MAX_DISH_INGREDIENT_ORIGIN_LEN,
+  newIngredientFormRowId,
+  type IngredientFormRow,
+} from '@/lib/restaurant-ingredient-items';
 import { createRestaurantDishDraft, getRestaurantSectionNextDishSortOrder, saveRestaurantDish } from '@/lib/restaurant-menu-dishes';
 
 const t = restaurantRoleTheme;
@@ -41,14 +45,6 @@ function parsePriceToAmount(input: string): { amount: number | null; currency: s
     display: raw,
   };
 }
-
-function newIngredientRowId(): string {
-  return globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function'
-    ? globalThis.crypto.randomUUID()
-    : `ing-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-type IngredientFormRow = { id: string; name: string; origin: string };
 
 function parseTagsText(input: string): string[] {
   return input
@@ -94,7 +90,7 @@ export default function RestaurantAddDishScreen() {
   );
 
   const addIngredientRow = useCallback(() => {
-    setIngredientRows((prev) => [...prev, { id: newIngredientRowId(), name: '', origin: '' }]);
+    setIngredientRows((prev) => [...prev, { id: newIngredientFormRowId(), name: '', origin: '' }]);
   }, []);
 
   const removeIngredientRow = useCallback((id: string) => {
@@ -449,22 +445,23 @@ export default function RestaurantAddDishScreen() {
             <View style={styles.section}>
               <Text style={styles.fieldLabel}>Ingredients</Text>
               <Text style={styles.ingredientsIntro}>
-                Add each ingredient and optionally its origin (max {MAX_DISH_INGREDIENT_ORIGIN_LEN} characters).
+                Add or edit ingredients below; delete a row you do not need. Origin is optional (max{' '}
+                {MAX_DISH_INGREDIENT_ORIGIN_LEN} characters).
               </Text>
               {ingredientRows.map((row) => (
                 <View key={row.id} style={styles.ingredientRowCard}>
                   <View style={styles.ingredientRowHeader}>
-                    <Text style={styles.ingredientRowHeading}>Item</Text>
+                    <Text style={styles.ingredientRowHeading}>Ingredient</Text>
                     <Pressable
                       accessibilityRole="button"
-                      accessibilityLabel="Remove ingredient row"
+                      accessibilityLabel="Delete ingredient row"
                       onPress={() => removeIngredientRow(row.id)}
                       hitSlop={10}
                     >
-                      <Text style={styles.removeIngredient}>Remove</Text>
+                      <Text style={styles.removeIngredient}>Delete</Text>
                     </Pressable>
                   </View>
-                  <Text style={styles.subFieldLabel}>Name</Text>
+                  <Text style={styles.subFieldLabel}>Name (editable)</Text>
                   <TextInput
                     value={row.name}
                     onChangeText={(t) => patchIngredientRow(row.id, { name: t })}
@@ -472,7 +469,7 @@ export default function RestaurantAddDishScreen() {
                     placeholderTextColor="#6A7282"
                     style={styles.input}
                   />
-                  <Text style={styles.subFieldLabel}>Origin (optional)</Text>
+                  <Text style={styles.subFieldLabel}>Origin (optional, editable)</Text>
                   <TextInput
                     value={row.origin}
                     onChangeText={(t) => patchIngredientRow(row.id, { origin: t })}

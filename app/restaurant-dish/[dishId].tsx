@@ -8,7 +8,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HighlightDishBadges } from '@/components/HighlightDishBadges';
 import { RestaurantUiInspect } from '@/constants/restaurant-ui-inspect';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
-import { DISH_ORIGIN_NOT_SPECIFIED } from '@/lib/restaurant-ingredient-items';
 import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
 import { fetchPublishedRestaurantDishDetail, type PublishedRestaurantDishDetail } from '@/lib/restaurant-public-dish';
 
@@ -108,9 +107,9 @@ export default function RestaurantDishDetailScreen() {
                   {detail.ingredientItems.map((item, idx) => (
                     <View key={`${idx}-${item.name}`} style={styles.ingredientLine}>
                       <Text style={styles.ingredientName}>{item.name}</Text>
-                      <Text style={styles.ingredientOrigin}>
-                        {item.origin?.trim() ? item.origin.trim() : DISH_ORIGIN_NOT_SPECIFIED}
-                      </Text>
+                      {item.origin?.trim() ? (
+                        <Text style={styles.ingredientOrigin}>{item.origin.trim()}</Text>
+                      ) : null}
                     </View>
                   ))}
                 </View>

@@ -1,4 +1,4 @@
-import type { ParsedMenu, ParsedMenuSection, ParsedMenuItem } from '@/lib/menu-scan-schema';
+import { structuredIngredientsForPersist, type ParsedMenu, type ParsedMenuItem, type ParsedMenuSection } from '@/lib/menu-scan-schema';
 import { supabase } from '@/lib/supabase';
 import { restaurantMenuDishNeedsReview } from '@/lib/restaurant-menu-dish-utils';
 
@@ -73,6 +73,7 @@ export async function persistRestaurantMenuDraft(menu: ParsedMenu, restaurantId:
         spice_level: coerceSpiceLevel(it.spice_level),
         tags: it.tags,
         ingredients: it.ingredients,
+        ingredient_items: structuredIngredientsForPersist(it),
         image_url: null,
         needs_review,
       });

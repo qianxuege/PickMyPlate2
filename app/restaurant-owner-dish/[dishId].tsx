@@ -9,7 +9,6 @@ import { HighlightDishBadges } from '@/components/HighlightDishBadges';
 import { restaurantRoleTheme } from '@/constants/role-theme';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
-import { DISH_ORIGIN_NOT_SPECIFIED } from '@/lib/restaurant-ingredient-items';
 import { fetchRestaurantOwnerDishDetail, type RestaurantOwnerDishDetail } from '@/lib/restaurant-owner-dish-detail';
 
 const t = restaurantRoleTheme;
@@ -172,9 +171,9 @@ export default function RestaurantOwnerDishDetailScreen() {
                           {item.name.charAt(0).toUpperCase() + item.name.slice(1)}
                         </Text>
                       </View>
-                      <Text style={styles.ingredientOriginText}>
-                        {item.origin?.trim() ? item.origin.trim() : DISH_ORIGIN_NOT_SPECIFIED}
-                      </Text>
+                      {item.origin?.trim() ? (
+                        <Text style={styles.ingredientOriginText}>{item.origin.trim()}</Text>
+                      ) : null}
                     </View>
                   ))}
                 </View>

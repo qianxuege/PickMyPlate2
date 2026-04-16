@@ -91,10 +91,10 @@ describe('dishDbToIngredientFormRows', () => {
 });
 
 describe('normalizeIngredientItemsForPersist', () => {
-  it('trims, drops blank names, coerces empty origin to null', () => {
+  it('trims, drops fully blank rows, coerces empty origin to null', () => {
     const r = normalizeIngredientItemsForPersist([
       { name: '  a  ', origin: '   ' },
-      { name: '', origin: 'ignored' },
+      { name: '', origin: '' },
       { name: 'b', origin: 'local' },
     ]);
     expect(r).toEqual({
@@ -104,6 +104,12 @@ describe('normalizeIngredientItemsForPersist', () => {
         { name: 'b', origin: 'local' },
       ],
     });
+  });
+
+  it('rejects empty ingredient name when origin is set', () => {
+    const r = normalizeIngredientItemsForPersist([{ name: '', origin: 'Spain' }]);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/name/i);
   });
 
   it('rejects origin longer than max', () => {

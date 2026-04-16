@@ -9,6 +9,7 @@ import { HighlightDishBadges } from '@/components/HighlightDishBadges';
 import { restaurantRoleTheme } from '@/constants/role-theme';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
+import { DISH_INGREDIENT_ORIGIN_NOT_SPECIFIED } from '@/lib/restaurant-ingredient-items';
 import { fetchRestaurantOwnerDishDetail, type RestaurantOwnerDishDetail } from '@/lib/restaurant-owner-dish-detail';
 
 const t = restaurantRoleTheme;
@@ -163,19 +164,27 @@ export default function RestaurantOwnerDishDetailScreen() {
               <View style={styles.block}>
                 <Text style={styles.blockTitle}>Ingredients</Text>
                 <View style={styles.ingredientCard}>
-                  {detail.ingredientItems.map((item, idx) => (
-                    <View key={`${idx}-${item.name}`} style={styles.ingredientRowBlock}>
-                      <View style={styles.ingredientTitleRow}>
-                        <View style={styles.ingredientDot} />
-                        <Text style={styles.ingredientText}>
-                          {item.name.charAt(0).toUpperCase() + item.name.slice(1)}
+                  {detail.ingredientItems.map((item, idx) => {
+                    const originShown = item.origin?.trim() ?? '';
+                    return (
+                      <View key={`${idx}-${item.name}`} style={styles.ingredientRowBlock}>
+                        <View style={styles.ingredientTitleRow}>
+                          <View style={styles.ingredientDot} />
+                          <Text style={styles.ingredientText}>
+                            {item.name.charAt(0).toUpperCase() + item.name.slice(1)}
+                          </Text>
+                        </View>
+                        <Text
+                          style={[
+                            styles.ingredientOriginText,
+                            !originShown ? styles.ingredientOriginPlaceholder : null,
+                          ]}
+                        >
+                          {originShown || DISH_INGREDIENT_ORIGIN_NOT_SPECIFIED}
                         </Text>
                       </View>
-                      {item.origin?.trim() ? (
-                        <Text style={styles.ingredientOriginText}>{item.origin.trim()}</Text>
-                      ) : null}
-                    </View>
-                  ))}
+                    );
+                  })}
                 </View>
               </View>
             ) : detail.ingredients.length > 0 ? (
@@ -369,6 +378,10 @@ const styles = StyleSheet.create({
     color: G.sub,
     marginLeft: 16,
     lineHeight: 18,
+  },
+  ingredientOriginPlaceholder: {
+    color: G.muted,
+    fontStyle: 'italic',
   },
   ingredientDot: {
     width: 6,

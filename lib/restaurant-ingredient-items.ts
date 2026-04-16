@@ -1,5 +1,8 @@
 export const MAX_DISH_INGREDIENT_ORIGIN_LEN = 100 as const;
 
+/** Shown on diner-facing dish detail when an ingredient has no origin (US9). */
+export const DISH_INGREDIENT_ORIGIN_NOT_SPECIFIED = 'Origin not specified' as const;
+
 export type DishIngredientItem = {
   name: string;
   origin: string | null;
@@ -156,9 +159,17 @@ export function normalizeIngredientItemsForPersist(
   const items: DishIngredientItem[] = [];
   for (const row of rows) {
     const name = (row.name ?? '').trim();
-    if (!name) continue;
     const rawOrigin = row.origin;
     const originStr = typeof rawOrigin === 'string' ? rawOrigin.trim() : '';
+    if (!name) {
+      if (originStr.length > 0) {
+        return {
+          ok: false,
+          error: 'Each ingredient needs a name. Remove the row or enter a name before saving an origin.',
+        };
+      }
+      continue;
+    }
     if (originStr.length > MAX_DISH_INGREDIENT_ORIGIN_LEN) {
       return {
         ok: false,

@@ -9,6 +9,7 @@ import { HighlightDishBadges } from '@/components/HighlightDishBadges';
 import { RestaurantUiInspect } from '@/constants/restaurant-ui-inspect';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
+import { DISH_INGREDIENT_ORIGIN_NOT_SPECIFIED } from '@/lib/restaurant-ingredient-items';
 import { fetchPublishedRestaurantDishDetail, type PublishedRestaurantDishDetail } from '@/lib/restaurant-public-dish';
 
 export default function RestaurantDishDetailScreen() {
@@ -104,14 +105,22 @@ export default function RestaurantDishDetailScreen() {
               <View style={styles.block}>
                 <Text style={styles.blockTitle}>Ingredients</Text>
                 <View style={styles.ingredientList}>
-                  {detail.ingredientItems.map((item, idx) => (
-                    <View key={`${idx}-${item.name}`} style={styles.ingredientLine}>
-                      <Text style={styles.ingredientName}>{item.name}</Text>
-                      {item.origin?.trim() ? (
-                        <Text style={styles.ingredientOrigin}>{item.origin.trim()}</Text>
-                      ) : null}
-                    </View>
-                  ))}
+                  {detail.ingredientItems.map((item, idx) => {
+                    const originShown = item.origin?.trim() ?? '';
+                    return (
+                      <View key={`${idx}-${item.name}`} style={styles.ingredientLine}>
+                        <Text style={styles.ingredientName}>{item.name}</Text>
+                        <Text
+                          style={[
+                            styles.ingredientOrigin,
+                            !originShown ? styles.ingredientOriginPlaceholder : null,
+                          ]}
+                        >
+                          {originShown || DISH_INGREDIENT_ORIGIN_NOT_SPECIFIED}
+                        </Text>
+                      </View>
+                    );
+                  })}
                 </View>
               </View>
             ) : null}
@@ -240,5 +249,9 @@ const styles = StyleSheet.create({
   ingredientOrigin: {
     ...Typography.body,
     color: RestaurantUiInspect.sub,
+  },
+  ingredientOriginPlaceholder: {
+    color: RestaurantUiInspect.muted,
+    fontStyle: 'italic',
   },
 });

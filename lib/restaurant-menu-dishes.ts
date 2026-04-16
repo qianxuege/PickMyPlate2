@@ -1,3 +1,8 @@
+import {
+  ingredientNamesForLegacy,
+  normalizeIngredientItemsForPersist,
+  type DishIngredientItem,
+} from '@/lib/restaurant-ingredient-items';
 import { supabase } from '@/lib/supabase';
 import { restaurantMenuDishNeedsReview } from '@/lib/restaurant-menu-dish-utils';
 
@@ -58,7 +63,8 @@ export type SaveRestaurantDishInput = {
   priceDisplay: string | null;
   spiceLevel: 0 | 1 | 2 | 3;
   tags: string[];
-  ingredients: string[];
+  /** Structured ingredients; `ingredients` text[] is derived as name-only. */
+  ingredientItems: DishIngredientItem[];
   /**
    * If true (default), updates the parent scan's last_activity_at so it moves
    * to the top of "Recent uploads".
@@ -74,10 +80,14 @@ export async function touchRestaurantMenuScan(scanId: string): Promise<void> {
 }
 
 export async function saveRestaurantDish(input: SaveRestaurantDishInput): Promise<{ ok: true } | { ok: false; error: string }> {
+  const normalized = normalizeIngredientItemsForPersist(input.ingredientItems);
+  if (!normalized.ok) return { ok: false, error: normalized.error };
+
+  const legacyNames = ingredientNamesForLegacy(normalized.items);
   const needs_review = restaurantMenuDishNeedsReview({
     name: input.name,
     priceAmount: input.priceAmount,
-    ingredients: input.ingredients,
+    ingredients: legacyNames,
   });
 
   const { error } = await supabase.from('restaurant_menu_dishes').update({
@@ -88,7 +98,8 @@ export async function saveRestaurantDish(input: SaveRestaurantDishInput): Promis
     price_display: input.priceDisplay,
     spice_level: input.spiceLevel,
     tags: input.tags,
-    ingredients: input.ingredients,
+    ingredients: legacyNames,
+    ingredient_items: normalized.items,
     needs_review,
   }).eq('id', input.dishId);
 

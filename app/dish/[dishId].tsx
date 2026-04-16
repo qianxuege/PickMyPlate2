@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { dinerRoleTheme } from '@/constants/role-theme';
 import { BorderRadius, Colors, Typography } from '@/constants/theme';
+import { DISH_ORIGIN_NOT_SPECIFIED, parseIngredientItemsFromDb, type DishIngredientItem } from '@/lib/restaurant-ingredient-items';
 import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
 import { generateDishImage } from '@/lib/dish-image-api';
 import type { DinerPreferenceSnapshot } from '@/lib/diner-preferences';
@@ -73,6 +74,8 @@ type DishDetail = {
   flavorTags: string[];
   dietaryIndicators: string[];
   ingredients: string[];
+  /** Partner QR copies with structured ingredients */
+  ingredientItems: DishIngredientItem[];
   summary: string;
   description: string | null;
 };
@@ -246,7 +249,9 @@ export default function DishDetailScreen() {
 
         const { data: dishRow, error: dishErr } = await supabase
           .from('diner_scanned_dishes')
-          .select('id, section_id, name, description, price_amount, price_currency, price_display, spice_level, tags, ingredients, image_url')
+          .select(
+            'id, section_id, name, description, price_amount, price_currency, price_display, spice_level, tags, ingredients, ingredient_items, image_url',
+          )
           .eq('id', dishId)
           .maybeSingle();
         if (dishErr) throw dishErr;
@@ -264,6 +269,7 @@ export default function DishDetailScreen() {
           | 'spice_level'
           | 'tags'
           | 'ingredients'
+          | 'ingredient_items'
           | 'image_url'
         >;
 
@@ -293,6 +299,7 @@ export default function DishDetailScreen() {
         const flavorTags = deriveFlavorTags(typedRow.tags ?? [], typedRow.spice_level ?? 0, typedRow.description);
         const dietaryIndicators = deriveDietaryIndicators(typedRow.tags ?? []);
         const ingredients = Array.isArray(typedRow.ingredients) ? typedRow.ingredients : [];
+        const ingredientItems = parseIngredientItemsFromDb(typedRow.ingredient_items);
         const summary = buildFallbackSummary({
           name: typedRow.name,
           description: typedRow.description,
@@ -318,6 +325,7 @@ export default function DishDetailScreen() {
           flavorTags,
           dietaryIndicators,
           ingredients,
+          ingredientItems,
           summary,
           description: typedRow.description,
         });
@@ -536,7 +544,19 @@ export default function DishDetailScreen() {
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Key Ingredients</Text>
                 <View style={styles.ingredientCard}>
-                  {detail.ingredients.length > 0 ? (
+                  {detail.ingredientItems.length > 0 ? (
+                    detail.ingredientItems.map((item, idx) => (
+                      <View key={`${idx}-${item.name}`} style={styles.ingredientStructuredRow}>
+                        <View style={styles.ingredientTitleRow}>
+                          <View style={styles.ingredientDot} />
+                          <Text style={styles.ingredientText}>{titleize(item.name)}</Text>
+                        </View>
+                        <Text style={styles.ingredientOriginLine}>
+                          {item.origin?.trim() ? item.origin.trim() : DISH_ORIGIN_NOT_SPECIFIED}
+                        </Text>
+                      </View>
+                    ))
+                  ) : detail.ingredients.length > 0 ? (
                     detail.ingredients.map((item) => (
                       <View key={item} style={styles.ingredientRow}>
                         <View style={styles.ingredientDot} />
@@ -799,6 +819,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 10,
+  },
+  ingredientStructuredRow: {
+    gap: 4,
+  },
+  ingredientTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  ingredientOriginLine: {
+    ...Typography.caption,
+    color: FIG.sub,
+    marginLeft: 16,
+    lineHeight: 18,
   },
   ingredientDot: {
     width: 6,

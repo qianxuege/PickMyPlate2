@@ -18,6 +18,8 @@
  * this allowlist server-side so chips match on the menu screen.
  */
 
+import { parseIngredientItemsFromDb, type DishIngredientItem } from '@/lib/restaurant-ingredient-items';
+
 export const MENU_SCAN_SCHEMA_VERSION = 1 as const;
 
 export type ParsedMenuPrice = {
@@ -51,6 +53,8 @@ export type ParsedMenuItem = {
   tags: string[];
   /** Key ingredients (Diner Dish Details); empty array if unknown */
   ingredients: string[];
+  /** Partner QR menu copies: structured name + origin when present */
+  ingredientItems?: DishIngredientItem[];
   /** Saved public URL for real or generated dish image */
   image_url?: string | null;
 };
@@ -94,6 +98,8 @@ export type DinerScannedDishRow = {
   spice_level: 0 | 1 | 2 | 3;
   tags: string[];
   ingredients: string[];
+  /** Partner copies: jsonb array; omit on OCR rows */
+  ingredient_items?: unknown;
   image_url: string | null;
 };
 
@@ -218,7 +224,8 @@ function normalizeSpiceLevel(n: unknown): 0 | 1 | 2 | 3 {
 
 /** Map a DB dish row to the API/menu item shape (e.g. after Supabase select). */
 export function dishRowToParsedItem(row: DinerScannedDishRow): ParsedMenuItem {
-  return {
+  const ingredientItems = parseIngredientItemsFromDb(row.ingredient_items);
+  const base: ParsedMenuItem = {
     id: row.id,
     name: row.name,
     description: row.description,
@@ -232,6 +239,10 @@ export function dishRowToParsedItem(row: DinerScannedDishRow): ParsedMenuItem {
     ingredients: Array.isArray(row.ingredients) ? row.ingredients : [],
     image_url: typeof row.image_url === 'string' ? row.image_url : null,
   };
+  if (ingredientItems.length > 0) {
+    return { ...base, ingredientItems };
+  }
+  return base;
 }
 
 /**

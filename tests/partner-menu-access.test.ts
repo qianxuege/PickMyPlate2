@@ -2,6 +2,7 @@ import {
   buildPartnerMenuLink,
   buildPartnerMenuQrUrl,
   getOrCreateOwnerPartnerMenuToken,
+  refreshPartnerLinkedDinerScanIfStale,
   resolvePartnerTokenToDinerScan,
 } from '@/lib/partner-menu-access';
 
@@ -156,6 +157,21 @@ describe('getOrCreateOwnerPartnerMenuToken', () => {
 // ---------------------------------------------------------------------------
 // resolvePartnerTokenToDinerScan
 // ---------------------------------------------------------------------------
+
+describe('refreshPartnerLinkedDinerScanIfStale', () => {
+  it('returns ok:false when not signed in', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null }, error: null });
+    const result = await refreshPartnerLinkedDinerScanIfStale('diner-scan-1');
+    expect(result.ok).toBe(false);
+  });
+
+  it('returns ok:false when there is no partner QR link for this diner scan', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'uid-1' } }, error: null });
+    mockFrom.mockImplementation(() => makeChain({ data: null, error: null }));
+    const result = await refreshPartnerLinkedDinerScanIfStale('diner-scan-orphan');
+    expect(result.ok).toBe(false);
+  });
+});
 
 describe('resolvePartnerTokenToDinerScan', () => {
   it('returns ok:false for an empty token', async () => {

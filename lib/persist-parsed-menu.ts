@@ -56,6 +56,7 @@ export async function persistParsedMenu(menu: ParsedMenu, profileId: string): Pr
         spice_level: it.spice_level,
         tags: it.tags,
         ingredients: it.ingredients,
+        ingredient_items: [],
         image_url: null,
       });
     });

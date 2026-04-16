@@ -229,6 +229,21 @@ describe('dishRowToParsedItem', () => {
     expect(item.tags).toEqual(['Vegetarian']);
     expect(item.ingredients).toEqual(['cabbage', 'carrot']);
     expect(item.image_url).toBeNull();
+    expect(item.ingredientItems).toBeUndefined();
+  });
+
+  it('includes ingredientItems when ingredient_items json is present', () => {
+    const row = validDishRow({
+      ingredient_items: [
+        { name: 'Tomato', origin: 'Local farm' },
+        { name: 'Salt', origin: null },
+      ],
+    });
+    const item = dishRowToParsedItem(row);
+    expect(item.ingredientItems).toEqual([
+      { name: 'Tomato', origin: 'Local farm' },
+      { name: 'Salt', origin: null },
+    ]);
   });
 
   it('maps null description and price fields correctly', () => {

@@ -9,6 +9,7 @@ import { HighlightDishBadges } from '@/components/HighlightDishBadges';
 import { restaurantRoleTheme } from '@/constants/role-theme';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
+import { DISH_ORIGIN_NOT_SPECIFIED } from '@/lib/restaurant-ingredient-items';
 import { fetchRestaurantOwnerDishDetail, type RestaurantOwnerDishDetail } from '@/lib/restaurant-owner-dish-detail';
 
 const t = restaurantRoleTheme;
@@ -159,7 +160,26 @@ export default function RestaurantOwnerDishDetailScreen() {
             {detail.description ? <Text style={styles.desc}>{detail.description}</Text> : null}
 
             {/* Ingredients */}
-            {detail.ingredients.length > 0 ? (
+            {detail.ingredientItems.length > 0 ? (
+              <View style={styles.block}>
+                <Text style={styles.blockTitle}>Ingredients</Text>
+                <View style={styles.ingredientCard}>
+                  {detail.ingredientItems.map((item, idx) => (
+                    <View key={`${idx}-${item.name}`} style={styles.ingredientRowBlock}>
+                      <View style={styles.ingredientTitleRow}>
+                        <View style={styles.ingredientDot} />
+                        <Text style={styles.ingredientText}>
+                          {item.name.charAt(0).toUpperCase() + item.name.slice(1)}
+                        </Text>
+                      </View>
+                      <Text style={styles.ingredientOriginText}>
+                        {item.origin?.trim() ? item.origin.trim() : DISH_ORIGIN_NOT_SPECIFIED}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ) : detail.ingredients.length > 0 ? (
               <View style={styles.block}>
                 <Text style={styles.blockTitle}>Ingredients</Text>
                 <View style={styles.ingredientCard}>
@@ -336,6 +356,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 10,
+  },
+  ingredientRowBlock: {
+    gap: 4,
+  },
+  ingredientTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  ingredientOriginText: {
+    ...Typography.caption,
+    color: G.sub,
+    marginLeft: 16,
+    lineHeight: 18,
   },
   ingredientDot: {
     width: 6,

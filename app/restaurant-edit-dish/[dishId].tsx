@@ -8,6 +8,7 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { restaurantRoleTheme } from '@/constants/role-theme';
 import { Colors, Typography } from '@/constants/theme';
 import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
+import { MAX_DISH_INGREDIENT_ORIGIN_LEN, parseIngredientItemsFromDb } from '@/lib/restaurant-ingredient-items';
 import { supabase } from '@/lib/supabase';
 import { generateRestaurantDishImage } from '@/lib/restaurant-dish-image-api';
 import { pickAndUploadRestaurantDishPhoto } from '@/lib/restaurant-dish-photo-upload';
@@ -33,12 +34,13 @@ function parsePriceToAmount(input: string): { amount: number | null; currency: s
   return { amount: Number.isFinite(n) ? n : null, currency, display: raw };
 }
 
-function parseIngredientsText(input: string): string[] {
-  return input
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
+function newIngredientRowId(): string {
+  return globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function'
+    ? globalThis.crypto.randomUUID()
+    : `ing-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
+
+type IngredientFormRow = { id: string; name: string; origin: string };
 
 function parseTagsText(input: string): string[] {
   return input
@@ -64,7 +66,7 @@ export default function RestaurantEditDishScreen() {
   const [name, setName] = useState('');
   const [priceText, setPriceText] = useState('');
   const [summary, setSummary] = useState('');
-  const [ingredientsText, setIngredientsText] = useState('');
+  const [ingredientRows, setIngredientRows] = useState<IngredientFormRow[]>([]);
   const [tagsText, setTagsText] = useState('');
   const [spiceLevel, setSpiceLevel] = useState<SpiceLevel>(0);
 
@@ -82,7 +84,9 @@ export default function RestaurantEditDishScreen() {
         setLoading(true);
         const { data, error } = await supabase
           .from('restaurant_menu_dishes')
-          .select('id, name, description, price_amount, price_currency, price_display, spice_level, tags, ingredients, image_url')
+          .select(
+            'id, name, description, price_amount, price_currency, price_display, spice_level, tags, ingredients, ingredient_items, image_url',
+          )
           .eq('id', dishId)
           .maybeSingle();
         if (error) throw error;
@@ -100,8 +104,23 @@ export default function RestaurantEditDishScreen() {
         const priceDisplay = data.price_display ?? (data.price_amount != null ? `$${data.price_amount}` : '');
         setPriceText(priceDisplay ?? '');
 
-        const ingredients = Array.isArray(data.ingredients) ? data.ingredients : [];
-        setIngredientsText(ingredients.join(', '));
+        const rawItems = parseIngredientItemsFromDb(
+          (data as { ingredient_items?: unknown }).ingredient_items,
+        );
+        const legacy = Array.isArray(data.ingredients) ? (data.ingredients as string[]) : [];
+        const rows: IngredientFormRow[] =
+          rawItems.length > 0
+            ? rawItems.map((it) => ({
+                id: newIngredientRowId(),
+                name: it.name,
+                origin: it.origin ?? '',
+              }))
+            : legacy.map((n) => ({
+                id: newIngredientRowId(),
+                name: typeof n === 'string' ? n : String(n),
+                origin: '',
+              }));
+        setIngredientRows(rows);
 
         const tags = Array.isArray(data.tags) ? data.tags : [];
         setTagsText(tags.join(', '));
@@ -114,8 +133,24 @@ export default function RestaurantEditDishScreen() {
     };
   }, [dishId]);
 
-  const ingredients = useMemo(() => parseIngredientsText(ingredientsText), [ingredientsText]);
   const tags = useMemo(() => parseTagsText(tagsText), [tagsText]);
+
+  const ingredientItemsForSave = useMemo(
+    () => ingredientRows.map((r) => ({ name: r.name, origin: r.origin.trim() ? r.origin.trim() : null })),
+    [ingredientRows],
+  );
+
+  const addIngredientRow = useCallback(() => {
+    setIngredientRows((prev) => [...prev, { id: newIngredientRowId(), name: '', origin: '' }]);
+  }, []);
+
+  const removeIngredientRow = useCallback((id: string) => {
+    setIngredientRows((prev) => prev.filter((r) => r.id !== id));
+  }, []);
+
+  const patchIngredientRow = useCallback((id: string, patch: Partial<Pick<IngredientFormRow, 'name' | 'origin'>>) => {
+    setIngredientRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  }, []);
 
   const onUploadPhoto = useCallback(async () => {
     if (!dishId) return;
@@ -153,7 +188,7 @@ export default function RestaurantEditDishScreen() {
         priceDisplay: display,
         spiceLevel,
         tags,
-        ingredients,
+        ingredientItems: ingredientItemsForSave,
         touchScan: false,
       });
       if (!saved.ok) {
@@ -175,7 +210,7 @@ export default function RestaurantEditDishScreen() {
     } finally {
       setImageLoading(false);
     }
-  }, [dishId, scanId, ingredients, name, priceText, spiceLevel, summary, tags]);
+  }, [dishId, scanId, ingredientItemsForSave, name, priceText, spiceLevel, summary, tags]);
 
   const onGenerateSummary = useCallback(async () => {
     if (!dishId) return;
@@ -198,7 +233,7 @@ export default function RestaurantEditDishScreen() {
         priceDisplay: display,
         spiceLevel,
         tags,
-        ingredients,
+        ingredientItems: ingredientItemsForSave,
         touchScan: false,
       });
       if (!saved.ok) {
@@ -228,7 +263,7 @@ export default function RestaurantEditDishScreen() {
     } finally {
       setSummaryLoading(false);
     }
-  }, [dishId, scanId, ingredients, name, priceText, spiceLevel, summary, tags]);
+  }, [dishId, scanId, ingredientItemsForSave, name, priceText, spiceLevel, summary, tags]);
 
   const onSaveDish = useCallback(async () => {
     if (!dishId || !scanId) {
@@ -253,7 +288,7 @@ export default function RestaurantEditDishScreen() {
         priceDisplay: display,
         spiceLevel,
         tags,
-        ingredients,
+        ingredientItems: ingredientItemsForSave,
         touchScan: true,
       });
       if (!result.ok) {
@@ -266,7 +301,7 @@ export default function RestaurantEditDishScreen() {
     } finally {
       setSaving(false);
     }
-  }, [dishId, scanId, ingredients, name, priceText, router, spiceLevel, summary, tags]);
+  }, [dishId, scanId, ingredientItemsForSave, name, priceText, router, spiceLevel, summary, tags]);
 
   const spiceOptions: { level: SpiceLevel; label: string }[] = [
     { level: 0, label: 'None' },
@@ -445,16 +480,52 @@ export default function RestaurantEditDishScreen() {
 
             <View style={styles.section}>
               <Text style={styles.fieldLabel}>Ingredients</Text>
-              <TextInput
-                value={ingredientsText}
-                onChangeText={setIngredientsText}
-                placeholder="Comma-separated ingredients..."
-                placeholderTextColor="#6A7282"
-                style={[styles.input, styles.ingredientsInput]}
-                multiline
-                textAlignVertical="top"
-              />
-              <Text style={styles.ingredientsHint}>Separate ingredients with commas</Text>
+              <Text style={styles.ingredientsIntro}>
+                Add each ingredient and optionally its origin (max {MAX_DISH_INGREDIENT_ORIGIN_LEN} characters).
+              </Text>
+              {ingredientRows.map((row) => (
+                <View key={row.id} style={styles.ingredientRowCard}>
+                  <View style={styles.ingredientRowHeader}>
+                    <Text style={styles.ingredientRowHeading}>Item</Text>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Remove ingredient row"
+                      onPress={() => removeIngredientRow(row.id)}
+                      hitSlop={10}
+                    >
+                      <Text style={styles.removeIngredient}>Remove</Text>
+                    </Pressable>
+                  </View>
+                  <Text style={styles.subFieldLabel}>Name</Text>
+                  <TextInput
+                    value={row.name}
+                    onChangeText={(t) => patchIngredientRow(row.id, { name: t })}
+                    placeholder="e.g. Tomatoes"
+                    placeholderTextColor="#6A7282"
+                    style={styles.input}
+                  />
+                  <Text style={styles.subFieldLabel}>Origin (optional)</Text>
+                  <TextInput
+                    value={row.origin}
+                    onChangeText={(t) => patchIngredientRow(row.id, { origin: t })}
+                    placeholder="Farm, region, or supplier"
+                    placeholderTextColor="#6A7282"
+                    style={styles.input}
+                    maxLength={MAX_DISH_INGREDIENT_ORIGIN_LEN}
+                  />
+                  <Text style={styles.originCounter}>
+                    {row.origin.length}/{MAX_DISH_INGREDIENT_ORIGIN_LEN}
+                  </Text>
+                </View>
+              ))}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Add ingredient row"
+                onPress={addIngredientRow}
+                style={({ pressed }) => [styles.addIngredientBtn, pressed && { opacity: 0.88 }]}
+              >
+                <Text style={styles.addIngredientBtnText}>+ Add ingredient</Text>
+              </Pressable>
             </View>
 
             <View style={styles.section}>
@@ -654,16 +725,62 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     opacity: 0.85,
   },
-  ingredientsInput: {
-    height: 110,
-    paddingTop: 12,
-    paddingBottom: 12,
-  },
-  ingredientsHint: {
+  ingredientsIntro: {
     fontSize: 12,
     lineHeight: 18,
     color: '#6A7282',
+    marginBottom: 10,
+  },
+  ingredientRowCard: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+    backgroundColor: '#FAFAFA',
+  },
+  ingredientRowHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  ingredientRowHeading: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  subFieldLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#6A7282',
+    marginBottom: 4,
+    marginTop: 8,
+  },
+  removeIngredient: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.error,
+  },
+  originCounter: {
+    fontSize: 11,
+    color: '#6A7282',
     marginTop: 4,
+    alignSelf: 'flex-end',
+  },
+  addIngredientBtn: {
+    marginTop: 4,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: t.primary,
+    backgroundColor: Colors.white,
+  },
+  addIngredientBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: t.primary,
   },
   errorText: { ...Typography.captionMedium, color: Colors.error, marginTop: 4 },
   footer: {

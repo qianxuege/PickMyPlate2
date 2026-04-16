@@ -1,3 +1,8 @@
+import {
+  ingredientNamesForLegacy,
+  parseIngredientItemsFromDb,
+  type DishIngredientItem,
+} from '@/lib/restaurant-ingredient-items';
 import { supabase } from '@/lib/supabase';
 
 export type RestaurantMenuSectionRow = {
@@ -19,6 +24,7 @@ export type RestaurantMenuDishRow = {
   spice_level: 0 | 1 | 2 | 3;
   tags: string[];
   ingredients: string[];
+  ingredientItems: DishIngredientItem[];
   image_url: string | null;
   needs_review: boolean;
   is_featured: boolean;
@@ -64,7 +70,7 @@ export async function fetchRestaurantMenuForScan(scanId: string): Promise<FetchR
       const { data: dishRows, error: dishErr } = await supabase
         .from('restaurant_menu_dishes')
         .select(
-          'id, section_id, sort_order, name, description, price_amount, price_currency, price_display, spice_level, tags, ingredients, image_url, needs_review, is_featured, is_new',
+          'id, section_id, sort_order, name, description, price_amount, price_currency, price_display, spice_level, tags, ingredients, ingredient_items, image_url, needs_review, is_featured, is_new',
         )
         .in('section_id', sectionIds)
         .order('sort_order', { ascending: true });
@@ -72,11 +78,24 @@ export async function fetchRestaurantMenuForScan(scanId: string): Promise<FetchR
       if (dishErr) return { ok: false, error: dishErr.message };
       dishes = (dishRows ?? []).map((d) => {
         const row = d as Record<string, unknown>;
+        let ingredientItems = parseIngredientItemsFromDb(row.ingredient_items);
+        if (ingredientItems.length === 0) {
+          const leg = Array.isArray(row.ingredients) ? (row.ingredients as string[]) : [];
+          ingredientItems = leg
+            .map((n) => ({
+              name: typeof n === 'string' ? n.trim() : String(n).trim(),
+              origin: null as string | null,
+            }))
+            .filter((x) => x.name.length > 0);
+        }
+        const ingredients = ingredientNamesForLegacy(ingredientItems);
         return {
           ...(d as object),
           spice_level: coerceSpiceLevel(row.spice_level),
           is_featured: Boolean(row.is_featured),
           is_new: Boolean(row.is_new),
+          ingredients,
+          ingredientItems,
         } as RestaurantMenuDishRow;
       });
     }

@@ -22,6 +22,7 @@ import type { DinerPreferenceSnapshot } from '@/lib/diner-preferences';
 import { fetchDinerPreferences, spiceDbToLabel } from '@/lib/diner-preferences';
 import { fetchFavoritedDishIds, toggleDishFavorite } from '@/lib/diner-favorites';
 import { fetchParsedMenuForScan } from '@/lib/fetch-parsed-menu-for-scan';
+import { refreshPartnerLinkedDinerScanIfStale } from '@/lib/partner-menu-access';
 import type { ParsedMenu, ParsedMenuItem } from '@/lib/menu-scan-schema';
 
 /** Figma Diner Menu 1 tokens */
@@ -95,8 +96,14 @@ export default function DinerMenuScreen() {
       setError(null);
       setLoading(true);
 
+      const refresh = await refreshPartnerLinkedDinerScanIfStale(scanId);
+      const effectiveScanId = refresh.ok ? refresh.scanId : scanId;
+      if (refresh.ok && refresh.scanId !== scanId) {
+        router.setParams({ scanId: refresh.scanId });
+      }
+
       const prefSnap = await fetchDinerPreferences();
-      const fetched = await fetchParsedMenuForScan(scanId);
+      const fetched = await fetchParsedMenuForScan(effectiveScanId);
       if (!fetched.ok) throw new Error(fetched.error);
 
       setPrefs(prefSnap);
@@ -106,7 +113,7 @@ export default function DinerMenuScreen() {
     } finally {
       setLoading(false);
     }
-  }, [scanId]);
+  }, [scanId, router]);
 
   useFocusEffect(
     useCallback(() => {

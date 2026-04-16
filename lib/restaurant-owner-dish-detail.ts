@@ -1,3 +1,8 @@
+import {
+  ingredientNamesForLegacy,
+  parseIngredientItemsFromDb,
+  type DishIngredientItem,
+} from '@/lib/restaurant-ingredient-items';
 import { supabase } from '@/lib/supabase';
 
 export type RestaurantOwnerDishDetail = {
@@ -10,6 +15,7 @@ export type RestaurantOwnerDishDetail = {
   spice_level: 0 | 1 | 2 | 3;
   tags: string[];
   ingredients: string[];
+  ingredientItems: DishIngredientItem[];
   image_url: string | null;
   is_featured: boolean;
   is_new: boolean;
@@ -35,7 +41,7 @@ export async function fetchRestaurantOwnerDishDetail(
   const { data: dish, error: dErr } = await supabase
     .from('restaurant_menu_dishes')
     .select(
-      'id, section_id, name, description, price_amount, price_currency, price_display, spice_level, tags, ingredients, image_url, is_featured, is_new, needs_review',
+      'id, section_id, name, description, price_amount, price_currency, price_display, spice_level, tags, ingredients, ingredient_items, image_url, is_featured, is_new, needs_review',
     )
     .eq('id', dishId)
     .maybeSingle();
@@ -66,6 +72,15 @@ export async function fetchRestaurantOwnerDishDetail(
     // best-effort; menuName stays null
   }
 
+  let ingredientItems = parseIngredientItemsFromDb(row.ingredient_items);
+  if (ingredientItems.length === 0) {
+    const leg = Array.isArray(row.ingredients) ? (row.ingredients as string[]) : [];
+    ingredientItems = leg
+      .map((n) => ({ name: typeof n === 'string' ? n.trim() : String(n).trim(), origin: null as string | null }))
+      .filter((x) => x.name.length > 0);
+  }
+  const ingredients = ingredientNamesForLegacy(ingredientItems);
+
   return {
     ok: true,
     dish: {
@@ -77,7 +92,8 @@ export async function fetchRestaurantOwnerDishDetail(
       price_display: row.price_display == null ? null : String(row.price_display),
       spice_level: coerceSpice(row.spice_level),
       tags: Array.isArray(row.tags) ? (row.tags as string[]) : [],
-      ingredients: Array.isArray(row.ingredients) ? (row.ingredients as string[]) : [],
+      ingredients,
+      ingredientItems,
       image_url: row.image_url == null ? null : String(row.image_url),
       is_featured: Boolean(row.is_featured),
       is_new: Boolean(row.is_new),

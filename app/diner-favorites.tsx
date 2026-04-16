@@ -21,6 +21,8 @@ import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
 import {
   fetchDinerFavoritesList,
   toggleDishFavorite,
+  upsertFavoriteNote,
+  NOTE_MAX_LENGTH,
   type DinerFavoriteListItem,
 } from '@/lib/diner-favorites';
 
@@ -81,6 +83,10 @@ export default function DinerFavoritesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [collapsedRestaurants, setCollapsedRestaurants] = useState<Set<string>>(() => new Set());
+  const [editingNoteForDishId, setEditingNoteForDishId] = useState<string | null>(null);
+  const [noteInputs, setNoteInputs] = useState<Map<string, string>>(() => new Map());
+  const [notes, setNotes] = useState<Map<string, string | null>>(() => new Map());
+  const [savingNote, setSavingNote] = useState(false);
 
   const filteredItems = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -122,6 +128,7 @@ export default function DinerFavoritesScreen() {
     try {
       const list = await fetchDinerFavoritesList();
       setItems(list);
+      setNotes(new Map(list.map((item) => [item.dishId, item.note])));
     } catch (e) {
       Alert.alert('Could not load favorites', e instanceof Error ? e.message : 'Unknown error');
     } finally {
@@ -168,6 +175,134 @@ export default function DinerFavoritesScreen() {
     },
     []
   );
+
+  const onSaveNote = useCallback(
+    async (dishId: string) => {
+      const text = noteInputs.get(dishId) ?? '';
+      setSavingNote(true);
+      try {
+        await upsertFavoriteNote(dishId, text);
+        setNotes((prev) => {
+          const next = new Map(prev);
+          next.set(dishId, text.trim().length > 0 ? text.trim() : null);
+          return next;
+        });
+        setEditingNoteForDishId(null);
+      } catch (e) {
+        Alert.alert('Could not save note', e instanceof Error ? e.message : 'Unknown error');
+      } finally {
+        setSavingNote(false);
+      }
+    },
+    [noteInputs]
+  );
+
+  const renderNoteWidget = (row: DinerFavoriteListItem) => {
+    const savedNote = notes.get(row.dishId) ?? null;
+    const isEditing = editingNoteForDishId === row.dishId;
+    const inputText = noteInputs.get(row.dishId) ?? savedNote ?? '';
+    const charCount = inputText.length;
+    const overLimit = charCount > NOTE_MAX_LENGTH;
+
+    if (isEditing) {
+      return (
+        <View style={styles.noteEditWrap}>
+          <TextInput
+            value={inputText}
+            onChangeText={(text) =>
+              setNoteInputs((prev) => {
+                const next = new Map(prev);
+                next.set(row.dishId, text);
+                return next;
+              })
+            }
+            placeholder="Add a private note…"
+            placeholderTextColor={FIG.sub}
+            style={[styles.noteInput, overLimit && styles.noteInputError]}
+            multiline
+            maxLength={NOTE_MAX_LENGTH + 20}
+            autoFocus
+            accessibilityLabel="Note text input"
+          />
+          <View style={styles.noteEditFooter}>
+            <Text style={[styles.noteCharCount, overLimit && styles.noteCharCountError]}>
+              {charCount} / {NOTE_MAX_LENGTH}
+            </Text>
+            <View style={styles.noteEditButtons}>
+              <Pressable
+                onPress={() => {
+                  setEditingNoteForDishId(null);
+                  setNoteInputs((prev) => {
+                    const next = new Map(prev);
+                    next.delete(row.dishId);
+                    return next;
+                  });
+                }}
+                style={({ pressed }) => [styles.noteCancelButton, pressed && styles.iconPressed]}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel note edit"
+              >
+                <Text style={styles.noteCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => void onSaveNote(row.dishId)}
+                disabled={savingNote || overLimit}
+                style={({ pressed }) => [
+                  styles.noteSaveButton,
+                  (savingNote || overLimit) && styles.noteSaveButtonDisabled,
+                  pressed && !savingNote && !overLimit && styles.iconPressed,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Save note"
+              >
+                <Text style={styles.noteSaveText}>{savingNote ? 'Saving…' : 'Save'}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      );
+    }
+
+    if (savedNote) {
+      return (
+        <Pressable
+          onPress={() => {
+            setNoteInputs((prev) => {
+              const next = new Map(prev);
+              next.set(row.dishId, savedNote);
+              return next;
+            });
+            setEditingNoteForDishId(row.dishId);
+          }}
+          style={({ pressed }) => [styles.noteSavedWrap, pressed && styles.dishRowPressed]}
+          accessibilityRole="button"
+          accessibilityLabel="Edit note"
+        >
+          <MaterialCommunityIcons name="pencil-outline" size={14} color={FIG.sub} style={styles.noteIcon} />
+          <Text style={styles.noteSavedText} numberOfLines={2}>{savedNote}</Text>
+        </Pressable>
+      );
+    }
+
+    return (
+      <Pressable
+        onPress={() => {
+          setNoteInputs((prev) => {
+            const next = new Map(prev);
+            next.set(row.dishId, '');
+            return next;
+          });
+          setEditingNoteForDishId(row.dishId);
+        }}
+        style={({ pressed }) => [styles.noteAddWrap, pressed && styles.dishRowPressed]}
+        accessibilityRole="button"
+        accessibilityLabel="Add a private note to this dish"
+      >
+        <MaterialCommunityIcons name="pencil-plus-outline" size={14} color={FIG.sub} />
+        <Text style={styles.noteAddText}>Add a private note…</Text>
+      </Pressable>
+    );
+  };
 
   const renderFlames = (level: 0 | 1 | 2 | 3) => {
     if (level === 0) return null;
@@ -235,6 +370,7 @@ export default function DinerFavoritesScreen() {
         >
           <MaterialCommunityIcons name="heart" size={22} color={FIG.orange} />
         </Pressable>
+        {renderNoteWidget(row)}
       </View>
     );
   };
@@ -518,5 +654,106 @@ const styles = StyleSheet.create({
   },
   iconPressed: {
     opacity: 0.7,
+  },
+  noteEditWrap: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    gap: 8,
+  },
+  noteInput: {
+    borderWidth: 1,
+    borderColor: FIG.border,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    lineHeight: 20,
+    color: FIG.text,
+    backgroundColor: '#FAFAFA',
+    minHeight: 72,
+    textAlignVertical: 'top' as const,
+  },
+  noteInputError: {
+    borderColor: '#E53E3E',
+  },
+  noteEditFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  noteCharCount: {
+    fontSize: 12,
+    lineHeight: 16,
+    color: FIG.sub,
+  },
+  noteCharCountError: {
+    color: '#E53E3E',
+  },
+  noteEditButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  noteCancelButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: FIG.border,
+    backgroundColor: Colors.white,
+  },
+  noteCancelText: {
+    fontSize: 14,
+    fontWeight: '500' as const,
+    color: FIG.bodyMuted,
+  },
+  noteSaveButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: FIG.orange,
+  },
+  noteSaveButtonDisabled: {
+    opacity: 0.5,
+  },
+  noteSaveText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.white,
+  },
+  noteSavedWrap: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginHorizontal: 16,
+    marginBottom: 12,
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: FIG.border,
+  },
+  noteIcon: {
+    marginTop: 2,
+  },
+  noteSavedText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    color: FIG.bodyMuted,
+  },
+  noteAddWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  noteAddText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: FIG.sub,
   },
 });

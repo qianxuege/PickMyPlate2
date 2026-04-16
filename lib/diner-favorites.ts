@@ -13,7 +13,10 @@ export type DinerFavoriteListItem = {
   priceDisplay: string | null;
   spiceLevel: 0 | 1 | 2 | 3;
   imageUrl: string | null;
+  note: string | null;
 };
+
+export const NOTE_MAX_LENGTH = 300;
 
 /**
  * All favorited dish ids for the signed-in diner (for menu/search hearts).
@@ -95,7 +98,7 @@ export async function fetchDinerFavoritesList(): Promise<DinerFavoriteListItem[]
 
   const { data: favs, error: favErr } = await supabase
     .from('diner_favorite_dishes')
-    .select('dish_id, created_at')
+    .select('dish_id, created_at, note')
     .eq('profile_id', user.id)
     .order('created_at', { ascending: false });
 
@@ -183,8 +186,54 @@ export async function fetchDinerFavoritesList(): Promise<DinerFavoriteListItem[]
       priceDisplay: (d.price_display as string | null) ?? null,
       spiceLevel: (d.spice_level ?? 0) as 0 | 1 | 2 | 3,
       imageUrl: (d.image_url as string | null) ?? null,
+      note: (f.note as string | null) ?? null,
     });
   }
 
   return out;
+}
+
+/**
+ * Fetch the note for a single favorited dish (used on the dish detail page).
+ * Returns null if not favorited or no note set.
+ */
+export async function fetchFavoriteNote(dishId: string): Promise<string | null> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data, error } = await supabase
+    .from('diner_favorite_dishes')
+    .select('note')
+    .eq('profile_id', user.id)
+    .eq('dish_id', dishId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return (data?.note as string | null) ?? null;
+}
+
+/**
+ * Save or clear a note on a favorited dish.
+ * Passing an empty string clears the note (sets to null).
+ */
+export async function upsertFavoriteNote(dishId: string, note: string): Promise<void> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Sign in required');
+
+  const trimmed = note.trim();
+  if (trimmed.length > NOTE_MAX_LENGTH) {
+    throw new Error(`Notes must be ${NOTE_MAX_LENGTH} characters or fewer.`);
+  }
+
+  const { error } = await supabase
+    .from('diner_favorite_dishes')
+    .update({ note: trimmed.length > 0 ? trimmed : null })
+    .eq('profile_id', user.id)
+    .eq('dish_id', dishId);
+
+  if (error) throw new Error(error.message);
 }

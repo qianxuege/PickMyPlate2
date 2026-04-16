@@ -41,15 +41,14 @@ async function main() {
   const existingSpecPath = process.env.EXISTING_SPEC_PATH || "";
   const isUpdate = existingSpecPath !== "" && await fileExists(existingSpecPath);
 
-  const [diff, sourceContext, promptTemplate, existingSpec, linkedIssue] = await Promise.all([
+  const [diff, sourceContext, promptTemplate, existingSpec] = await Promise.all([
     fs.readFile(diffPath, "utf8"),
     buildSourceContext(),
     fs.readFile(isUpdate ? UPDATE_PROMPT_PATH : CREATE_PROMPT_PATH, "utf8"),
     isUpdate ? fs.readFile(existingSpecPath, "utf8") : Promise.resolve(""),
-    fetchLinkedIssue(),
   ]);
 
-  const prompt = buildPrompt(promptTemplate, diff, sourceContext, existingSpec, isUpdate, linkedIssue);
+  const prompt = buildPrompt(promptTemplate, diff, sourceContext, existingSpec, isUpdate);
   process.stdout.write(`Calling Gemini (${isUpdate ? "update" : "create"} mode)...\n`);
 
   const specMarkdown = await callGemini(prompt);
@@ -63,7 +62,7 @@ async function main() {
 // Prompt assembly
 // ---------------------------------------------------------------------------
 
-function buildPrompt(template, diff, sourceContext, existingSpec, isUpdate, linkedIssue) {
+function buildPrompt(template, diff, sourceContext, existingSpec, isUpdate) {
   const metadata = {
     prNumber: process.env.PR_NUMBER || "",
     prTitle: process.env.PR_TITLE || "",
@@ -88,27 +87,6 @@ function buildPrompt(template, diff, sourceContext, existingSpec, isUpdate, link
     "```json",
     JSON.stringify(metadata, null, 2),
     "```",
-  ];
-
-  if (linkedIssue) {
-    parts.push(
-      "",
-      "## Linked User Story Issue",
-      "",
-      `The PR body references issue #${linkedIssue.number}. Its content is below.`,
-      `Look for "Primary Owner" and "Secondary Owner" lines to populate Section 1.`,
-      "",
-      "```",
-      `Title: ${linkedIssue.title}`,
-      `Author: ${linkedIssue.author}`,
-      `Assignees: ${linkedIssue.assignees}`,
-      "",
-      linkedIssue.body,
-      "```",
-    );
-  }
-
-  parts.push(
     "",
     "## Unified Diff",
     "",
@@ -119,7 +97,7 @@ function buildPrompt(template, diff, sourceContext, existingSpec, isUpdate, link
     "## Changed Source Files",
     "",
     sourceContext,
-  );
+  ];
 
   if (isUpdate && existingSpec) {
     parts.push(
@@ -131,43 +109,6 @@ function buildPrompt(template, diff, sourceContext, existingSpec, isUpdate, link
   }
 
   return parts.join("\n");
-}
-
-// ---------------------------------------------------------------------------
-// Linked issue fetching
-// ---------------------------------------------------------------------------
-
-async function fetchLinkedIssue() {
-  const prBody = process.env.PR_BODY || "";
-  const repoOwner = process.env.GITHUB_REPOSITORY || "";
-  const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN || "";
-
-  if (!token || !repoOwner) return null;
-
-  // Parse issue numbers from "Closes #N", "Fixes #N", "Relates to #N" patterns
-  const matches = [...prBody.matchAll(/(?:closes|fixes|relates\s+to)\s+#(\d+)/gi)];
-  if (matches.length === 0) return null;
-
-  const issueNumber = matches[0][1];
-
-  try {
-    const response = await fetch(
-      `https://api.github.com/repos/${repoOwner}/issues/${issueNumber}`,
-      { headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" } },
-    );
-    if (!response.ok) return null;
-
-    const issue = await response.json();
-    return {
-      number: issue.number,
-      title: issue.title || "",
-      author: issue.user?.login || "",
-      assignees: (issue.assignees || []).map((a) => a.login).join(", ") || "none",
-      body: issue.body || "",
-    };
-  } catch {
-    return null;
-  }
 }
 
 // ---------------------------------------------------------------------------

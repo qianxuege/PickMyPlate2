@@ -119,13 +119,11 @@ jobs:
         if: steps.us.outputs.skip == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_API_URL: ${{ github.event.pull_request.url }}
+          PR_NUMBER: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.pr_number || github.event.pull_request.number }}
         run: |
-          curl --fail --silent --show-error \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
+          gh api repos/${{ github.repository }}/pulls/${PR_NUMBER} \
             -H "Accept: application/vnd.github.v3.diff" \
-            "${PR_API_URL}" \
-            -o /tmp/pr.diff
+            > /tmp/pr.diff
 
       - name: Run dev spec generator
         if: steps.us.outputs.skip == 'false'

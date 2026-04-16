@@ -1,6 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -71,6 +72,9 @@ export default function RestaurantEditDishScreen() {
   const [spiceLevel, setSpiceLevel] = useState<SpiceLevel>(0);
   const [caloriesManualText, setCaloriesManualText] = useState('');
   const [caloriesEstimated, setCaloriesEstimated] = useState<number | null>(null);
+  /** True only after a successful Estimate (AI) this visit — avoids "saved" copy for DB-loaded values before any tap. */
+  const [aiCaloriesTouchedThisSession, setAiCaloriesTouchedThisSession] = useState(false);
+  const caloriesEstimatedRef = useRef<number | null>(null);
   const [caloriesLoading, setCaloriesLoading] = useState(false);
   const [caloriesError, setCaloriesError] = useState<string | null>(null);
 
@@ -79,6 +83,10 @@ export default function RestaurantEditDishScreen() {
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [summaryError, setSummaryError] = useState<string | null>(null);
+
+  useEffect(() => {
+    caloriesEstimatedRef.current = caloriesEstimated;
+  }, [caloriesEstimated]);
 
   useEffect(() => {
     if (!dishId) return;
@@ -132,6 +140,7 @@ export default function RestaurantEditDishScreen() {
           typeof cm === 'number' && Number.isFinite(cm) && Math.round(cm) >= 0 ? String(Math.round(cm)) : '',
         );
         setCaloriesEstimated(typeof ce === 'number' && Number.isFinite(ce) ? Math.round(ce) : null);
+        setAiCaloriesTouchedThisSession(false);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -234,10 +243,17 @@ export default function RestaurantEditDishScreen() {
         Alert.alert('Could not save dish', saved.error);
         return;
       }
+      const prevEstimated = caloriesEstimatedRef.current;
       const res = await estimateRestaurantDishCalories(dishId);
       if (res.ok) {
         setCaloriesEstimated(res.caloriesEstimated);
-        if (res.caloriesEstimated == null) {
+        if (res.caloriesEstimated != null) {
+          setAiCaloriesTouchedThisSession(true);
+          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          if (prevEstimated != null && prevEstimated === res.caloriesEstimated) {
+            Alert.alert('Calories', `AI kept the same estimate (~${res.caloriesEstimated} cal). Try changing ingredients or name, then refresh.`);
+          }
+        } else {
           Alert.alert('Calories', 'No estimate was returned. Add ingredients or a clearer dish name and try again.');
         }
       } else {
@@ -466,7 +482,9 @@ export default function RestaurantEditDishScreen() {
                 <Text style={styles.fieldLabel}>Calories (optional)</Text>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Estimate calories with AI"
+                  accessibilityLabel={
+                    caloriesEstimated != null ? 'Refresh AI calories estimate' : 'Estimate calories with AI'
+                  }
                   onPress={() => void onEstimateCalories()}
                   disabled={!dishId || caloriesLoading}
                   style={({ pressed }) => [
@@ -476,7 +494,9 @@ export default function RestaurantEditDishScreen() {
                     pressed && { opacity: 0.9 },
                   ]}
                 >
-                  <Text style={styles.summaryAiPillText}>{caloriesLoading ? '…' : 'Estimate (AI)'}</Text>
+                  <Text style={styles.summaryAiPillText}>
+                    {caloriesLoading ? '…' : caloriesEstimated != null ? 'Refresh (AI)' : 'Estimate (AI)'}
+                  </Text>
                 </Pressable>
               </View>
               <TextInput
@@ -487,8 +507,13 @@ export default function RestaurantEditDishScreen() {
                 style={styles.input}
                 keyboardType="number-pad"
               />
-              {caloriesEstimated != null ? (
+              {caloriesEstimated != null && aiCaloriesTouchedThisSession ? (
                 <Text style={styles.ingredientsHint}>AI estimate saved: ~{caloriesEstimated} cal</Text>
+              ) : caloriesEstimated != null ? (
+                <Text style={styles.ingredientsHint}>
+                  Previously saved AI estimate: ~{caloriesEstimated} cal. Tap Refresh (AI) to recalculate from current
+                  fields.
+                </Text>
               ) : (
                 <Text style={styles.ingredientsHint}>Whole numbers only. Manual entry overrides AI for guests.</Text>
               )}

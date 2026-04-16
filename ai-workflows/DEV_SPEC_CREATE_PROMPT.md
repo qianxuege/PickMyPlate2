@@ -161,3 +161,4 @@ For each item:
 - Use `subgraph` blocks to group related nodes visually
 - Keep arrow labels short (under 40 characters); omit if they add no information
 - Never nest subgraphs more than 2 levels deep
+- **Never use parentheses `()`, brackets `[]`, braces `{}`, or angle brackets `<>` inside node label text** — these are Mermaid shape delimiters and will cause parse errors. Strip function call parens (e.g. use `upsertFavoriteNote` not `upsertFavoriteNote()`). If a label must contain special characters, wrap the entire label in double quotes: `nodeId["label with (parens)"]`

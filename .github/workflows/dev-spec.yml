@@ -89,6 +89,7 @@ jobs:
             echo "skip=true" >> "$GITHUB_OUTPUT"
           else
             echo "us_num=$US_NUM" >> "$GITHUB_OUTPUT"
+            echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
@@ -105,7 +106,7 @@ jobs:
             echo "out_path=$EXISTING" >> "$GITHUB_OUTPUT"
             echo "mode=update" >> "$GITHUB_OUTPUT"
           else
-            SLUG=$(echo "${{ github.event.pull_request.head.ref }}" \
+            SLUG=$(echo "${{ steps.us.outputs.branch }}" \
               | sed 's|.*/||' \
               | tr '[:upper:]' '[:lower:]' \
               | sed 's/[^a-z0-9-]/-/g' \

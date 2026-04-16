@@ -22,15 +22,12 @@ Append the new merge date and PR number as an additional row or line. Do not rem
 
 ### 3. Architecture Diagram (Mermaid)
 Add, remove, or relabel nodes and edges only if the new diff introduces or removes components or changes their dependencies. Preserve unchanged parts exactly.
-If the updated diagram would exceed 12 nodes, split it following the same sub-diagram rules as the create prompt (3a client-side, 3b backend/cloud).
 
 ### 4. Information Flow Diagram (Mermaid)
 Update arrows and labels only for data flows that changed or were added. Preserve unchanged flows.
-Maintain the split into write path (4a) and read path (4b) sub-diagrams. If a path is unaffected by this PR, reproduce it unchanged.
 
 ### 5. Class Diagram (Mermaid)
 Add new classes, interfaces, or relationships introduced by the PR. Remove entries only if the PR explicitly deletes them. Preserve everything else.
-If the updated diagram would exceed 8 classes, split following the same sub-diagram rules as the create prompt (5a data types, 5b components/modules).
 
 ### 6. Implementation Units
 Add new modules and components introduced by the PR. For modified modules, update only the fields and methods that changed. For deleted modules, remove their entries. Preserve unmodified entries exactly.
@@ -62,13 +59,3 @@ Return the complete updated specification as a single Markdown document. Do not 
 - Be specific: reference actual file paths, function names, table names, and column names from the code
 - Do not invent content — if something cannot be determined from the provided code, say so explicitly
 - Output pure Markdown only — no prose outside of section content
-
-## Mermaid Diagram Rules (apply to all diagrams)
-
-- Always use `flowchart TB` (top-to-bottom) — never `flowchart LR` for any diagram
-- Maximum **12 nodes per diagram** — split into sub-diagrams if more are needed
-- Use short, human-readable node labels — no file extensions, no full paths
-- Use `subgraph` blocks to group related nodes visually
-- Avoid crossing arrows — order nodes so arrows flow downward
-- Keep arrow labels short (under 40 characters); omit labels if they add no information
-- Never nest subgraphs more than 2 levels deep

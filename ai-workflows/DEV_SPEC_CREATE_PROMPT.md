@@ -15,8 +15,8 @@ Your task is to produce a single, complete development specification in Markdown
 
 | Role | Name | Notes |
 |------|------|-------|
-| Primary owner | <from PR or commit history, else blank> | Owns requirements and release sign-off |
-| Secondary owner | <from PR or commit history, else blank> | Owns implementation review and test plan |
+| Primary owner | <extract from the Linked User Story Issue section below — look for "Primary Owner:" line> | Owns requirements and release sign-off |
+| Secondary owner | <extract from the Linked User Story Issue section below — look for "Secondary Owner:" line> | Owns implementation review and test plan |
 
 ---
 
@@ -28,18 +28,33 @@ State the merge date and link the PR number. Format: `YYYY-MM-DD (PR #N)`.
 
 ### 3. Architecture Diagram (Mermaid)
 
-Produce a `flowchart TB` diagram. Group components by where they execute:
+Produce a `flowchart TB` diagram grouped by execution layer using subgraphs:
 - `Client` — mobile device (Expo / React Native)
 - `Server` — Flask backend
 - `Cloud` — Supabase (Auth, PostgreSQL, Storage), Vertex AI / Gemini
 
-Show every component and module touched by this user story and the direction of their dependencies.
+**Readability rules:**
+- Limit each diagram to **12 nodes or fewer**
+- If more than 12 components are involved, split into two diagrams:
+  - **3a. Client-side architecture** — components and lib modules only
+  - **3b. Backend and cloud architecture** — server, database, and cloud services only
+- Use short node labels (filename stem only, e.g. `restaurant-ingredient-items` not the full path)
+- Always use `flowchart TB` — never `LR`
+- Prefer 2–3 levels of depth; avoid chains longer than 4 nodes
 
 ---
 
 ### 4. Information Flow Diagram (Mermaid)
 
-Produce a `flowchart LR` diagram showing which user data and application data moves between components, and in which direction. Label each arrow with the data being transferred.
+Split into two focused diagrams:
+- **4a. Write path** — how user input travels from UI → lib → database
+- **4b. Read path** — how data travels from database → lib → UI
+
+Each diagram:
+- Uses `flowchart TB`
+- Has **8 nodes or fewer**
+- Labels each arrow with the data field or payload being transferred (keep labels under 40 characters)
+- Groups nodes into subgraphs by layer: `UI`, `Lib`, `Database`
 
 ---
 
@@ -51,7 +66,13 @@ Produce a `classDiagram`. Because this is a TypeScript/React project, use UML st
 - `<<type>>` for TypeScript interfaces and types
 - `<<service>>` for Flask route modules
 
-Show all types, interfaces, components, and modules relevant to this user story and their relationships. Do not leave out any class, interface, or type visible in the source files provided.
+**Readability rules:**
+- Limit each diagram to **8 classes or fewer**
+- If more than 8 are relevant, split into two diagrams:
+  - **5a. Data types and schemas** — interfaces, types, and Zod schemas
+  - **5b. Components and modules** — React components and lib modules
+- List at most **5 members per class** — include only the most significant public fields and methods
+- Do not leave out any class, interface, or type — include them all, split across diagrams if needed
 
 ---
 
@@ -131,3 +152,12 @@ For each item:
 - Be specific: reference actual file paths, function names, table names, and column names from the code
 - Do not invent content — if something cannot be determined from the provided code, say so explicitly
 - Output pure Markdown only — no prose outside of section content
+
+## Mermaid Diagram Rules (apply to all diagrams)
+
+- Always use `flowchart TB` — never `flowchart LR`
+- Maximum **12 nodes per diagram** — split into sub-diagrams if more are needed
+- Use short, human-readable node labels — no file extensions, no full paths
+- Use `subgraph` blocks to group related nodes visually
+- Keep arrow labels short (under 40 characters); omit if they add no information
+- Never nest subgraphs more than 2 levels deep

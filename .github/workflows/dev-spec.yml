@@ -1,0 +1,185 @@
+name: Generate Dev Spec
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  generate:
+    name: Generate or update dev spec
+    # Only run when the PR was actually merged (not just closed)
+    if: github.event.pull_request.merged == true
+
+    runs-on: ubuntu-latest
+
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
+      GCP_PROJECT: ${{ secrets.GCP_PROJECT }}
+      GCP_ACCESS_TOKEN: ${{ secrets.GCP_ACCESS_TOKEN }}
+      GCP_CREDENTIALS_JSON: ${{ secrets.GCP_CREDENTIALS_JSON }}
+      GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+      GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+      VERTEX_LOCATION: ${{ secrets.VERTEX_LOCATION }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # Use a PAT so the workflow can push commits back to the repo
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Extract user story number from branch name
+        id: us
+        run: |
+          BRANCH="${{ github.event.pull_request.head.ref }}"
+          # Match patterns like feat/us4-*, feature/us4-*, fix/us4-*
+          US_NUM=$(echo "$BRANCH" | grep -oP '(?i)us\K[0-9]+' | head -1)
+          if [ -z "$US_NUM" ]; then
+            echo "Branch '$BRANCH' does not match a user story pattern (us<N>). Skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "us_num=$US_NUM" >> "$GITHUB_OUTPUT"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Resolve dev spec output path
+        if: steps.us.outputs.skip == 'false'
+        id: paths
+        run: |
+          US_NUM="${{ steps.us.outputs.us_num }}"
+          SPEC_DIR="docs/dev-specs"
+          # Find existing spec for this user story (case-insensitive)
+          EXISTING=$(find "$SPEC_DIR" -iname "*us${US_NUM}*" -name "*.md" | head -1)
+          if [ -n "$EXISTING" ]; then
+            echo "existing_spec=$EXISTING" >> "$GITHUB_OUTPUT"
+            echo "out_path=$EXISTING" >> "$GITHUB_OUTPUT"
+            echo "mode=update" >> "$GITHUB_OUTPUT"
+          else
+            SLUG=$(echo "${{ github.event.pull_request.head.ref }}" \
+              | sed 's|.*/||' \
+              | tr '[:upper:]' '[:lower:]' \
+              | sed 's/[^a-z0-9-]/-/g' \
+              | sed 's/-\+/-/g')
+            echo "existing_spec=" >> "$GITHUB_OUTPUT"
+            echo "out_path=${SPEC_DIR}/us${US_NUM}-${SLUG}.md" >> "$GITHUB_OUTPUT"
+            echo "mode=create" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fetch PR diff
+        if: steps.us.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_API_URL: ${{ github.event.pull_request.url }}
+        run: |
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github.v3.diff" \
+            "${PR_API_URL}" \
+            -o /tmp/pr.diff
+
+      - name: Run dev spec generator
+        if: steps.us.outputs.skip == 'false'
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR_MERGED_AT: ${{ github.event.pull_request.merged_at }}
+          PR_DIFF_PATH: /tmp/pr.diff
+          CHANGED_FILES: ${{ join(github.event.pull_request.changed_files, ' ') }}
+          EXISTING_SPEC_PATH: ${{ steps.paths.outputs.existing_spec }}
+          DEV_SPEC_OUT_PATH: ${{ steps.paths.outputs.out_path }}
+        run: |
+          # Fetch the list of changed files via gh CLI
+          gh pr view ${{ github.event.pull_request.number }} \
+            --json files --jq '[.files[].path] | join(" ")' \
+            > /tmp/changed_files.txt
+          export CHANGED_FILES=$(cat /tmp/changed_files.txt)
+          node scripts/generateDevSpec.mjs
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Create dev spec branch, commit, and open PR
+        if: steps.us.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          US_NUM="${{ steps.us.outputs.us_num }}"
+          MODE="${{ steps.paths.outputs.mode }}"
+          SPEC_PATH="${{ steps.paths.outputs.out_path }}"
+          SOURCE_PR="${{ github.event.pull_request.number }}"
+          SOURCE_TITLE="${{ github.event.pull_request.title }}"
+          SPEC_BRANCH="docs/dev-spec-us${US_NUM}-pr${SOURCE_PR}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Create a new branch for the dev spec
+          git checkout -b "$SPEC_BRANCH"
+
+          git add "$SPEC_PATH"
+          git commit -m "${MODE}: dev spec for US${US_NUM} — ${SOURCE_TITLE} (from PR #${SOURCE_PR})"
+
+          git push origin "$SPEC_BRANCH"
+
+          # Create GitHub Issue to track this dev spec
+          ISSUE_TITLE="${MODE^}: dev spec for US${US_NUM} — ${SOURCE_TITLE}"
+          ISSUE_BODY="## Dev Spec Tracking Issue
+
+          This issue tracks the $MODE of the development specification for US${US_NUM}.
+
+          **Relates to:** #${SOURCE_PR}
+          **Source PR:** ${SOURCE_TITLE}
+          **Mode:** ${MODE}
+          **Spec file:** \`${SPEC_PATH}\`
+
+          Generated automatically by the dev-spec workflow on merge of PR #${SOURCE_PR}."
+
+          ISSUE_URL=$(gh issue create \
+            --title "$ISSUE_TITLE" \
+            --body "$ISSUE_BODY")
+          ISSUE_NUM=$(echo "$ISSUE_URL" | grep -oP '[0-9]+$')
+
+          # Amend commit to reference the issue
+          git commit --amend -m "${MODE}: dev spec for US${US_NUM} — ${SOURCE_TITLE} #${ISSUE_NUM}
+
+          Relates to #${SOURCE_PR}"
+          git push origin "$SPEC_BRANCH" --force-with-lease
+
+          # Open PR for the dev spec
+          gh pr create \
+            --title "${MODE^}: dev spec for US${US_NUM} — ${SOURCE_TITLE}" \
+            --body "## Summary
+
+          Auto-generated dev spec for US${US_NUM} triggered by the merge of PR #${SOURCE_PR}.
+
+          - **Mode:** ${MODE}
+          - **Spec file:** \`${SPEC_PATH}\`
+          - **Closes:** #${ISSUE_NUM}
+          - **Relates to:** #${SOURCE_PR}
+
+          Please review the generated spec for accuracy and completeness before merging.
+
+          🤖 Generated by the dev-spec workflow" \
+            --base main \
+            --head "$SPEC_BRANCH"

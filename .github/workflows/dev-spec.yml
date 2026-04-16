@@ -15,8 +15,12 @@ permissions:
 jobs:
   generate:
     name: Generate or update dev spec
-    # Only run when the PR was actually merged (not just closed)
-    if: github.event.pull_request.merged == true
+    # Only run when the PR was actually merged AND has the 'user-story' label.
+    # The label requirement excludes test branches, doc branches, CI changes,
+    # and the auto-generated dev spec PRs themselves from triggering this workflow.
+    if: |
+      github.event.pull_request.merged == true &&
+      contains(github.event.pull_request.labels.*.name, 'user-story')
 
     runs-on: ubuntu-latest
 

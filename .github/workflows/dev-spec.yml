@@ -61,19 +61,22 @@ jobs:
       - name: Load PR metadata (workflow_dispatch only)
         id: pr
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const { data: pr } = await github.rest.pulls.get({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: Number("${{ github.event.inputs.pr_number }}"),
-            });
-            core.setOutput("branch", pr.head.ref);
-            core.setOutput("title", pr.title);
-            core.setOutput("body", pr.body || "");
-            core.setOutput("url", pr.html_url);
-            core.setOutput("merged_at", pr.merged_at || "");
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_DATA=$(gh pr view ${{ github.event.inputs.pr_number }} \
+            --repo ${{ github.repository }} \
+            --json headRefName,title,body,url,mergedAt)
+          echo "branch=$(echo "$PR_DATA"  | jq -r '.headRefName')"  >> "$GITHUB_OUTPUT"
+          echo "title=$(echo "$PR_DATA"   | jq -r '.title')"        >> "$GITHUB_OUTPUT"
+          echo "url=$(echo "$PR_DATA"     | jq -r '.url')"          >> "$GITHUB_OUTPUT"
+          echo "merged_at=$(echo "$PR_DATA" | jq -r '.mergedAt // ""')" >> "$GITHUB_OUTPUT"
+          # body may be multi-line — write via delimiter
+          BODY=$(echo "$PR_DATA" | jq -r '.body // ""')
+          EOF_DELIM="EOF_$(openssl rand -hex 4)"
+          echo "body<<${EOF_DELIM}" >> "$GITHUB_OUTPUT"
+          echo "$BODY"              >> "$GITHUB_OUTPUT"
+          echo "${EOF_DELIM}"       >> "$GITHUB_OUTPUT"
 
       - name: Extract user story number from branch name
         id: us

@@ -225,6 +225,10 @@ export async function upsertFavoriteNote(dishId: string, note: string): Promise<
   if (!user) throw new Error('Sign in required');
 
   const trimmed = note.trim();
+  if (trimmed.length > NOTE_MAX_LENGTH) {
+    throw new Error(`Notes must be ${NOTE_MAX_LENGTH} characters or fewer.`);
+  }
+
   const { error } = await supabase
     .from('diner_favorite_dishes')
     .update({ note: trimmed.length > 0 ? trimmed : null })

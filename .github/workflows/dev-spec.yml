@@ -1,0 +1,228 @@
+name: Generate Dev Spec
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: PR number of the merged user story implementation
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  generate:
+    name: Generate or update dev spec
+    # On pull_request events: only run when merged AND has the 'user-story' label.
+    # On workflow_dispatch: always run (the human invoking it is confirming intent).
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.merged == true &&
+       contains(github.event.pull_request.labels.*.name, 'user-story'))
+
+    runs-on: ubuntu-latest
+
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
+      GCP_PROJECT: ${{ secrets.GCP_PROJECT }}
+      GCP_ACCESS_TOKEN: ${{ secrets.GCP_ACCESS_TOKEN }}
+      GCP_CREDENTIALS_JSON: ${{ secrets.GCP_CREDENTIALS_JSON }}
+      GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+      GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+      VERTEX_LOCATION: ${{ secrets.VERTEX_LOCATION }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # Use a PAT so the workflow can push commits back to the repo
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Load PR metadata (workflow_dispatch only)
+        id: pr
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_DATA=$(gh pr view ${{ github.event.inputs.pr_number }} \
+            --repo ${{ github.repository }} \
+            --json headRefName,title,body,url,mergedAt)
+          echo "branch=$(echo "$PR_DATA"  | jq -r '.headRefName')"  >> "$GITHUB_OUTPUT"
+          echo "title=$(echo "$PR_DATA"   | jq -r '.title')"        >> "$GITHUB_OUTPUT"
+          echo "url=$(echo "$PR_DATA"     | jq -r '.url')"          >> "$GITHUB_OUTPUT"
+          echo "merged_at=$(echo "$PR_DATA" | jq -r '.mergedAt // ""')" >> "$GITHUB_OUTPUT"
+          # body may be multi-line — write via delimiter
+          BODY=$(echo "$PR_DATA" | jq -r '.body // ""')
+          EOF_DELIM="EOF_$(openssl rand -hex 4)"
+          echo "body<<${EOF_DELIM}" >> "$GITHUB_OUTPUT"
+          echo "$BODY"              >> "$GITHUB_OUTPUT"
+          echo "${EOF_DELIM}"       >> "$GITHUB_OUTPUT"
+
+      - name: Extract user story number from branch name
+        id: us
+        run: |
+          BRANCH="${{ github.event_name == 'workflow_dispatch' && steps.pr.outputs.branch || github.event.pull_request.head.ref }}"
+          # Match patterns like feat/us4-*, feature/us4-*, fix/us4-*
+          US_NUM=$(echo "$BRANCH" | grep -oP '(?i)us\K[0-9]+' | head -1)
+          if [ -z "$US_NUM" ]; then
+            echo "Branch '$BRANCH' does not match a user story pattern (us<N>). Skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "us_num=$US_NUM" >> "$GITHUB_OUTPUT"
+            echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Resolve dev spec output path
+        if: steps.us.outputs.skip == 'false'
+        id: paths
+        run: |
+          US_NUM="${{ steps.us.outputs.us_num }}"
+          SPEC_DIR="docs/dev-specs"
+          # Find existing spec for this user story (case-insensitive)
+          EXISTING=$(find "$SPEC_DIR" -iname "*us${US_NUM}*" -name "*.md" | head -1)
+          if [ -n "$EXISTING" ]; then
+            echo "existing_spec=$EXISTING" >> "$GITHUB_OUTPUT"
+            echo "out_path=$EXISTING" >> "$GITHUB_OUTPUT"
+            echo "mode=update" >> "$GITHUB_OUTPUT"
+          else
+            # Derive slug from PR title — strip leading "completed user story N:" patterns then slugify
+            PR_TITLE="${{ github.event_name == 'workflow_dispatch' && steps.pr.outputs.title || github.event.pull_request.title }}"
+            SLUG=$(echo "$PR_TITLE" \
+              | sed -E 's/^(completed\s+)?user\s+story\s+[0-9]+[:\s-]*//I' \
+              | tr '[:upper:]' '[:lower:]' \
+              | sed 's/[^a-z0-9]/-/g' \
+              | sed 's/-\+/-/g' \
+              | sed 's/^-\|-$//g' \
+              | cut -c1-60)
+            echo "existing_spec=" >> "$GITHUB_OUTPUT"
+            echo "out_path=${SPEC_DIR}/us${US_NUM}-${SLUG}.md" >> "$GITHUB_OUTPUT"
+            echo "mode=create" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fetch PR diff
+        if: steps.us.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.pr_number || github.event.pull_request.number }}
+        run: |
+          gh api repos/${{ github.repository }}/pulls/${PR_NUMBER} \
+            -H "Accept: application/vnd.github.v3.diff" \
+            > /tmp/pr.diff
+
+      - name: Run dev spec generator
+        if: steps.us.outputs.skip == 'false'
+        env:
+          PR_NUMBER: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.pr_number || github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event_name == 'workflow_dispatch' && steps.pr.outputs.title || github.event.pull_request.title }}
+          PR_BODY: ${{ github.event_name == 'workflow_dispatch' && steps.pr.outputs.body || github.event.pull_request.body }}
+          PR_URL: ${{ github.event_name == 'workflow_dispatch' && steps.pr.outputs.url || github.event.pull_request.html_url }}
+          PR_BRANCH: ${{ github.event_name == 'workflow_dispatch' && steps.pr.outputs.branch || github.event.pull_request.head.ref }}
+          PR_MERGED_AT: ${{ github.event_name == 'workflow_dispatch' && steps.pr.outputs.merged_at || github.event.pull_request.merged_at }}
+          PR_DIFF_PATH: /tmp/pr.diff
+          EXISTING_SPEC_PATH: ${{ steps.paths.outputs.existing_spec }}
+          DEV_SPEC_OUT_PATH: ${{ steps.paths.outputs.out_path }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Fetch the list of changed files via gh CLI
+          gh pr view ${{ github.event.pull_request.number }} \
+            --json files --jq '[.files[].path] | join(" ")' \
+            > /tmp/changed_files.txt
+          export CHANGED_FILES=$(cat /tmp/changed_files.txt)
+          node scripts/generateDevSpec.mjs
+
+      - name: Create dev spec branch, commit, and open PR
+        if: steps.us.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          US_NUM="${{ steps.us.outputs.us_num }}"
+          MODE="${{ steps.paths.outputs.mode }}"
+          SPEC_PATH="${{ steps.paths.outputs.out_path }}"
+          SOURCE_PR="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.pr_number || github.event.pull_request.number }}"
+          SOURCE_TITLE="${{ github.event_name == 'workflow_dispatch' && steps.pr.outputs.title || github.event.pull_request.title }}"
+          SPEC_BRANCH="docs/dev-spec-us${US_NUM}-pr${SOURCE_PR}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Save the generated spec before switching branches
+          cp "$SPEC_PATH" /tmp/generated-spec.md
+
+          # Delete remote branch if it exists from a previous failed run
+          git push origin --delete "$SPEC_BRANCH" 2>/dev/null || true
+
+          # Create the spec branch from main so the PR only contains the spec file
+          git fetch origin main
+          git checkout -b "$SPEC_BRANCH" origin/main
+
+          # Restore the generated spec
+          mkdir -p "$(dirname "$SPEC_PATH")"
+          cp /tmp/generated-spec.md "$SPEC_PATH"
+
+          git add "$SPEC_PATH"
+          git commit -m "${MODE}: dev spec for US${US_NUM} — ${SOURCE_TITLE} (from PR #${SOURCE_PR})"
+
+          git push origin "$SPEC_BRANCH"
+
+          # Create GitHub Issue to track this dev spec
+          ISSUE_TITLE="${MODE^}: dev spec for US${US_NUM} — ${SOURCE_TITLE}"
+          ISSUE_BODY="## Dev Spec Tracking Issue
+
+          This issue tracks the $MODE of the development specification for US${US_NUM}.
+
+          **Relates to:** #${SOURCE_PR}
+          **Source PR:** ${SOURCE_TITLE}
+          **Mode:** ${MODE}
+          **Spec file:** \`${SPEC_PATH}\`
+
+          Generated automatically by the dev-spec workflow on merge of PR #${SOURCE_PR}."
+
+          ISSUE_URL=$(gh issue create \
+            --title "$ISSUE_TITLE" \
+            --body "$ISSUE_BODY")
+          ISSUE_NUM=$(echo "$ISSUE_URL" | grep -oP '[0-9]+$')
+
+          # Amend commit to reference the issue
+          git commit --amend -m "${MODE}: dev spec for US${US_NUM} — ${SOURCE_TITLE} #${ISSUE_NUM}
+
+          Relates to #${SOURCE_PR}"
+          git push origin "$SPEC_BRANCH" --force-with-lease
+
+          # Open PR for the dev spec
+          gh pr create \
+            --title "${MODE^}: dev spec for US${US_NUM} — ${SOURCE_TITLE}" \
+            --body "## Summary
+
+          Auto-generated dev spec for US${US_NUM} triggered by the merge of PR #${SOURCE_PR}.
+
+          - **Mode:** ${MODE}
+          - **Spec file:** \`${SPEC_PATH}\`
+          - **Closes:** #${ISSUE_NUM}
+          - **Relates to:** #${SOURCE_PR}
+
+          Please review the generated spec for accuracy and completeness before merging.
+
+          🤖 Generated by the dev-spec workflow" \
+            --base main \
+            --head "$SPEC_BRANCH"

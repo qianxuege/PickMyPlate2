@@ -106,11 +106,15 @@ jobs:
             echo "out_path=$EXISTING" >> "$GITHUB_OUTPUT"
             echo "mode=update" >> "$GITHUB_OUTPUT"
           else
-            SLUG=$(echo "${{ steps.us.outputs.branch }}" \
-              | sed 's|.*/||' \
+            # Derive slug from PR title — strip leading "completed user story N:" patterns then slugify
+            PR_TITLE="${{ github.event_name == 'workflow_dispatch' && steps.pr.outputs.title || github.event.pull_request.title }}"
+            SLUG=$(echo "$PR_TITLE" \
+              | sed -E 's/^(completed\s+)?user\s+story\s+[0-9]+[:\s-]*//I' \
               | tr '[:upper:]' '[:lower:]' \
-              | sed 's/[^a-z0-9-]/-/g' \
-              | sed 's/-\+/-/g')
+              | sed 's/[^a-z0-9]/-/g' \
+              | sed 's/-\+/-/g' \
+              | sed 's/^-\|-$//g' \
+              | cut -c1-60)
             echo "existing_spec=" >> "$GITHUB_OUTPUT"
             echo "out_path=${SPEC_DIR}/us${US_NUM}-${SLUG}.md" >> "$GITHUB_OUTPUT"
             echo "mode=create" >> "$GITHUB_OUTPUT"
@@ -161,6 +165,9 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Delete remote branch if it exists from a previous failed run
+          git push origin --delete "$SPEC_BRANCH" 2>/dev/null || true
 
           # Create a new branch for the dev spec
           git checkout -b "$SPEC_BRANCH"

@@ -86,3 +86,19 @@ export function stripDishCaloriesFields<T extends Record<string, unknown>>(row: 
   const { calories_manual: _cm, calories_estimated: _ce, ...rest } = row;
   return rest;
 }
+
+export type DishCaloriesInsertTable = 'diner_scanned_dishes' | 'restaurant_menu_dishes';
+
+/** Insert dish rows; on missing-calories-column errors retry without those fields (pre-US11 DB). */
+export async function insertDishesWithCaloriesColumnFallback(
+  table: DishCaloriesInsertTable,
+  rows: Record<string, unknown>[],
+): Promise<{ error: PostgrestError | null }> {
+  if (rows.length === 0) return { error: null };
+  let { error } = await supabase.from(table).insert(rows);
+  if (error && isMissingDishCaloriesColumnsError(error)) {
+    const stripped = rows.map((r) => stripDishCaloriesFields(r));
+    ({ error } = await supabase.from(table).insert(stripped));
+  }
+  return { error };
+}

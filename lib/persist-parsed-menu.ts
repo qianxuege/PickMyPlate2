@@ -1,7 +1,4 @@
-import {
-  isMissingDishCaloriesColumnsError,
-  stripDishCaloriesFields,
-} from '@/lib/dish-calories-columns-support';
+import { insertDishesWithCaloriesColumnFallback } from '@/lib/dish-calories-columns-support';
 import type { ParsedMenu, ParsedMenuItem, ParsedMenuSection } from '@/lib/menu-scan-schema';
 import { supabase } from '@/lib/supabase';
 
@@ -71,11 +68,7 @@ export async function persistParsedMenu(menu: ParsedMenu, profileId: string): Pr
   }
 
   if (dishRows.length > 0) {
-    let { error: dishErr } = await supabase.from('diner_scanned_dishes').insert(dishRows);
-    if (dishErr && isMissingDishCaloriesColumnsError(dishErr)) {
-      const stripped = dishRows.map((r) => stripDishCaloriesFields(r));
-      ({ error: dishErr } = await supabase.from('diner_scanned_dishes').insert(stripped));
-    }
+    const { error: dishErr } = await insertDishesWithCaloriesColumnFallback('diner_scanned_dishes', dishRows);
     if (dishErr) {
       await supabase.from('diner_menu_scans').delete().eq('id', scanId);
       return { ok: false, error: dishErr.message };

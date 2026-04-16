@@ -1,4 +1,15 @@
--- US9 (production): `restaurant_dish_ingredient_items` — applied on hosted DB as version 20260415120000.
--- This repo snapshot did not include the original file; placeholder keeps Supabase CLI history aligned.
--- Before `supabase db reset` locally, replace with the real US9 migration from your team’s branch, or pull from remote.
+-- ============================================================================
+-- PLACEHOLDER MIGRATION — READ BEFORE `supabase db reset` LOCALLY
+-- ============================================================================
+--
+-- Production applied US9 `restaurant_dish_ingredient_items` as version 20260415120000.
+-- This repo does not ship that DDL so local migration filenames stay aligned with
+-- the hosted history (avoids duplicate version numbers / repair pain).
+--
+-- If you need a correct local reset: replace this file with the real US9 migration
+-- from your team branch / remote, then run `db reset`.
+--
+-- Leaving this placeholder means US9 tables will NOT exist locally until you do.
+--
+-- ============================================================================
 select 1;

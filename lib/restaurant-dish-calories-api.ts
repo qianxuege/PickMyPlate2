@@ -67,7 +67,19 @@ export async function estimateRestaurantDishCalories(
   }
 
   if (typeof json === 'object' && json !== null && 'error' in json && typeof (json as { error?: unknown }).error === 'string') {
-    return { ok: false, error: (json as { error: string }).error };
+    const err = (json as { error: string }).error;
+    if (res.status === 429 && err === 'calorie_estimate_rate_limited') {
+      const sec = (json as { retry_after_seconds?: unknown }).retry_after_seconds;
+      const n = typeof sec === 'number' && Number.isFinite(sec) ? Math.max(1, Math.round(sec)) : null;
+      return {
+        ok: false,
+        error:
+          n != null
+            ? `Please wait about ${n}s before estimating calories for this dish again.`
+            : 'Please wait before estimating calories for this dish again.',
+      };
+    }
+    return { ok: false, error: err };
   }
 
   return { ok: false, error: `HTTP ${res.status}` };

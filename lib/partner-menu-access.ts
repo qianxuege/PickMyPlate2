@@ -1,9 +1,6 @@
 import * as Linking from 'expo-linking';
 
-import {
-  isMissingDishCaloriesColumnsError,
-  stripDishCaloriesFields,
-} from '@/lib/dish-calories-columns-support';
+import { insertDishesWithCaloriesColumnFallback } from '@/lib/dish-calories-columns-support';
 import { fetchRestaurantMenuForScan } from '@/lib/restaurant-fetch-menu-for-scan';
 import { supabase } from '@/lib/supabase';
 
@@ -252,11 +249,7 @@ export async function resolvePartnerTokenToDinerScan(token: string): Promise<Res
 
   if (dishInsert.length > 0) {
     const rows = dishInsert as Record<string, unknown>[];
-    let { error: dishErr } = await supabase.from('diner_scanned_dishes').insert(rows);
-    if (dishErr && isMissingDishCaloriesColumnsError(dishErr)) {
-      const stripped = rows.map((r) => stripDishCaloriesFields(r));
-      ({ error: dishErr } = await supabase.from('diner_scanned_dishes').insert(stripped));
-    }
+    const { error: dishErr } = await insertDishesWithCaloriesColumnFallback('diner_scanned_dishes', rows);
     if (dishErr) {
       await supabase.from('diner_menu_scans').delete().eq('id', dinerScanId);
       return { ok: false, error: dishErr.message };

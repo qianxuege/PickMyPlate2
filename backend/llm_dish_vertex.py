@@ -143,6 +143,8 @@ def generate_dish_calories_estimate(
     """
     Returns estimated calories as a non-negative int, or None.
     Raises RuntimeError on invalid model output.
+
+    Values are LLM approximations for UI only (not nutrition-grade); diners see them as estimated.
     """
     _ensure_vertex()
 

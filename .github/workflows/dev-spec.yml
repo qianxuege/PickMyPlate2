@@ -110,9 +110,9 @@ jobs:
           PR_BRANCH: ${{ github.event.pull_request.head.ref }}
           PR_MERGED_AT: ${{ github.event.pull_request.merged_at }}
           PR_DIFF_PATH: /tmp/pr.diff
-          CHANGED_FILES: ${{ join(github.event.pull_request.changed_files, ' ') }}
           EXISTING_SPEC_PATH: ${{ steps.paths.outputs.existing_spec }}
           DEV_SPEC_OUT_PATH: ${{ steps.paths.outputs.out_path }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           # Fetch the list of changed files via gh CLI
           gh pr view ${{ github.event.pull_request.number }} \
@@ -120,8 +120,6 @@ jobs:
             > /tmp/changed_files.txt
           export CHANGED_FILES=$(cat /tmp/changed_files.txt)
           node scripts/generateDevSpec.mjs
-        env:
-          GH_TOKEN: ${{ github.token }}
 
       - name: Create dev spec branch, commit, and open PR
         if: steps.us.outputs.skip == 'false'

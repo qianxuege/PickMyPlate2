@@ -9,6 +9,7 @@ import { HighlightDishBadges } from '@/components/HighlightDishBadges';
 import { RestaurantUiInspect } from '@/constants/restaurant-ui-inspect';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
+import { DISH_INGREDIENT_ORIGIN_NOT_SPECIFIED } from '@/lib/restaurant-ingredient-items';
 import { fetchPublishedRestaurantDishDetail, type PublishedRestaurantDishDetail } from '@/lib/restaurant-public-dish';
 
 export default function RestaurantDishDetailScreen() {
@@ -100,10 +101,27 @@ export default function RestaurantDishDetailScreen() {
             </View>
             <HighlightDishBadges is_featured={detail.is_featured} is_new={detail.is_new} />
             {detail.description ? <Text style={styles.desc}>{detail.description}</Text> : null}
-            {detail.ingredients.length > 0 ? (
+            {detail.ingredientItems.length > 0 ? (
               <View style={styles.block}>
                 <Text style={styles.blockTitle}>Ingredients</Text>
-                <Text style={styles.blockBody}>{detail.ingredients.join(', ')}</Text>
+                <View style={styles.ingredientList}>
+                  {detail.ingredientItems.map((item, idx) => {
+                    const originShown = item.origin?.trim() ?? '';
+                    return (
+                      <View key={`${idx}-${item.name}`} style={styles.ingredientLine}>
+                        <Text style={styles.ingredientName}>{item.name}</Text>
+                        <Text
+                          style={[
+                            styles.ingredientOrigin,
+                            !originShown ? styles.ingredientOriginPlaceholder : null,
+                          ]}
+                        >
+                          {originShown || DISH_INGREDIENT_ORIGIN_NOT_SPECIFIED}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
               </View>
             ) : null}
           </View>
@@ -216,5 +234,24 @@ const styles = StyleSheet.create({
   blockBody: {
     ...Typography.body,
     color: RestaurantUiInspect.text,
+  },
+  ingredientList: {
+    gap: Spacing.md,
+  },
+  ingredientLine: {
+    gap: 2,
+  },
+  ingredientName: {
+    ...Typography.bodyMedium,
+    fontWeight: '700',
+    color: RestaurantUiInspect.text,
+  },
+  ingredientOrigin: {
+    ...Typography.body,
+    color: RestaurantUiInspect.sub,
+  },
+  ingredientOriginPlaceholder: {
+    color: RestaurantUiInspect.muted,
+    fontStyle: 'italic',
   },
 });

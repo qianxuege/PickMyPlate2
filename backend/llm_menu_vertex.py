@@ -71,7 +71,7 @@ Hard rules:
 8. items[].price: required object on every item with keys amount (JSON number or null, not a string), currency (ISO 4217 string, never null — use "USD" when unknown), display (string or null). If no price is printed for that item, set amount to null and display to null — never guess or invent a price. When a price exists, use a JSON number for amount (e.g. 12.5 not \"12.5\").
 9. items[].spice_level: JSON integer 0, 1, 2, or 3 only. Infer from dish name, menu cues (hot, spicy, chili, jalapeño, etc.), and typical preparation when not spelled out: 0 = not spicy, 1 = mild, 2 = medium, 3 = hot. Do not output floats or strings for this field.
 10. items[].tags: CRITICAL — only strings from the "allowed_tags" array in the user message. Copy each allowed string exactly. Subjective judgment is OK: include a tag when the dish plausibly matches that user preference. If allowed_tags is empty, every items[].tags must be []. Never output tag strings not in allowed_tags.
-11. items[].ingredients: string array — key ingredients when inferable from name/description; otherwise [].
+11. items[].ingredients: string array — key ingredients when inferable from name/description; otherwise []. For very simple snacks or single-component dishes (e.g. popcorn, fries, soda), still list the obvious main component(s) inferred from the name (e.g. popcorn → ["popcorn"] or ["corn"]); avoid [] when the name alone implies what it is.
 12. Do not invent dishes that are not supported by the OCR text or the image. If OCR is unreadable, return minimal sections with empty items only if nothing can be inferred; prefer inferring from the image when it is provided.
 13. Do not duplicate the same dish in multiple sections unless the menu clearly lists it twice.
 """

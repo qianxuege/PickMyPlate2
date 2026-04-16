@@ -36,7 +36,7 @@ export async function fetchParsedMenuForScan(scanId: string): Promise<FetchParse
       const { data: dishRows, error: dishErr } = await supabase
         .from('diner_scanned_dishes')
         .select(
-          'id, section_id, sort_order, name, description, price_amount, price_currency, price_display, spice_level, tags, ingredients, image_url'
+          'id, section_id, sort_order, name, description, price_amount, price_currency, price_display, spice_level, tags, ingredients, ingredient_items, image_url'
         )
         .in('section_id', sectionIds)
         .order('sort_order', { ascending: true });

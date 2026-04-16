@@ -133,7 +133,11 @@ describe('saveRestaurantDish', () => {
     priceDisplay: '$12.99',
     spiceLevel: 0,
     tags: [],
-    ingredients: ['beef', 'bun', 'lettuce'],
+    ingredientItems: [
+      { name: 'beef', origin: null },
+      { name: 'bun', origin: 'Local bakery' },
+      { name: 'lettuce', origin: null },
+    ],
   };
 
   it('updates restaurant_menu_dishes with correct fields and touches scan', async () => {
@@ -148,7 +152,18 @@ describe('saveRestaurantDish', () => {
     expect(mockFrom).toHaveBeenNthCalledWith(2, 'restaurant_menu_scans');
     expect(dishChain.eq as jest.Mock).toHaveBeenCalledWith('id', 'dish-1');
     expect(dishChain.update as jest.Mock).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'Burger', price_currency: 'USD', spice_level: 0, tags: [], ingredients: ['beef', 'bun', 'lettuce'] })
+      expect.objectContaining({
+        name: 'Burger',
+        price_currency: 'USD',
+        spice_level: 0,
+        tags: [],
+        ingredients: ['beef', 'bun', 'lettuce'],
+        ingredient_items: [
+          { name: 'beef', origin: null },
+          { name: 'bun', origin: 'Local bakery' },
+          { name: 'lettuce', origin: null },
+        ],
+      }),
     );
     expect(scanChain.eq as jest.Mock).toHaveBeenCalledWith('id', 'scan-1');
   });
@@ -158,6 +173,16 @@ describe('saveRestaurantDish', () => {
     const result = await saveRestaurantDish(baseInput);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toBe('update failed');
+  });
+
+  it('returns ok:false when an ingredient origin exceeds max length', async () => {
+    const long = 'a'.repeat(101);
+    const result = await saveRestaurantDish({
+      ...baseInput,
+      ingredientItems: [{ name: 'salt', origin: long }],
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain('salt');
   });
 
   it('rejects when dish update succeeds but touchRestaurantMenuScan fails', async () => {

@@ -11,6 +11,11 @@ import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
 import { generateRestaurantDishImage } from '@/lib/restaurant-dish-image-api';
 import { pickAndUploadRestaurantDishPhoto } from '@/lib/restaurant-dish-photo-upload';
 import { generateRestaurantDishSummary } from '@/lib/restaurant-dish-summary-api';
+import {
+  MAX_DISH_INGREDIENT_ORIGIN_LEN,
+  newIngredientFormRowId,
+  type IngredientFormRow,
+} from '@/lib/restaurant-ingredient-items';
 import { createRestaurantDishDraft, getRestaurantSectionNextDishSortOrder, saveRestaurantDish } from '@/lib/restaurant-menu-dishes';
 
 const t = restaurantRoleTheme;
@@ -41,14 +46,6 @@ function parsePriceToAmount(input: string): { amount: number | null; currency: s
   };
 }
 
-/** Comma-separated: "chicken, potato, onion" → ["chicken", "potato", "onion"]. */
-function parseIngredientsText(input: string): string[] {
-  return input
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
 function parseTagsText(input: string): string[] {
   return input
     .split(',')
@@ -75,7 +72,7 @@ export default function RestaurantAddDishScreen() {
   const [name, setName] = useState('');
   const [priceText, setPriceText] = useState('');
   const [summary, setSummary] = useState('');
-  const [ingredientsText, setIngredientsText] = useState('');
+  const [ingredientRows, setIngredientRows] = useState<IngredientFormRow[]>([]);
   const [tagsText, setTagsText] = useState('');
   const [spiceLevel, setSpiceLevel] = useState<SpiceLevel>(0);
 
@@ -85,8 +82,24 @@ export default function RestaurantAddDishScreen() {
   const [imageError, setImageError] = useState<string | null>(null);
   const [summaryError, setSummaryError] = useState<string | null>(null);
 
-  const ingredients = useMemo(() => parseIngredientsText(ingredientsText), [ingredientsText]);
   const tags = useMemo(() => parseTagsText(tagsText), [tagsText]);
+
+  const ingredientItemsForSave = useMemo(
+    () => ingredientRows.map((r) => ({ name: r.name, origin: r.origin.trim() ? r.origin.trim() : null })),
+    [ingredientRows],
+  );
+
+  const addIngredientRow = useCallback(() => {
+    setIngredientRows((prev) => [...prev, { id: newIngredientFormRowId(), name: '', origin: '' }]);
+  }, []);
+
+  const removeIngredientRow = useCallback((id: string) => {
+    setIngredientRows((prev) => prev.filter((r) => r.id !== id));
+  }, []);
+
+  const patchIngredientRow = useCallback((id: string, patch: Partial<Pick<IngredientFormRow, 'name' | 'origin'>>) => {
+    setIngredientRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -133,13 +146,13 @@ export default function RestaurantAddDishScreen() {
         priceDisplay: display,
         spiceLevel,
         tags,
-        ingredients,
+        ingredientItems: ingredientItemsForSave,
         touchScan: opts?.touchScan ?? false,
       });
       if (!result.ok) return { ok: false, error: result.error };
       return { ok: true };
     },
-    [dishId, scanId, ingredients, name, priceText, spiceLevel, summary, tags],
+    [dishId, scanId, ingredientItemsForSave, name, priceText, spiceLevel, summary, tags],
   );
 
   const onUploadPhoto = useCallback(async () => {
@@ -239,7 +252,7 @@ export default function RestaurantAddDishScreen() {
         priceDisplay: display,
         spiceLevel,
         tags,
-        ingredients,
+        ingredientItems: ingredientItemsForSave,
         touchScan: true,
       });
       if (!result.ok) {
@@ -252,7 +265,7 @@ export default function RestaurantAddDishScreen() {
     } finally {
       setSaving(false);
     }
-  }, [dishId, scanId, ingredients, name, priceText, router, spiceLevel, summary, tags]);
+  }, [dishId, scanId, ingredientItemsForSave, name, priceText, router, spiceLevel, summary, tags]);
 
   const spiceOptions: { level: SpiceLevel; label: string }[] = [
     { level: 0, label: 'None' },
@@ -431,16 +444,53 @@ export default function RestaurantAddDishScreen() {
 
             <View style={styles.section}>
               <Text style={styles.fieldLabel}>Ingredients</Text>
-              <TextInput
-                value={ingredientsText}
-                onChangeText={setIngredientsText}
-                placeholder="Comma-separated ingredients..."
-                placeholderTextColor="#6A7282"
-                style={[styles.input, styles.ingredientsInput]}
-                multiline
-                textAlignVertical="top"
-              />
-              <Text style={styles.ingredientsHint}>Separate ingredients with commas</Text>
+              <Text style={styles.ingredientsIntro}>
+                Add or edit ingredients below; delete a row you do not need. Origin is optional (max{' '}
+                {MAX_DISH_INGREDIENT_ORIGIN_LEN} characters).
+              </Text>
+              {ingredientRows.map((row) => (
+                <View key={row.id} style={styles.ingredientRowCard}>
+                  <View style={styles.ingredientRowHeader}>
+                    <Text style={styles.ingredientRowHeading}>Ingredient</Text>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Delete ingredient row"
+                      onPress={() => removeIngredientRow(row.id)}
+                      hitSlop={10}
+                    >
+                      <Text style={styles.removeIngredient}>Delete</Text>
+                    </Pressable>
+                  </View>
+                  <Text style={styles.subFieldLabel}>Name (editable)</Text>
+                  <TextInput
+                    value={row.name}
+                    onChangeText={(t) => patchIngredientRow(row.id, { name: t })}
+                    placeholder="e.g. Tomatoes"
+                    placeholderTextColor="#6A7282"
+                    style={styles.input}
+                  />
+                  <Text style={styles.subFieldLabel}>Origin (optional, editable)</Text>
+                  <TextInput
+                    value={row.origin}
+                    onChangeText={(t) => patchIngredientRow(row.id, { origin: t })}
+                    placeholder="Farm, region, or supplier"
+                    placeholderTextColor="#6A7282"
+                    style={styles.input}
+                    maxLength={MAX_DISH_INGREDIENT_ORIGIN_LEN}
+                  />
+                  <Text style={styles.originCounter}>
+                    {row.origin.length}/{MAX_DISH_INGREDIENT_ORIGIN_LEN}
+                  </Text>
+                </View>
+              ))}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Add ingredient row"
+                onPress={addIngredientRow}
+                style={({ pressed }) => [styles.addIngredientBtn, pressed && { opacity: 0.88 }]}
+              >
+                <Text style={styles.addIngredientBtnText}>+ Add ingredient</Text>
+              </Pressable>
             </View>
 
             <View style={styles.section}>
@@ -640,16 +690,62 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     opacity: 0.85,
   },
-  ingredientsInput: {
-    height: 110,
-    paddingTop: 12,
-    paddingBottom: 12,
-  },
-  ingredientsHint: {
+  ingredientsIntro: {
     fontSize: 12,
     lineHeight: 18,
     color: '#6A7282',
+    marginBottom: 10,
+  },
+  ingredientRowCard: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+    backgroundColor: '#FAFAFA',
+  },
+  ingredientRowHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  ingredientRowHeading: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  subFieldLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#6A7282',
+    marginBottom: 4,
+    marginTop: 8,
+  },
+  removeIngredient: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.error,
+  },
+  originCounter: {
+    fontSize: 11,
+    color: '#6A7282',
     marginTop: 4,
+    alignSelf: 'flex-end',
+  },
+  addIngredientBtn: {
+    marginTop: 4,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: t.primary,
+    backgroundColor: Colors.white,
+  },
+  addIngredientBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: t.primary,
   },
   errorText: { ...Typography.captionMedium, color: Colors.error, marginTop: 4 },
   footer: {

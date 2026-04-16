@@ -1,6 +1,7 @@
 import * as Linking from 'expo-linking';
 
 import { fetchRestaurantMenuForScan } from '@/lib/restaurant-fetch-menu-for-scan';
+import type { RestaurantMenuDishRow } from '@/lib/restaurant-fetch-menu-for-scan';
 import { supabase } from '@/lib/supabase';
 
 type OwnerTokenResult =
@@ -155,15 +156,20 @@ export async function resolvePartnerTokenToDinerScan(token: string): Promise<Res
       .maybeSingle();
     if (!existingScanErr && existingScan?.id) {
       const cachedScanTs = existingScan.scanned_at ? Date.parse(String(existingScan.scanned_at)) : NaN;
-      const isFreshEnough =
-        Number.isFinite(sourceLastActivityTs) && Number.isFinite(cachedScanTs)
-          ? cachedScanTs >= sourceLastActivityTs
-          : true;
+      /**
+       * Reuse the copied diner scan only when we can prove the restaurant menu has not been
+       * edited since this copy was taken: diner_menu_scans.scanned_at >= restaurant scan last_activity_at.
+       * If either timestamp is missing, do not reuse (avoids stale menus after owner edits).
+       */
+      const reuseCachedDinerScan =
+        Number.isFinite(sourceLastActivityTs) &&
+        Number.isFinite(cachedScanTs) &&
+        cachedScanTs >= sourceLastActivityTs;
       const { count } = await supabase
         .from('diner_menu_sections')
         .select('*', { count: 'exact', head: true })
         .eq('scan_id', String(existingScan.id));
-      if ((count ?? 0) > 0 && isFreshEnough) {
+      if ((count ?? 0) > 0 && reuseCachedDinerScan) {
         return {
           ok: true,
           scanId: String(existingScan.id),
@@ -228,6 +234,10 @@ export async function resolvePartnerTokenToDinerScan(token: string): Promise<Res
       if (d.is_new && !tags.includes('new')) tags.push('new');
       if (d.is_featured && !tags.includes('featured')) tags.push('featured');
 
+      const row = d as RestaurantMenuDishRow;
+      const structured =
+        Array.isArray(row.ingredientItems) && row.ingredientItems.length > 0 ? row.ingredientItems : [];
+
       return {
         section_id: newSectionId,
         sort_order: d.sort_order,
@@ -239,6 +249,7 @@ export async function resolvePartnerTokenToDinerScan(token: string): Promise<Res
         spice_level: d.spice_level,
         tags,
         ingredients: d.ingredients,
+        ingredient_items: structured,
         image_url: d.image_url,
       };
     })
@@ -263,4 +274,30 @@ export async function resolvePartnerTokenToDinerScan(token: string): Promise<Res
   );
 
   return { ok: true, scanId: dinerScanId, restaurantName };
+}
+
+/**
+ * If this diner menu scan was created from a partner QR link, re-resolve the token so the
+ * diner gets a fresh copy when the restaurant has edited the live menu (last_activity_at).
+ * No-op for OCR scans (no `diner_partner_qr_scans` row).
+ */
+export async function refreshPartnerLinkedDinerScanIfStale(
+  dinerScanId: string,
+): Promise<{ ok: true; scanId: string } | { ok: false }> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false };
+
+  const { data: link, error: linkErr } = await supabase
+    .from('diner_partner_qr_scans')
+    .select('token')
+    .eq('profile_id', user.id)
+    .eq('diner_scan_id', dinerScanId)
+    .maybeSingle();
+  if (linkErr || !link?.token) return { ok: false };
+
+  const res = await resolvePartnerTokenToDinerScan(String(link.token));
+  if (!res.ok) return { ok: false };
+  return { ok: true, scanId: res.scanId };
 }

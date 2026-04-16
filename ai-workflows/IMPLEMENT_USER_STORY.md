@@ -16,13 +16,13 @@ Each run requires a single field:
 
 The AI derives everything else from that issue:
 
-| Derived (for the rest of the workflow) | Source |
-|----------------------------------------|--------|
-| `owner`, `repo`, issue **number** `N` | Parse the URL path: `github.com/<owner>/<repo>/issues/<N>` |
-| **User Story ID and title** | Issue **title** and/or issue **body** (see **Issue parsing** below) |
-| **User Story** (As a … I want … so that …) | Issue **body** (section or paragraph; see **Issue parsing**) |
-| **Machine** / **Human** acceptance criteria | Issue **body** (sections; see **Issue parsing**) |
-| PR link + close target | Same issue **`N`** in this `owner/repo` → `Closes #N` (or `Fixes #N`) in the PR body |
+| Derived (for the rest of the workflow)      | Source                                                                               |
+| ------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `owner`, `repo`, issue **number** `N`       | Parse the URL path: `github.com/<owner>/<repo>/issues/<N>`                           |
+| **User Story ID and title**                 | Issue **title** and/or issue **body** (see **Issue parsing** below)                  |
+| **User Story** (As a … I want … so that …)  | Issue **body** (section or paragraph; see **Issue parsing**)                         |
+| **Machine** / **Human** acceptance criteria | Issue **body** (sections; see **Issue parsing**)                                     |
+| PR link + close target                      | Same issue **`N`** in this `owner/repo` → `Closes #N` (or `Fixes #N`) in the PR body |
 
 **Machine Acceptance Criteria** and **Human Acceptance Criteria** are not pasted separately; they are read from the issue like the story text.
 
@@ -133,6 +133,16 @@ The AI switches role to "Reviewer":
 
 ---
 
+## Loop
+
+- Repeat **Step 5–6 up to 2 times** and check for any integration problems between the changes and the rest of the system
+- Stop when implementation is stable and complete
+- The AI MUST:
+  - perform at least 1 review pass
+  - perform up to 2 revision iterations if issues are found
+
+---
+
 ### Step 8: Push and open pull request (after user approves final work)
 
 When the user approves the completed implementation following Step 7:
@@ -143,27 +153,21 @@ When the user approves the completed implementation following Step 7:
 4. **Push:** `git push -u origin <branch-name>` (first push) or `git push` (branch already tracking).
 5. **Pull request:** Open a PR into `main` that is explicitly tied to the **same** GitHub user story issue parsed in **Step 1** (same `owner/repo` and issue number `N`).
    - **CLI:** `gh pr create --base main --head <branch-name> --title "…" --body "…"`
-   - **Web:** use GitHub’s “Compare & pull request” after the push; set the same title and body content as below.
    - **Title (required format):** `Completed User Story <n>: <title>`
      - `<n>` is the numeric story id from the **User Story ID and title** confirmed in Step 1 (for example `US4 — …` → `4`).
      - `<title>` is the human-readable title from that same line (for example `US4 — Dish Filtering by Preferences` → `Dish Filtering by Preferences`).
      - Full example: `Completed User Story 4: Dish Filtering by Preferences`
    - **Body (AI):** Write a specific body—do not ship placeholder text. Include:
      - A line that **links and closes** the user story issue using a [GitHub closing keyword](https://docs.github.com/en/issues/tracking-your-work-with-issues/linking-a-pull-request-to-an-issue) and the **same issue number `N`** from the pasted issue URL (for example `Closes #12` or `Fixes #12`). That ties the PR to the issue you loaded in Step 1 and closes it when the PR merges.
-     - Optionally the canonical issue **URL** on its own line for reviewers.
      - Brief context, substantive change bullets, mapping to the **Machine** / **Human** criteria from that issue (as confirmed in Step 1–2), and any test or manual-check notes from Step 7.
      - Optionally repeat the **User Story ID and title** for reviewers.
 6. **Merge:** Do not merge without the user’s explicit approval on GitHub.
 
----
+**Important Note:** If any git or gh command fails:
 
-## Loop
-
-- Repeat **Step 5–6 up to 2 times**
-- Stop when implementation is stable and complete
-- The AI MUST:
-  - perform at least 1 review pass
-  - perform up to 2 revision iterations if issues are found
+- DO NOT retry
+- Surface error
+- Ask user for intervention
 
 ---
 

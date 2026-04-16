@@ -3,9 +3,12 @@ import {
   parsedMenuHasItems,
   dishRowToParsedItem,
   assembleParsedMenu,
+  parseMenuItemIngredients,
+  structuredIngredientsForPersist,
   MENU_SCAN_SCHEMA_VERSION,
   type DinerScannedDishRow,
   type DinerMenuSectionRow,
+  type ParsedMenuItem,
 } from '@/lib/menu-scan-schema';
 
 // ---------------------------------------------------------------------------
@@ -63,6 +66,107 @@ function validSectionRow(overrides: Partial<DinerMenuSectionRow> = {}): DinerMen
     ...overrides,
   };
 }
+
+// ---------------------------------------------------------------------------
+// parseMenuItemIngredients
+// ---------------------------------------------------------------------------
+
+describe('parseMenuItemIngredients', () => {
+  it('splits comma- and semicolon-separated strings', () => {
+    expect(parseMenuItemIngredients('a, b;c')).toEqual({
+      names: ['a', 'b', 'c'],
+      items: [
+        { name: 'a', origin: null },
+        { name: 'b', origin: null },
+        { name: 'c', origin: null },
+      ],
+    });
+  });
+
+  it('accepts string array entries', () => {
+    expect(parseMenuItemIngredients([' x ', 'y'])).toEqual({
+      names: ['x', 'y'],
+      items: [
+        { name: 'x', origin: null },
+        { name: 'y', origin: null },
+      ],
+    });
+  });
+
+  it('accepts object array with optional origin', () => {
+    expect(
+      parseMenuItemIngredients([
+        { name: 'Tomato', origin: 'Spain' },
+        { name: 'Salt', origin: null },
+      ]),
+    ).toEqual({
+      names: ['Tomato', 'Salt'],
+      items: [
+        { name: 'Tomato', origin: 'Spain' },
+        { name: 'Salt', origin: null },
+      ],
+    });
+  });
+
+  it('drops blank entries and objects without a name', () => {
+    expect(parseMenuItemIngredients(['', '  ', { name: '  ' }, { name: 'OK' }])).toEqual({
+      names: ['OK'],
+      items: [{ name: 'OK', origin: null }],
+    });
+  });
+
+  it('accepts ingredient as alternate to name on objects', () => {
+    expect(parseMenuItemIngredients([{ ingredient: '  corn  ', origin: 'US' }])).toEqual({
+      names: ['corn'],
+      items: [{ name: 'corn', origin: 'US' }],
+    });
+  });
+
+  it('returns empty for unknown primitives', () => {
+    expect(parseMenuItemIngredients(42)).toEqual({ names: [], items: [] });
+  });
+});
+
+describe('structuredIngredientsForPersist', () => {
+  function minItem(over: Partial<ParsedMenuItem>): ParsedMenuItem {
+    return {
+      id: 'dish-1',
+      name: 'Dish',
+      description: null,
+      price: { amount: 1, currency: 'USD', display: '$1' },
+      spice_level: 0,
+      tags: [],
+      ingredients: ['a', 'b'],
+      ...over,
+    };
+  }
+
+  it('builds rows from ingredients when ingredientItems omitted', () => {
+    expect(structuredIngredientsForPersist(minItem({}))).toEqual([
+      { name: 'a', origin: null },
+      { name: 'b', origin: null },
+    ]);
+  });
+
+  it('prefers ingredientItems when present', () => {
+    expect(
+      structuredIngredientsForPersist(
+        minItem({ ingredientItems: [{ name: 'x', origin: 'local' }], ingredients: ['ignored'] }),
+      ),
+    ).toEqual([{ name: 'x', origin: 'local' }]);
+  });
+
+  it('derives rows from dish name when ingredients are empty', () => {
+    expect(
+      structuredIngredientsForPersist(
+        minItem({ name: 'Pop corn', ingredients: [], ingredientItems: undefined }),
+      ),
+    ).toEqual([
+      { name: 'Pop', origin: null },
+      { name: 'corn', origin: null },
+    ]);
+  });
+});
 
 // ---------------------------------------------------------------------------
 // validateParsedMenu
@@ -181,6 +285,69 @@ describe('validateParsedMenu', () => {
     const result = validateParsedMenu(menu);
     expect(result.ok).toBe(true);
   });
+
+  it('accepts ingredients as a comma-separated string and exposes ingredientItems', () => {
+    const menu = validMenu();
+    const items = ((menu.sections as Array<Record<string, unknown>>)[0].items as Array<Record<string, unknown>>);
+    items[0].ingredients = 'cabbage, carrot';
+    const result = validateParsedMenu(menu);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const dish = result.value.sections[0].items[0];
+      expect(dish.ingredients).toEqual(['cabbage', 'carrot']);
+      expect(dish.ingredientItems).toEqual([
+        { name: 'cabbage', origin: null },
+        { name: 'carrot', origin: null },
+      ]);
+    }
+  });
+
+  it('accepts ingredients as objects with optional origin', () => {
+    const menu = validMenu();
+    const items = ((menu.sections as Array<Record<string, unknown>>)[0].items as Array<Record<string, unknown>>);
+    items[0].ingredients = [{ name: 'Beef', origin: 'Local ranch' }, { name: 'Salt' }];
+    const result = validateParsedMenu(menu);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const dish = result.value.sections[0].items[0];
+      expect(dish.ingredients).toEqual(['Beef', 'Salt']);
+      expect(dish.ingredientItems).toEqual([
+        { name: 'Beef', origin: 'Local ranch' },
+        { name: 'Salt', origin: null },
+      ]);
+    }
+  });
+
+  it('fills ingredients from dish name when LLM returns empty list', () => {
+    const menu = validMenu();
+    const items = ((menu.sections as Array<Record<string, unknown>>)[0].items as Array<Record<string, unknown>>);
+    items[0].name = 'Pop corn';
+    items[0].ingredients = [];
+    const result = validateParsedMenu(menu);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const dish = result.value.sections[0].items[0];
+      expect(dish.ingredients).toEqual(['Pop', 'corn']);
+      expect(dish.ingredientItems).toEqual([
+        { name: 'Pop', origin: null },
+        { name: 'corn', origin: null },
+      ]);
+    }
+  });
+
+  it('uses ingredient_items when ingredients is empty', () => {
+    const menu = validMenu();
+    const items = ((menu.sections as Array<Record<string, unknown>>)[0].items as Array<Record<string, unknown>>);
+    items[0].ingredients = [];
+    items[0].ingredient_items = [{ ingredient: 'kernels' }];
+    const result = validateParsedMenu(menu);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const dish = result.value.sections[0].items[0];
+      expect(dish.ingredients).toEqual(['kernels']);
+      expect(dish.ingredientItems).toEqual([{ name: 'kernels', origin: null }]);
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -229,6 +396,21 @@ describe('dishRowToParsedItem', () => {
     expect(item.tags).toEqual(['Vegetarian']);
     expect(item.ingredients).toEqual(['cabbage', 'carrot']);
     expect(item.image_url).toBeNull();
+    expect(item.ingredientItems).toBeUndefined();
+  });
+
+  it('includes ingredientItems when ingredient_items json is present', () => {
+    const row = validDishRow({
+      ingredient_items: [
+        { name: 'Tomato', origin: 'Local farm' },
+        { name: 'Salt', origin: null },
+      ],
+    });
+    const item = dishRowToParsedItem(row);
+    expect(item.ingredientItems).toEqual([
+      { name: 'Tomato', origin: 'Local farm' },
+      { name: 'Salt', origin: null },
+    ]);
   });
 
   it('maps null description and price fields correctly', () => {

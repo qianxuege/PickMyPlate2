@@ -166,11 +166,19 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+          # Save the generated spec before switching branches
+          cp "$SPEC_PATH" /tmp/generated-spec.md
+
           # Delete remote branch if it exists from a previous failed run
           git push origin --delete "$SPEC_BRANCH" 2>/dev/null || true
 
-          # Create a new branch for the dev spec
-          git checkout -b "$SPEC_BRANCH"
+          # Create the spec branch from main so the PR only contains the spec file
+          git fetch origin main
+          git checkout -b "$SPEC_BRANCH" origin/main
+
+          # Restore the generated spec
+          mkdir -p "$(dirname "$SPEC_PATH")"
+          cp /tmp/generated-spec.md "$SPEC_PATH"
 
           git add "$SPEC_PATH"
           git commit -m "${MODE}: dev spec for US${US_NUM} — ${SOURCE_TITLE} (from PR #${SOURCE_PR})"

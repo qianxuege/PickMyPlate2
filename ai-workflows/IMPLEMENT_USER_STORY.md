@@ -159,7 +159,6 @@ When the user approves the completed implementation following Step 7:
      - Full example: `Completed User Story 4: Dish Filtering by Preferences`
    - **Body (AI):** Write a specific body—do not ship placeholder text. Include:
      - A line that **links and closes** the user story issue using a [GitHub closing keyword](https://docs.github.com/en/issues/tracking-your-work-with-issues/linking-a-pull-request-to-an-issue) and the **same issue number `N`** from the pasted issue URL (for example `Closes #12` or `Fixes #12`). That ties the PR to the issue you loaded in Step 1 and closes it when the PR merges.
-     - Optionally the canonical issue **URL** on its own line for reviewers.
      - Brief context, substantive change bullets, mapping to the **Machine** / **Human** criteria from that issue (as confirmed in Step 1–2), and any test or manual-check notes from Step 7.
      - Optionally repeat the **User Story ID and title** for reviewers.
 6. **Merge:** Do not merge without the user’s explicit approval on GitHub.

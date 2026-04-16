@@ -18,6 +18,7 @@ import copy
 import json
 import os
 import sys
+import time
 import traceback
 from typing import Any
 from urllib.parse import quote, urlparse
@@ -34,6 +35,8 @@ from mock_menu import MOCK_PARSED_MENU
 MOCK_MENU_PARSE = os.getenv("MOCK_MENU_PARSE", "1") == "1"
 MAX_JSON_BODY_BYTES = 2 * 1024 * 1024  # 2 MiB guardrail for preferences payload
 DISH_IMAGES_BUCKET = os.getenv("DISH_IMAGES_BUCKET", "dish-images").strip() or "dish-images"
+CALORIE_ESTIMATE_MIN_INTERVAL_SECONDS = int(os.getenv("CALORIE_ESTIMATE_MIN_INTERVAL_SECONDS", "30"))
+_calorie_estimate_last_requested_at: dict[str, float] = {}
 
 
 def _is_flask_debug(app: Flask) -> bool:
@@ -88,6 +91,29 @@ def _log_backend_supabase_project_hint() -> None:
         file=sys.stderr,
         flush=True,
     )
+
+
+def _calorie_estimate_retry_after_seconds(*, subject: str, dish_id: str) -> int | None:
+    """Small cost guardrail for repeated owner-triggered calorie estimates."""
+    interval = CALORIE_ESTIMATE_MIN_INTERVAL_SECONDS
+    if interval <= 0:
+        return None
+
+    now = time.monotonic()
+    stale_before = now - max(interval * 10, 300)
+    for key, ts in list(_calorie_estimate_last_requested_at.items()):
+        if ts < stale_before:
+            _calorie_estimate_last_requested_at.pop(key, None)
+
+    key = f"{subject}:{dish_id}"
+    last = _calorie_estimate_last_requested_at.get(key)
+    if last is not None:
+        retry_after = interval - (now - last)
+        if retry_after > 0:
+            return int(retry_after) + 1
+
+    _calorie_estimate_last_requested_at[key] = now
+    return None
 
 
 def create_app() -> Flask:
@@ -575,6 +601,22 @@ def create_app() -> Flask:
                 rest_rows = getattr(rest_res, "data", None) or []
                 if not rest_rows or rest_rows[0].get("owner_id") != payload.get("sub"):
                     return jsonify({"ok": False, "error": "unauthorized"}), 401
+
+            rate_limit_subject = payload.get("sub") if payload is not None else request.remote_addr or "anonymous"
+            retry_after = _calorie_estimate_retry_after_seconds(
+                subject=str(rate_limit_subject),
+                dish_id=dish_id,
+            )
+            if retry_after is not None:
+                return (
+                    jsonify({
+                        "ok": False,
+                        "error": "calorie estimate rate limit exceeded",
+                        "retry_after_seconds": retry_after,
+                    }),
+                    429,
+                    {"Retry-After": str(retry_after)},
+                )
 
             ingredients = dish.get("ingredients")
             if not isinstance(ingredients, list):

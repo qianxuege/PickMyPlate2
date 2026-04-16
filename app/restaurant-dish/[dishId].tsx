@@ -9,6 +9,7 @@ import { HighlightDishBadges } from '@/components/HighlightDishBadges';
 import { RestaurantUiInspect } from '@/constants/restaurant-ui-inspect';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
+import { dishCaloriesPrimaryText, dishCaloriesUsesMutedStyle } from '@/lib/dish-calories-label';
 import { fetchPublishedRestaurantDishDetail, type PublishedRestaurantDishDetail } from '@/lib/restaurant-public-dish';
 
 export default function RestaurantDishDetailScreen() {
@@ -99,6 +100,14 @@ export default function RestaurantDishDetailScreen() {
               ) : null}
             </View>
             <HighlightDishBadges is_featured={detail.is_featured} is_new={detail.is_new} />
+            <Text
+              style={[
+                styles.caloriesLine,
+                dishCaloriesUsesMutedStyle(detail.calories_manual, detail.calories_estimated) && styles.caloriesLineMuted,
+              ]}
+            >
+              {dishCaloriesPrimaryText(detail.calories_manual, detail.calories_estimated)}
+            </Text>
             {detail.description ? <Text style={styles.desc}>{detail.description}</Text> : null}
             {detail.ingredients.length > 0 ? (
               <View style={styles.block}>
@@ -202,6 +211,13 @@ const styles = StyleSheet.create({
   desc: {
     ...Typography.body,
     color: RestaurantUiInspect.sub,
+  },
+  caloriesLine: {
+    ...Typography.bodyMedium,
+    color: RestaurantUiInspect.text,
+  },
+  caloriesLineMuted: {
+    color: Colors.textSecondary,
   },
   block: {
     gap: Spacing.xs,

@@ -1,3 +1,7 @@
+import {
+  isMissingDishCaloriesColumnsError,
+  stripDishCaloriesFields,
+} from '@/lib/dish-calories-columns-support';
 import type { ParsedMenu, ParsedMenuItem, ParsedMenuSection } from '@/lib/menu-scan-schema';
 import { supabase } from '@/lib/supabase';
 
@@ -57,12 +61,21 @@ export async function persistParsedMenu(menu: ParsedMenu, profileId: string): Pr
         tags: it.tags,
         ingredients: it.ingredients,
         image_url: null,
+        calories_manual: null,
+        calories_estimated:
+          typeof it.calories_estimated === 'number' && Number.isFinite(it.calories_estimated)
+            ? Math.round(it.calories_estimated)
+            : null,
       });
     });
   }
 
   if (dishRows.length > 0) {
-    const { error: dishErr } = await supabase.from('diner_scanned_dishes').insert(dishRows);
+    let { error: dishErr } = await supabase.from('diner_scanned_dishes').insert(dishRows);
+    if (dishErr && isMissingDishCaloriesColumnsError(dishErr)) {
+      const stripped = dishRows.map((r) => stripDishCaloriesFields(r));
+      ({ error: dishErr } = await supabase.from('diner_scanned_dishes').insert(stripped));
+    }
     if (dishErr) {
       await supabase.from('diner_menu_scans').delete().eq('id', scanId);
       return { ok: false, error: dishErr.message };

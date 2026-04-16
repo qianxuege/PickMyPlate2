@@ -1,5 +1,9 @@
 import * as Linking from 'expo-linking';
 
+import {
+  isMissingDishCaloriesColumnsError,
+  stripDishCaloriesFields,
+} from '@/lib/dish-calories-columns-support';
 import { fetchRestaurantMenuForScan } from '@/lib/restaurant-fetch-menu-for-scan';
 import { supabase } from '@/lib/supabase';
 
@@ -240,12 +244,19 @@ export async function resolvePartnerTokenToDinerScan(token: string): Promise<Res
         tags,
         ingredients: d.ingredients,
         image_url: d.image_url,
+        calories_manual: d.calories_manual ?? null,
+        calories_estimated: d.calories_estimated ?? null,
       };
     })
     .filter(Boolean);
 
   if (dishInsert.length > 0) {
-    const { error: dishErr } = await supabase.from('diner_scanned_dishes').insert(dishInsert as Record<string, unknown>[]);
+    const rows = dishInsert as Record<string, unknown>[];
+    let { error: dishErr } = await supabase.from('diner_scanned_dishes').insert(rows);
+    if (dishErr && isMissingDishCaloriesColumnsError(dishErr)) {
+      const stripped = rows.map((r) => stripDishCaloriesFields(r));
+      ({ error: dishErr } = await supabase.from('diner_scanned_dishes').insert(stripped));
+    }
     if (dishErr) {
       await supabase.from('diner_menu_scans').delete().eq('id', dinerScanId);
       return { ok: false, error: dishErr.message };

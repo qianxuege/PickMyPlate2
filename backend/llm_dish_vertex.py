@@ -121,3 +121,78 @@ def generate_dish_description(
 
     return None
 
+
+CALORIES_SYSTEM_INSTRUCTION = """You are PickMyPlate's nutrition assistant.
+Given a dish name and optional ingredients, estimate total calories for ONE typical restaurant serving.
+
+Hard rules:
+1. Output a single JSON object only (no markdown, no extra text).
+2. JSON shape must be: { "calories": number | null }
+3. calories must be a non-negative integer (typical range roughly 50–2500 for one serving), or null if inputs are too vague to estimate.
+4. This is an approximate guess for UI display only; do not add disclaimers outside the JSON.
+"""
+
+
+def generate_dish_calories_estimate(
+    *,
+    dish_name: str,
+    ingredients: Sequence[str] | None,
+    restaurant_name: str | None,
+    debug_llm: bool = False,
+) -> int | None:
+    """
+    Returns estimated calories as a non-negative int, or None.
+    Raises RuntimeError on invalid model output.
+    """
+    _ensure_vertex()
+
+    from vertexai.generative_models import GenerationConfig, GenerativeModel
+
+    model = GenerativeModel(_model_name(), system_instruction=CALORIES_SYSTEM_INSTRUCTION)
+    gen_cfg = GenerationConfig(
+        temperature=0.2,
+        response_mime_type="application/json",
+    )
+
+    ing_list: list[str] = []
+    if ingredients:
+        ing_list = [str(x).strip() for x in ingredients if isinstance(x, str) and str(x).strip()]
+
+    parts: list[str] = [
+        f"Dish name: {dish_name or '(unknown)'}",
+        f"Restaurant context: {restaurant_name or '(unknown)'}",
+    ]
+    if ing_list:
+        parts.append(f"Ingredients: {', '.join(ing_list[:20])}")
+    else:
+        parts.append("Ingredients: (unknown)")
+
+    user_message = "\n".join(parts)
+    response = model.generate_content(user_message, generation_config=gen_cfg)
+    if not response.candidates:
+        raise RuntimeError("Gemini returned no candidates")
+
+    text = response.text or ""
+    if not text.strip():
+        raise RuntimeError("Gemini returned empty text")
+
+    parsed = _json_from_model_text(text)
+    if not isinstance(parsed, dict):
+        raise RuntimeError("Gemini JSON root must be an object")
+
+    cal = parsed.get("calories")
+    if cal is None:
+        return None
+    if isinstance(cal, bool):
+        return None
+    if isinstance(cal, (int, float)):
+        n = int(round(float(cal)))
+        if n < 0 or n > 20000:
+            return None
+        return n
+
+    if debug_llm:
+        pass
+
+    return None
+

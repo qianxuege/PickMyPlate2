@@ -1,3 +1,7 @@
+import {
+  isMissingDishCaloriesColumnsError,
+  stripDishCaloriesFields,
+} from '@/lib/dish-calories-columns-support';
 import type { ParsedMenu, ParsedMenuSection, ParsedMenuItem } from '@/lib/menu-scan-schema';
 import { supabase } from '@/lib/supabase';
 import { restaurantMenuDishNeedsReview } from '@/lib/restaurant-menu-dish-utils';
@@ -75,12 +79,21 @@ export async function persistRestaurantMenuDraft(menu: ParsedMenu, restaurantId:
         ingredients: it.ingredients,
         image_url: null,
         needs_review,
+        calories_manual: null,
+        calories_estimated:
+          typeof it.calories_estimated === 'number' && Number.isFinite(it.calories_estimated)
+            ? Math.round(it.calories_estimated)
+            : null,
       });
     });
   }
 
   if (dishRows.length > 0) {
-    const { error: dishErr } = await supabase.from('restaurant_menu_dishes').insert(dishRows);
+    let { error: dishErr } = await supabase.from('restaurant_menu_dishes').insert(dishRows);
+    if (dishErr && isMissingDishCaloriesColumnsError(dishErr)) {
+      const stripped = dishRows.map((r) => stripDishCaloriesFields(r));
+      ({ error: dishErr } = await supabase.from('restaurant_menu_dishes').insert(stripped));
+    }
     if (dishErr) {
       await supabase.from('restaurant_menu_scans').delete().eq('id', scanId);
       return { ok: false, error: dishErr.message };

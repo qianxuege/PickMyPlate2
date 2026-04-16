@@ -16,6 +16,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { dinerRoleTheme } from '@/constants/role-theme';
 import { BorderRadius, Colors, Typography } from '@/constants/theme';
 import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
+import { dishCaloriesPrimaryText, dishCaloriesUsesMutedStyle } from '@/lib/dish-calories-label';
+import { getDinerScannedDishSelectColumns } from '@/lib/dish-calories-columns-support';
 import { generateDishImage } from '@/lib/dish-image-api';
 import type { DinerPreferenceSnapshot } from '@/lib/diner-preferences';
 import { fetchDinerPreferences, spiceDbToLabel } from '@/lib/diner-preferences';
@@ -75,6 +77,8 @@ type DishDetail = {
   ingredients: string[];
   summary: string;
   description: string | null;
+  caloriesManual: number | null;
+  caloriesEstimated: number | null;
 };
 
 function titleize(label: string): string {
@@ -244,15 +248,16 @@ export default function DishDetailScreen() {
 
         const prefSnap = await fetchDinerPreferences();
 
+        const dishCols = await getDinerScannedDishSelectColumns();
         const { data: dishRow, error: dishErr } = await supabase
           .from('diner_scanned_dishes')
-          .select('id, section_id, name, description, price_amount, price_currency, price_display, spice_level, tags, ingredients, image_url')
+          .select(dishCols as any)
           .eq('id', dishId)
           .maybeSingle();
         if (dishErr) throw dishErr;
         if (!dishRow) throw new Error('Dish not found');
 
-        const typedRow = dishRow as Pick<
+        const typedRow = dishRow as unknown as Pick<
           DinerScannedDishRow,
           | 'id'
           | 'section_id'
@@ -265,6 +270,8 @@ export default function DishDetailScreen() {
           | 'tags'
           | 'ingredients'
           | 'image_url'
+          | 'calories_manual'
+          | 'calories_estimated'
         >;
 
         let resolvedScanId = scanId?.trim() || null;
@@ -306,6 +313,9 @@ export default function DishDetailScreen() {
         setPrefs(prefSnap);
         setImageLoading(false);
         setImageError(null);
+        const cm = typedRow.calories_manual;
+        const ce = typedRow.calories_estimated;
+
         setDetail({
           id: typedRow.id,
           restaurantName,
@@ -320,6 +330,8 @@ export default function DishDetailScreen() {
           ingredients,
           summary,
           description: typedRow.description,
+          caloriesManual: typeof cm === 'number' && Number.isFinite(cm) ? Math.round(cm) : null,
+          caloriesEstimated: typeof ce === 'number' && Number.isFinite(ce) ? Math.round(ce) : null,
         });
 
         try {
@@ -500,6 +512,15 @@ export default function DishDetailScreen() {
                   ))}
                 </View>
               </View>
+
+              <Text
+                style={[
+                  styles.caloriesLine,
+                  dishCaloriesUsesMutedStyle(detail.caloriesManual, detail.caloriesEstimated) && styles.caloriesLineMuted,
+                ]}
+              >
+                {dishCaloriesPrimaryText(detail.caloriesManual, detail.caloriesEstimated)}
+              </Text>
 
               <View style={styles.tagWrap}>
                 {detail.flavorTags.length > 0 ? (
@@ -725,6 +746,13 @@ const styles = StyleSheet.create({
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  caloriesLine: {
+    ...Typography.bodyMedium,
+    color: FIG.text,
+  },
+  caloriesLineMuted: {
+    color: FIG.muted,
   },
   flameRow: {
     flexDirection: 'row',

@@ -50,6 +50,8 @@ function validDishRow(overrides: Partial<DinerScannedDishRow> = {}): DinerScanne
     tags: ['Vegetarian'],
     ingredients: ['cabbage', 'carrot'],
     image_url: null,
+    calories_manual: null,
+    calories_estimated: null,
     ...overrides,
   };
 }

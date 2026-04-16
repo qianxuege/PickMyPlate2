@@ -1,3 +1,4 @@
+import { isMissingDishCaloriesColumnsError } from '@/lib/dish-calories-columns-support';
 import { supabase } from '@/lib/supabase';
 import { restaurantMenuDishNeedsReview } from '@/lib/restaurant-menu-dish-utils';
 
@@ -59,6 +60,8 @@ export type SaveRestaurantDishInput = {
   spiceLevel: 0 | 1 | 2 | 3;
   tags: string[];
   ingredients: string[];
+  /** Owner-entered kcal; null clears. Does not clear calories_estimated. */
+  caloriesManual?: number | null;
   /**
    * If true (default), updates the parent scan's last_activity_at so it moves
    * to the top of "Recent uploads".
@@ -80,7 +83,7 @@ export async function saveRestaurantDish(input: SaveRestaurantDishInput): Promis
     ingredients: input.ingredients,
   });
 
-  const { error } = await supabase.from('restaurant_menu_dishes').update({
+  const patch: Record<string, unknown> = {
     name: input.name,
     description: input.description,
     price_amount: input.priceAmount,
@@ -90,7 +93,17 @@ export async function saveRestaurantDish(input: SaveRestaurantDishInput): Promis
     tags: input.tags,
     ingredients: input.ingredients,
     needs_review,
-  }).eq('id', input.dishId);
+  };
+  if (input.caloriesManual !== undefined) {
+    patch.calories_manual = input.caloriesManual;
+  }
+
+  let { error } = await supabase.from('restaurant_menu_dishes').update(patch).eq('id', input.dishId);
+
+  if (error && isMissingDishCaloriesColumnsError(error) && 'calories_manual' in patch) {
+    const { calories_manual: _c, ...rest } = patch;
+    ({ error } = await supabase.from('restaurant_menu_dishes').update(rest).eq('id', input.dishId));
+  }
 
   if (error) return { ok: false, error: error.message };
 

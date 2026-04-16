@@ -1,3 +1,4 @@
+import { getDinerScannedDishSelectColumns } from '@/lib/dish-calories-columns-support';
 import {
   assembleParsedMenu,
   type DinerMenuSectionRow,
@@ -33,15 +34,15 @@ export async function fetchParsedMenuForScan(scanId: string): Promise<FetchParse
     const sectionIds = (sections ?? []).map((s: DinerMenuSectionRow) => s.id);
     let dishes: DinerScannedDishRow[] = [];
     if (sectionIds.length > 0) {
+      const dishCols = await getDinerScannedDishSelectColumns();
       const { data: dishRows, error: dishErr } = await supabase
         .from('diner_scanned_dishes')
-        .select(
-          'id, section_id, sort_order, name, description, price_amount, price_currency, price_display, spice_level, tags, ingredients, image_url'
-        )
+        // Dynamic column list: literals required for generated types
+        .select(dishCols as any)
         .in('section_id', sectionIds)
         .order('sort_order', { ascending: true });
       if (dishErr) return { ok: false, error: dishErr.message };
-      dishes = (dishRows ?? []) as DinerScannedDishRow[];
+      dishes = (dishRows ?? []) as unknown as DinerScannedDishRow[];
     }
 
     const menu = assembleParsedMenu(

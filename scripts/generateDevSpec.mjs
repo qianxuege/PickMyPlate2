@@ -297,62 +297,188 @@ function checkMermaidContent(content) {
   const errors = [];
   const lines = content.split("\n");
 
+  // Detect diagram type from first meaningful line
+  const firstMeaningful = lines.find((l) => l.trim() && !l.trim().startsWith("%%")) || "";
+  const isClassDiagram = /^\s*classDiagram\b/.test(firstMeaningful);
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const lineNum = i + 1;
-
-    // Skip comment lines and subgraph/end/direction lines
     const trimmed = line.trim();
-    if (trimmed.startsWith("%%") || trimmed === "") continue;
 
-    // Check 1: Hyphens in node IDs adjacent to arrow syntax.
-    // Node IDs must be alphanumeric + underscores only.
-    // Pattern: a node ID (word chars + hyphens) followed by --> or <--
-    // We look for unquoted tokens before/after arrows that contain hyphens.
-    const arrowPattern = /([A-Za-z_][A-Za-z0-9_]*-[A-Za-z0-9_-]*)\s*(?:-->|---)/g;
-    const arrowPatternRev = /(?:-->|---)\s*([A-Za-z_][A-Za-z0-9_]*-[A-Za-z0-9_-]*)/g;
+    // Skip blank lines, comments, diagram type declarations, subgraph/end markers
+    if (
+      trimmed === "" ||
+      trimmed.startsWith("%%") ||
+      trimmed === "end" ||
+      /^(flowchart|graph|classDiagram|sequenceDiagram|erDiagram|gantt|pie|gitGraph)\b/i.test(trimmed) ||
+      /^(subgraph|direction|TB|LR|TD|BT|RL)\b/i.test(trimmed) ||
+      /^(classDef|style|linkStyle|click)\b/i.test(trimmed)
+    ) continue;
+
     let m;
-    while ((m = arrowPattern.exec(line)) !== null) {
-      errors.push(`Line ${lineNum}: node ID "${m[1]}" contains hyphens — use underscores instead`);
-    }
-    while ((m = arrowPatternRev.exec(line)) !== null) {
-      errors.push(`Line ${lineNum}: node ID "${m[1]}" contains hyphens — use underscores instead`);
-    }
 
-    // Check 2: Parentheses in unquoted node labels.
-    // Shape: nodeId(label) is a stadium shape — but if label has () that's also ambiguous.
-    // More specifically, catch text like nodeId["label (with parens)"] is fine, but
-    // nodeId[label (extra)] or nodeId(something(nested)) are problematic.
-    // Simple heuristic: unquoted label text containing ( or ) after a node shape delimiter.
-    const unquotedParens = /\[[^\]"]*[()][^\]"]*\]/g;
-    while ((m = unquotedParens.exec(line)) !== null) {
-      errors.push(`Line ${lineNum}: unquoted parentheses in node label "${m[0]}" — wrap entire label in double quotes`);
-    }
+    // Strip quoted string content so checks don't fire on label text.
+    // Replace "..." with "___" (same length preserves offsets enough for error reporting).
+    const lineNoQuotes = line.replace(/"[^"]*"/g, (s) => '"' + "_".repeat(s.length - 2) + '"');
 
-    // Check 3: Old-style labeled arrow "-- text -->" which causes parse errors.
-    if (/--\s+\S.*?\s+-->/.test(line)) {
-      errors.push(`Line ${lineNum}: use "-->|label|" syntax instead of "-- label -->" for labeled arrows`);
-    }
+    // -------------------------------------------------------------------
+    // Check 1: Invalid characters in node IDs (hyphens, dots, slashes).
+    // Node IDs must be alphanumeric + underscores only.
+    // Run against lineNoQuotes so we don't flag chars inside quoted labels.
+    // Three sub-cases:
+    //   a) Token before an arrow or shape delimiter on the same line
+    //   b) Token after an arrow on the same line
+    //   c) Standalone bare token — entire (non-structural) line is just an ID
+    // -------------------------------------------------------------------
+    const invalidNodeIdRe = /[-./]/; // characters banned in node IDs
 
-    // Check 4: Reserved keyword used as a bare (unquoted) node ID.
-    // "end" as a node ID closes the subgraph prematurely.
-    if (/^\s*end\s*$/.test(line)) continue; // this is a valid subgraph end
-    if (/(?:^|\s)end(?:\s|$)/.test(trimmed) && !/subgraph|-->|---|classDef|class /.test(trimmed)) {
-      // Heuristic: if "end" appears as a standalone token in a node definition context
-      if (/\bend\b/.test(trimmed) && /-->|(\bend\b\s*\[|\bend\b\s*\()/.test(trimmed)) {
-        errors.push(`Line ${lineNum}: "end" is a reserved Mermaid keyword — rename this node`);
+    // 1a: node ID before arrow or shape delimiter
+    const nodeBeforeRe = /\b([A-Za-z_][A-Za-z0-9_./-]*)\s*(?:-->|---|~~>|--o|--x|[\[({>])/g;
+    while ((m = nodeBeforeRe.exec(lineNoQuotes)) !== null) {
+      if (invalidNodeIdRe.test(m[1])) {
+        errors.push(`Line ${lineNum}: node ID "${m[1]}" contains invalid chars (- . /) — use underscores only`);
       }
     }
 
-    // Check 5: Unclosed double-quote in a label
+    // 1b: node ID after arrow
+    const nodeAfterRe = /(?:-->|---|~~>|--o|--x)\s*(?:\|[^|]*\|\s*)?([A-Za-z_][A-Za-z0-9_./-]*)\s*(?:[\[({>]|$)/g;
+    while ((m = nodeAfterRe.exec(lineNoQuotes)) !== null) {
+      if (invalidNodeIdRe.test(m[1])) {
+        errors.push(`Line ${lineNum}: node ID "${m[1]}" contains invalid chars (- . /) — use underscores only`);
+      }
+    }
+
+    // 1c: standalone bare node ID — line is just one or more bare tokens (possibly joined by &)
+    // e.g. "my-node" or "nodeA & my-node"
+    const strippedLine = lineNoQuotes
+      .replace(/\[[^\]]*\]/g, "")   // remove [...] labels
+      .replace(/\([^)]*\)/g, "")    // remove (...) labels
+      .replace(/\{[^}]*\}/g, "")    // remove {...} labels
+      .replace(/-->.*$/g, "")       // remove arrows and everything after
+      .replace(/---.*$/g, "")
+      .trim();
+    // Guard: skip if remaining text still contains > or | (leftover arrow syntax);
+    // do NOT include - in this check since hyphens appear in the node IDs we want to catch.
+    if (strippedLine && !/[>|]/.test(strippedLine)) {
+      // What remains should be only bare node IDs (possibly separated by & or whitespace)
+      const bareTokens = strippedLine.split(/[\s&]+/).filter(Boolean);
+      for (const tok of bareTokens) {
+        if (/^[A-Za-z_][A-Za-z0-9_./-]*$/.test(tok) && invalidNodeIdRe.test(tok)) {
+          errors.push(`Line ${lineNum}: standalone node ID "${tok}" contains invalid chars (- . /) — use underscores only`);
+        }
+      }
+    }
+
+    // -------------------------------------------------------------------
+    // Check 1b: Reserved Mermaid keywords used as bare (unquoted) node IDs.
+    // Covers keywords from flowchart, sequence, class, state, ER, git diagrams.
+    // Run against lineNoQuotes to avoid false positives inside quoted labels.
+    // -------------------------------------------------------------------
+    const RESERVED_KW = [
+      // Structural / flow control
+      "end", "subgraph", "direction", "graph", "flowchart",
+      // Styling
+      "style", "classDef", "linkStyle", "click",
+      // Sequence diagram
+      "participant", "actor", "activate", "deactivate", "destroy",
+      "create", "note", "loop", "alt", "else", "opt", "par", "and",
+      "break", "critical", "option", "rect", "title", "autonumber",
+      // State diagram
+      "state", "choice", "fork", "join", "concurrency",
+      // ER diagram
+      "erDiagram", "entity", "relationship",
+      // Class diagram
+      "namespace",
+      // Git diagram
+      "commit", "branch", "checkout", "merge", "cherry-pick", "tag",
+      // Misc
+      "section", "gantt", "pie", "gitGraph",
+    ].join("|");
+    const reservedPattern = new RegExp(`\\b(${RESERVED_KW})\\b`, "gi");
+    // Only flag when the keyword appears in a node-ID position (before/after an arrow or shape delimiter)
+    const reservedBeforeRe = new RegExp(`\\b(${RESERVED_KW})\\s*(?:-->|---|[\\[({>])`, "gi");
+    const reservedAfterRe = new RegExp(`(?:-->|---)\\s*(?:\\|[^|]*\\|\\s*)?(${RESERVED_KW})\\s*(?:[\\[({>]|$)`, "gi");
+    while ((m = reservedBeforeRe.exec(lineNoQuotes)) !== null) {
+      errors.push(`Line ${lineNum}: "${m[1]}" is a reserved Mermaid keyword — rename this node`);
+    }
+    while ((m = reservedAfterRe.exec(lineNoQuotes)) !== null) {
+      errors.push(`Line ${lineNum}: "${m[1]}" is a reserved Mermaid keyword — rename this node`);
+    }
+    // Also catch standalone reserved keywords on their own line (bare node definition)
+    if (strippedLine && !/[>|]/.test(strippedLine)) {
+      const bareTokens2 = strippedLine.split(/[\s&]+/).filter(Boolean);
+      for (const tok of bareTokens2) {
+        if (reservedPattern.test(tok) && /^[A-Za-z]+$/.test(tok)) {
+          errors.push(`Line ${lineNum}: standalone node ID "${tok}" is a reserved Mermaid keyword — rename this node`);
+        }
+        reservedPattern.lastIndex = 0; // reset stateful regex
+      }
+    }
+
+    // -------------------------------------------------------------------
+    // Check 2: Special characters inside square-bracket node labels [...].
+    // The label text must not contain unquoted [ ] ( ) { } / characters.
+    // Safe form: nodeId["label text here"]
+    // -------------------------------------------------------------------
+    // Find all [...] label blocks on the line
+    const sqLabelRe = /\[([^\]]*)\]/g;
+    while ((m = sqLabelRe.exec(line)) !== null) {
+      const label = m[1];
+      // If the label starts with a double-quote, it is a quoted label — safe to skip.
+      // (The regex may clip at an inner ] so we can't rely on it ending with a quote.)
+      if (label.trimStart().startsWith('"')) continue;
+      // Otherwise flag any dangerous characters inside
+      if (/[[()/{}\]]/.test(label)) {
+        errors.push(
+          `Line ${lineNum}: node label [${label}] contains special chars ([ ] ( ) { } /) — wrap entire label in double quotes`,
+        );
+      }
+    }
+
+    // -------------------------------------------------------------------
+    // Check 3: Special characters inside arrow pipe labels -->|label|.
+    // Labels between | | must not contain ( ) [ ] { } — they confuse the
+    // Mermaid shape parser.
+    // -------------------------------------------------------------------
+    const arrowLabelRe = /--[->ox~]*\|([^|]*)\|/g;
+    while ((m = arrowLabelRe.exec(line)) !== null) {
+      const label = m[1];
+      if (/[()[\]{}]/.test(label)) {
+        errors.push(
+          `Line ${lineNum}: arrow label "|${label}|" contains special chars (( ) [ ] { }) — remove or simplify the label`,
+        );
+      }
+    }
+
+    // -------------------------------------------------------------------
+    // Check 4: Old-style "-- text -->" labeled arrow syntax.
+    // -------------------------------------------------------------------
+    if (/--\s+\S[^-]*\s+-->/.test(line)) {
+      errors.push(`Line ${lineNum}: use "-->|label|" syntax instead of "-- label -->" for labeled arrows`);
+    }
+
+    // -------------------------------------------------------------------
+    // Check 5: Curly braces { } in class diagram member lines.
+    // Return types like ": {ok: boolean}" cause a parse error in classDiagram.
+    // -------------------------------------------------------------------
+    if (isClassDiagram && /[{}]/.test(line) && !trimmed.startsWith("class ") && !trimmed.startsWith("%%")) {
+      errors.push(`Line ${lineNum}: class diagram member contains "{ }" — simplify return type or remove braces`);
+    }
+
+    // -------------------------------------------------------------------
+    // Check 6: Unclosed double-quote in a label.
+    // -------------------------------------------------------------------
     const quoteCount = (line.match(/"/g) || []).length;
     if (quoteCount % 2 !== 0) {
       errors.push(`Line ${lineNum}: odd number of double-quotes — possible unclosed label`);
     }
 
-    // Check 6: Raw & or # outside of quoted strings (can break some renderers)
-    const unquotedSpecial = line.replace(/"[^"]*"/g, '""');
-    if (/[&#]/.test(unquotedSpecial)) {
+    // -------------------------------------------------------------------
+    // Check 7: Raw & or # outside of quoted strings.
+    // -------------------------------------------------------------------
+    const unquotedLine = line.replace(/"[^"]*"/g, '""');
+    if (/[&#]/.test(unquotedLine)) {
       errors.push(`Line ${lineNum}: unquoted "&" or "#" in label — wrap label in double quotes`);
     }
   }
@@ -389,10 +515,12 @@ async function fixMermaidErrors(spec, mermaidErrors) {
     "",
     "## Rules",
     "- Always use `flowchart TB` — never `flowchart LR`",
-    "- Node IDs must be alphanumeric with underscores only — NO hyphens",
-    "- Never use `()`, `[]`, `{}`, or `<>` inside unquoted node label text",
+    "- Node IDs must be alphanumeric with underscores only — NO hyphens, NO slashes, NO dots",
+    "- Never use `()`, `[]`, `{}`, `/`, or `<>` inside unquoted node label text — wrap the entire label in double quotes: `nodeId[\"my label\"]`",
+    "- Arrow pipe labels `-->|label|` must NOT contain `()`, `[]`, or `{}` — remove or simplify those characters from the label text",
     "- Always use `-->|label|` for labeled arrows — never `-- label -->`",
     "- Never use reserved keywords (`end`, `subgraph`, `style`, `classDef`) as bare node IDs",
+    "- In classDiagram, member return types must not contain `{` or `}` — write `map` or `object` instead of `{ok: boolean}`",
     "- Wrap any label containing special characters in double quotes",
     "",
     "## Diagrams to fix",

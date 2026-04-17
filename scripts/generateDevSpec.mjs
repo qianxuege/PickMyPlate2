@@ -276,21 +276,24 @@ function preSanitizeMermaid(spec) {
     let fixed = body;
 
     // 1. TypeScript array notation in arrow pipe labels: -->|Type[]| → -->|Type list|
-    //    Matches any [...] that looks like a type annotation (starts with uppercase or
-    //    contains word chars) inside a pipe label.
-    fixed = fixed.replace(
-      /(\|[^|]*?)([A-Za-z_]\w*)\[\]([^|]*?\|)/g,
-      (m, pre, typeName, post) => `${pre}${typeName} list${post}`,
-    );
+    //    Two-stage: capture full pipe label, then replace ALL Type[] inside it.
+    //    e.g. -->|TypeA[], TypeB[]| → -->|TypeA list, TypeB list|
+    fixed = fixed.replace(/\|([^|]+)\|/g, (_m, label) => {
+      const fixedLabel = label.replace(/([A-Za-z_]\w*)\[\]/g, "$1 list");
+      return `|${fixedLabel}|`;
+    });
 
-    // 2. TypeScript array notation in unquoted square-bracket node labels:
-    //    nodeId[Type[]] → nodeId["Type list"]
-    //    nodeId[foo Type[] bar] → nodeId["foo Type list bar"]
-    fixed = fixed.replace(
-      /(\w+)\[([^\]"]*?)([A-Za-z_]\w*)\[\]([^\]"]*?)\]/g,
-      (m, nodeId, pre, typeName, post) =>
-        `${nodeId}["${(pre + typeName + " list" + post).trim()}"]`,
-    );
+    // 2. TypeScript array notation in unquoted square-bracket node labels.
+    //    Two-stage: capture the full unquoted label, then replace ALL Type[] inside it.
+    //    The inner pattern (?:[^\]"[]|\[\])* excludes [ from the filler chars so that
+    //    [] pairs are only consumed by the explicit \[\] branch, preventing the [ in a
+    //    Type[] from being greedily eaten before the pair can be matched as a unit.
+    //    e.g. nodeId[TypeA[], TypeB[]] → nodeId["TypeA list, TypeB list"]
+    fixed = fixed.replace(/(\w+)\[((?:[^\]"[]|\[\])*)\]/g, (match, nodeId, label) => {
+      if (!/[A-Za-z_]\w*\[\]/.test(label)) return match;
+      const newLabel = label.replace(/([A-Za-z_]\w*)\[\]/g, "$1 list");
+      return `${nodeId}["${newLabel.trim()}"]`;
+    });
 
     // 3. Hyphens in node IDs that appear before shape delimiters or arrows.
     //    e.g. my-node[label] → my_node[label], my-node --> → my_node -->

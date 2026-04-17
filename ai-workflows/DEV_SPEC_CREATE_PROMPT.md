@@ -38,7 +38,7 @@ Produce a `flowchart TB` diagram grouped by execution layer using subgraphs:
 - If more than 12 components are involved, split into two diagrams:
   - **3a. Client-side architecture** — components and lib modules only
   - **3b. Backend and cloud architecture** — server, database, and cloud services only
-- Use short node labels (filename stem only, e.g. `restaurant-ingredient-items` not the full path)
+- Use **short descriptive aliases** for node IDs and labels — never file paths or route strings. E.g. use `edit_dish_screen` not `restaurant-edit-dish/[dishId].tsx`, use `dish_detail` not `dish/[dishId].tsx`. Node IDs must be alphanumeric with underscores only.
 - Always use `flowchart TB` — never `LR`
 - Prefer 2–3 levels of depth; avoid chains longer than 4 nodes
 

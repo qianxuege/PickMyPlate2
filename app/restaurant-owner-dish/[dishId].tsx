@@ -9,6 +9,7 @@ import { HighlightDishBadges } from '@/components/HighlightDishBadges';
 import { restaurantRoleTheme } from '@/constants/role-theme';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
+import { dishCaloriesPrimaryText, dishCaloriesUsesMutedStyle } from '@/lib/dish-calories-label';
 import { DISH_INGREDIENT_ORIGIN_NOT_SPECIFIED } from '@/lib/restaurant-ingredient-items';
 import { fetchRestaurantOwnerDishDetail, type RestaurantOwnerDishDetail } from '@/lib/restaurant-owner-dish-detail';
 
@@ -144,6 +145,15 @@ export default function RestaurantOwnerDishDetailScreen() {
                 ))}
               </View>
             ) : null}
+
+            <Text
+              style={[
+                styles.caloriesLine,
+                dishCaloriesUsesMutedStyle(detail.calories_manual, detail.calories_estimated) && styles.caloriesLineMuted,
+              ]}
+            >
+              {dishCaloriesPrimaryText(detail.calories_manual, detail.calories_estimated)}
+            </Text>
 
             {/* Featured / New badges */}
             <HighlightDishBadges is_featured={detail.is_featured} is_new={detail.is_new} />
@@ -320,6 +330,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
+  },
+  caloriesLine: {
+    ...Typography.bodyMedium,
+    color: G.text,
+  },
+  caloriesLineMuted: {
+    color: G.muted,
   },
   reviewBanner: {
     flexDirection: 'row',

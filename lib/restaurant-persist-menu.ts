@@ -1,4 +1,10 @@
-import { structuredIngredientsForPersist, type ParsedMenu, type ParsedMenuItem, type ParsedMenuSection } from '@/lib/menu-scan-schema';
+import { insertDishesWithCaloriesColumnFallback } from '@/lib/dish-calories-columns-support';
+import {
+  structuredIngredientsForPersist,
+  type ParsedMenu,
+  type ParsedMenuItem,
+  type ParsedMenuSection,
+} from '@/lib/menu-scan-schema';
 import { supabase } from '@/lib/supabase';
 import { restaurantMenuDishNeedsReview } from '@/lib/restaurant-menu-dish-utils';
 
@@ -76,12 +82,17 @@ export async function persistRestaurantMenuDraft(menu: ParsedMenu, restaurantId:
         ingredient_items: structuredIngredientsForPersist(it),
         image_url: null,
         needs_review,
+        calories_manual: null,
+        calories_estimated:
+          typeof it.calories_estimated === 'number' && Number.isFinite(it.calories_estimated)
+            ? Math.round(it.calories_estimated)
+            : null,
       });
     });
   }
 
   if (dishRows.length > 0) {
-    const { error: dishErr } = await supabase.from('restaurant_menu_dishes').insert(dishRows);
+    const { error: dishErr } = await insertDishesWithCaloriesColumnFallback('restaurant_menu_dishes', dishRows);
     if (dishErr) {
       await supabase.from('restaurant_menu_scans').delete().eq('id', scanId);
       return { ok: false, error: dishErr.message };

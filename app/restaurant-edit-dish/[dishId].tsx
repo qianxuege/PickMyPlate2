@@ -1,6 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -15,6 +16,8 @@ import {
   type IngredientFormRow,
 } from '@/lib/restaurant-ingredient-items';
 import { supabase } from '@/lib/supabase';
+import { getRestaurantMenuDishSelectColumns } from '@/lib/dish-calories-columns-support';
+import { estimateRestaurantDishCalories, parseCaloriesManualInput } from '@/lib/restaurant-dish-calories-api';
 import { generateRestaurantDishImage } from '@/lib/restaurant-dish-image-api';
 import { pickAndUploadRestaurantDishPhoto } from '@/lib/restaurant-dish-photo-upload';
 import { generateRestaurantDishSummary } from '@/lib/restaurant-dish-summary-api';
@@ -66,6 +69,13 @@ export default function RestaurantEditDishScreen() {
   const [ingredientRows, setIngredientRows] = useState<IngredientFormRow[]>([]);
   const [tagsText, setTagsText] = useState('');
   const [spiceLevel, setSpiceLevel] = useState<SpiceLevel>(0);
+  const [caloriesManualText, setCaloriesManualText] = useState('');
+  const [caloriesEstimated, setCaloriesEstimated] = useState<number | null>(null);
+  /** True only after a successful Estimate (AI) this visit — avoids "saved" copy for DB-loaded values before any tap. */
+  const [aiCaloriesTouchedThisSession, setAiCaloriesTouchedThisSession] = useState(false);
+  const caloriesEstimatedRef = useRef<number | null>(null);
+  const [caloriesLoading, setCaloriesLoading] = useState(false);
+  const [caloriesError, setCaloriesError] = useState<string | null>(null);
 
   const [imageLoading, setImageLoading] = useState(false);
   const [uploadPhotoLoading, setUploadPhotoLoading] = useState(false);
@@ -74,16 +84,19 @@ export default function RestaurantEditDishScreen() {
   const [summaryError, setSummaryError] = useState<string | null>(null);
 
   useEffect(() => {
+    caloriesEstimatedRef.current = caloriesEstimated;
+  }, [caloriesEstimated]);
+
+  useEffect(() => {
     if (!dishId) return;
     let cancelled = false;
     void (async () => {
       try {
         setLoading(true);
+        const dishCols = await getRestaurantMenuDishSelectColumns();
         const { data, error } = await supabase
           .from('restaurant_menu_dishes')
-          .select(
-            'id, name, description, price_amount, price_currency, price_display, spice_level, tags, ingredients, ingredient_items, image_url',
-          )
+          .select(dishCols as any)
           .eq('id', dishId)
           .maybeSingle();
         if (error) throw error;
@@ -93,24 +106,46 @@ export default function RestaurantEditDishScreen() {
         }
         if (cancelled) return;
 
-        setDishImageUrl(data.image_url ?? null);
-        setName(data.name ?? '');
-        setSummary(data.description ?? '');
-        setSpiceLevel((data.spice_level ?? 0) as SpiceLevel);
+        const d = data as unknown as {
+          image_url?: string | null;
+          name?: string;
+          description?: string | null;
+          spice_level?: number;
+          price_display?: string | null;
+          price_amount?: number | null;
+          ingredients?: unknown;
+          ingredient_items?: unknown;
+          tags?: unknown;
+          calories_manual?: unknown;
+          calories_estimated?: unknown;
+        };
 
-        const priceDisplay = data.price_display ?? (data.price_amount != null ? `$${data.price_amount}` : '');
+        setDishImageUrl(d.image_url ?? null);
+        setName(d.name ?? '');
+        setSummary(d.description ?? '');
+        setSpiceLevel((d.spice_level ?? 0) as SpiceLevel);
+
+        const priceDisplay = d.price_display ?? (d.price_amount != null ? `$${d.price_amount}` : '');
         setPriceText(priceDisplay ?? '');
 
         setIngredientRows(
           dishDbToIngredientFormRows({
-            ingredient_items: (data as { ingredient_items?: unknown }).ingredient_items,
-            ingredients: data.ingredients,
-            name: data.name,
+            ingredient_items: d.ingredient_items,
+            ingredients: d.ingredients,
+            name: d.name,
           }),
         );
 
-        const tags = Array.isArray(data.tags) ? data.tags : [];
+        const tags = Array.isArray(d.tags) ? d.tags : [];
         setTagsText(tags.join(', '));
+
+        const cm = d.calories_manual;
+        const ce = d.calories_estimated;
+        setCaloriesManualText(
+          typeof cm === 'number' && Number.isFinite(cm) && Math.round(cm) >= 0 ? String(Math.round(cm)) : '',
+        );
+        setCaloriesEstimated(typeof ce === 'number' && Number.isFinite(ce) ? Math.round(ce) : null);
+        setAiCaloriesTouchedThisSession(false);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -176,6 +211,7 @@ export default function RestaurantEditDishScreen() {
         spiceLevel,
         tags,
         ingredientItems: ingredientItemsForSave,
+        caloriesManual: parseCaloriesManualInput(caloriesManualText),
         touchScan: false,
       });
       if (!saved.ok) {
@@ -197,7 +233,62 @@ export default function RestaurantEditDishScreen() {
     } finally {
       setImageLoading(false);
     }
-  }, [dishId, scanId, ingredientItemsForSave, name, priceText, spiceLevel, summary, tags]);
+  }, [dishId, scanId, caloriesManualText, ingredientItemsForSave, name, priceText, spiceLevel, summary, tags]);
+
+  const onEstimateCalories = useCallback(async () => {
+    if (!dishId) return;
+    setCaloriesError(null);
+    setCaloriesLoading(true);
+    try {
+      if (!scanId) {
+        Alert.alert('Missing context', 'scanId is required for generating dish AI outputs.');
+        return;
+      }
+      const { amount, currency, display } = parsePriceToAmount(priceText);
+      const saved = await saveRestaurantDish({
+        dishId,
+        scanId,
+        name: name.trim(),
+        description: summary.trim().length ? summary.trim() : null,
+        priceAmount: amount,
+        priceCurrency: currency,
+        priceDisplay: display,
+        spiceLevel,
+        tags,
+        ingredientItems: ingredientItemsForSave,
+        caloriesManual: parseCaloriesManualInput(caloriesManualText),
+        touchScan: false,
+      });
+      if (!saved.ok) {
+        setCaloriesError(saved.error);
+        Alert.alert('Could not save dish', saved.error);
+        return;
+      }
+      const prevEstimated = caloriesEstimatedRef.current;
+      const res = await estimateRestaurantDishCalories(dishId);
+      if (res.ok) {
+        setCaloriesEstimated(res.caloriesEstimated);
+        if (res.caloriesEstimated != null) {
+          setAiCaloriesTouchedThisSession(true);
+          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          if (prevEstimated != null && prevEstimated === res.caloriesEstimated) {
+            Alert.alert('Calories', `AI kept the same estimate (~${res.caloriesEstimated} cal). Try changing ingredients or name, then refresh.`);
+          }
+        } else {
+          Alert.alert('Calories', 'No estimate was returned. Add ingredients or a clearer dish name and try again.');
+        }
+      } else {
+        setCaloriesError(res.error);
+        Alert.alert('Estimate calories failed', res.error);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Unknown error';
+      setCaloriesError(msg);
+      Alert.alert('Estimate calories failed', msg);
+    } finally {
+      setCaloriesLoading(false);
+    }
+  }, [dishId, scanId, caloriesManualText, ingredientItemsForSave, name, priceText, spiceLevel, summary, tags]);
 
   const onGenerateSummary = useCallback(async () => {
     if (!dishId) return;
@@ -221,6 +312,7 @@ export default function RestaurantEditDishScreen() {
         spiceLevel,
         tags,
         ingredientItems: ingredientItemsForSave,
+        caloriesManual: parseCaloriesManualInput(caloriesManualText),
         touchScan: false,
       });
       if (!saved.ok) {
@@ -250,7 +342,7 @@ export default function RestaurantEditDishScreen() {
     } finally {
       setSummaryLoading(false);
     }
-  }, [dishId, scanId, ingredientItemsForSave, name, priceText, spiceLevel, summary, tags]);
+  }, [dishId, scanId, caloriesManualText, ingredientItemsForSave, name, priceText, spiceLevel, summary, tags]);
 
   const onSaveDish = useCallback(async () => {
     if (!dishId || !scanId) {
@@ -276,6 +368,7 @@ export default function RestaurantEditDishScreen() {
         spiceLevel,
         tags,
         ingredientItems: ingredientItemsForSave,
+        caloriesManual: parseCaloriesManualInput(caloriesManualText),
         touchScan: true,
       });
       if (!result.ok) {
@@ -288,7 +381,7 @@ export default function RestaurantEditDishScreen() {
     } finally {
       setSaving(false);
     }
-  }, [dishId, scanId, ingredientItemsForSave, name, priceText, router, spiceLevel, summary, tags]);
+  }, [dishId, scanId, caloriesManualText, ingredientItemsForSave, name, priceText, router, spiceLevel, summary, tags]);
 
   const spiceOptions: { level: SpiceLevel; label: string }[] = [
     { level: 0, label: 'None' },
@@ -403,6 +496,49 @@ export default function RestaurantEditDishScreen() {
                 style={styles.input}
                 keyboardType="decimal-pad"
               />
+            </View>
+
+            <View style={styles.section}>
+              <View style={styles.summaryHeaderRow}>
+                <Text style={styles.fieldLabel}>Calories (optional)</Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    caloriesEstimated != null ? 'Refresh AI calories estimate' : 'Estimate calories with AI'
+                  }
+                  onPress={() => void onEstimateCalories()}
+                  disabled={!dishId || caloriesLoading}
+                  style={({ pressed }) => [
+                    styles.summaryAiPill,
+                    { backgroundColor: t.primary },
+                    (!dishId || caloriesLoading) && { opacity: 0.5 },
+                    pressed && { opacity: 0.9 },
+                  ]}
+                >
+                  <Text style={styles.summaryAiPillText}>
+                    {caloriesLoading ? '…' : caloriesEstimated != null ? 'Refresh (AI)' : 'Estimate (AI)'}
+                  </Text>
+                </Pressable>
+              </View>
+              <TextInput
+                value={caloriesManualText}
+                onChangeText={(v) => setCaloriesManualText(v.replace(/\D/g, '').slice(0, 5))}
+                placeholder="e.g., 450"
+                placeholderTextColor="#6A7282"
+                style={styles.input}
+                keyboardType="number-pad"
+              />
+              {caloriesEstimated != null && aiCaloriesTouchedThisSession ? (
+                <Text style={styles.ingredientsHint}>AI estimate saved: ~{caloriesEstimated} cal</Text>
+              ) : caloriesEstimated != null ? (
+                <Text style={styles.ingredientsHint}>
+                  Previously saved AI estimate: ~{caloriesEstimated} cal. Tap Refresh (AI) to recalculate from current
+                  fields.
+                </Text>
+              ) : (
+                <Text style={styles.ingredientsHint}>Whole numbers only. Manual entry overrides AI for guests.</Text>
+              )}
+              {caloriesError ? <Text style={styles.errorText}>{caloriesError}</Text> : null}
             </View>
 
             <View style={styles.section}>
@@ -708,6 +844,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 21,
     opacity: 0.85,
+  },
+  ingredientsHint: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: '#6A7282',
+    marginTop: 6,
   },
   ingredientRowCard: {
     borderWidth: 1,

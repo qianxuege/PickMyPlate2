@@ -1,3 +1,4 @@
+import { isMissingDishCaloriesColumnsError } from '@/lib/dish-calories-columns-support';
 import {
   ingredientNamesForLegacy,
   normalizeIngredientItemsForPersist,
@@ -40,6 +41,7 @@ export async function createRestaurantDishDraft(input: CreateRestaurantDishDraft
       spice_level: 0,
       tags: [],
       ingredients: [],
+      ingredient_items: [],
       image_url: null,
       needs_review: true,
       is_featured: false,
@@ -65,6 +67,8 @@ export type SaveRestaurantDishInput = {
   tags: string[];
   /** Structured ingredients; `ingredients` text[] is derived as name-only. */
   ingredientItems: DishIngredientItem[];
+  /** Owner-entered kcal; null clears. Does not clear calories_estimated. */
+  caloriesManual?: number | null;
   /**
    * If true (default), updates the parent scan's last_activity_at so it moves
    * to the top of "Recent uploads".
@@ -90,7 +94,7 @@ export async function saveRestaurantDish(input: SaveRestaurantDishInput): Promis
     ingredients: legacyNames,
   });
 
-  const { error } = await supabase.from('restaurant_menu_dishes').update({
+  const patch: Record<string, unknown> = {
     name: input.name,
     description: input.description,
     price_amount: input.priceAmount,
@@ -101,7 +105,17 @@ export async function saveRestaurantDish(input: SaveRestaurantDishInput): Promis
     ingredients: legacyNames,
     ingredient_items: normalized.items,
     needs_review,
-  }).eq('id', input.dishId);
+  };
+  if (input.caloriesManual !== undefined) {
+    patch.calories_manual = input.caloriesManual;
+  }
+
+  let { error } = await supabase.from('restaurant_menu_dishes').update(patch).eq('id', input.dishId);
+
+  if (error && isMissingDishCaloriesColumnsError(error) && 'calories_manual' in patch) {
+    const { calories_manual: _c, ...rest } = patch;
+    ({ error } = await supabase.from('restaurant_menu_dishes').update(rest).eq('id', input.dishId));
+  }
 
   if (error) return { ok: false, error: error.message };
 

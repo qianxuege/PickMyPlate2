@@ -1,5 +1,6 @@
 import * as Linking from 'expo-linking';
 
+import { insertDishesWithCaloriesColumnFallback } from '@/lib/dish-calories-columns-support';
 import { fetchRestaurantMenuForScan } from '@/lib/restaurant-fetch-menu-for-scan';
 import type { RestaurantMenuDishRow } from '@/lib/restaurant-fetch-menu-for-scan';
 import { supabase } from '@/lib/supabase';
@@ -251,12 +252,15 @@ export async function resolvePartnerTokenToDinerScan(token: string): Promise<Res
         ingredients: d.ingredients,
         ingredient_items: structured,
         image_url: d.image_url,
+        calories_manual: d.calories_manual ?? null,
+        calories_estimated: d.calories_estimated ?? null,
       };
     })
     .filter(Boolean);
 
   if (dishInsert.length > 0) {
-    const { error: dishErr } = await supabase.from('diner_scanned_dishes').insert(dishInsert as Record<string, unknown>[]);
+    const rows = dishInsert as Record<string, unknown>[];
+    const { error: dishErr } = await insertDishesWithCaloriesColumnFallback('diner_scanned_dishes', rows);
     if (dishErr) {
       await supabase.from('diner_menu_scans').delete().eq('id', dinerScanId);
       return { ok: false, error: dishErr.message };

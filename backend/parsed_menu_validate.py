@@ -220,6 +220,29 @@ def _parse_ingredients(raw: Any) -> list[str] | None:
     return out
 
 
+def _parse_optional_calories_estimated(raw: Any) -> int | None:
+    """Optional LLM field: rough kcal for one serving; omit or null when unknown."""
+    if raw is None:
+        return None
+    if isinstance(raw, bool):
+        return None
+    if isinstance(raw, (int, float)):
+        if isinstance(raw, float) and (math.isnan(raw) or math.isinf(raw)):
+            return None
+        n = int(round(float(raw)))
+        if 0 <= n <= 20000:
+            return n
+        return None
+    if isinstance(raw, str) and raw.strip():
+        try:
+            n = int(round(float(raw.strip().replace(",", ""))))
+            if 0 <= n <= 20000:
+                return n
+        except ValueError:
+            return None
+    return None
+
+
 def _parse_item(raw: Any) -> dict[str, Any] | None:
     if raw is None or not isinstance(raw, dict):
         return None
@@ -242,6 +265,7 @@ def _parse_item(raw: Any) -> dict[str, Any] | None:
     ingredients = _parse_ingredients(raw.get("ingredients"))
     if ingredients is None:
         return None
+    cal_est = _parse_optional_calories_estimated(raw.get("calories_estimated"))
     return {
         "id": raw["id"],
         "name": raw["name"],
@@ -250,6 +274,7 @@ def _parse_item(raw: Any) -> dict[str, Any] | None:
         "spice_level": sl,
         "tags": tags,
         "ingredients": ingredients,
+        "calories_estimated": cal_est,
     }
 
 

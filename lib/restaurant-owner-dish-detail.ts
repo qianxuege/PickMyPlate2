@@ -1,3 +1,4 @@
+import { getRestaurantOwnerDishSelectColumns } from '@/lib/dish-calories-columns-support';
 import {
   ingredientNamesForLegacy,
   parseIngredientItemsFromDb,
@@ -21,6 +22,8 @@ export type RestaurantOwnerDishDetail = {
   is_new: boolean;
   needs_review: boolean;
   menuName: string | null;
+  calories_manual: number | null;
+  calories_estimated: number | null;
 };
 
 function coerceSpice(v: unknown): 0 | 1 | 2 | 3 {
@@ -38,18 +41,19 @@ function coerceSpice(v: unknown): 0 | 1 | 2 | 3 {
 export async function fetchRestaurantOwnerDishDetail(
   dishId: string,
 ): Promise<{ ok: true; dish: RestaurantOwnerDishDetail } | { ok: false; error: string }> {
+  const dishCols = await getRestaurantOwnerDishSelectColumns();
   const { data: dish, error: dErr } = await supabase
     .from('restaurant_menu_dishes')
-    .select(
-      'id, section_id, name, description, price_amount, price_currency, price_display, spice_level, tags, ingredients, ingredient_items, image_url, is_featured, is_new, needs_review',
-    )
+    .select(dishCols as any)
     .eq('id', dishId)
     .maybeSingle();
 
   if (dErr) return { ok: false, error: dErr.message };
   if (!dish) return { ok: false, error: 'Dish not found' };
 
-  const row = dish as Record<string, unknown>;
+  const row = dish as unknown as Record<string, unknown>;
+  const cm = row.calories_manual;
+  const ce = row.calories_estimated;
 
   // Try to resolve the menu (scan) name for the header
   let menuName: string | null = null;
@@ -99,6 +103,8 @@ export async function fetchRestaurantOwnerDishDetail(
       is_new: Boolean(row.is_new),
       needs_review: Boolean(row.needs_review),
       menuName,
+      calories_manual: typeof cm === 'number' && Number.isFinite(cm) ? Math.round(cm) : null,
+      calories_estimated: typeof ce === 'number' && Number.isFinite(ce) ? Math.round(ce) : null,
     },
   };
 }

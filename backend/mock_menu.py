@@ -23,6 +23,7 @@ MOCK_PARSED_MENU: dict = {
                         "Parmesan",
                         "House Caesar dressing",
                     ],
+                    "calories_estimated": 320,
                 },
                 {
                     "id": "c3d4e5f6-a7b8-4901-c234-56789abcdef0",
@@ -36,6 +37,7 @@ MOCK_PARSED_MENU: dict = {
                         "Corn tortillas",
                         "Spicy sauce",
                     ],
+                    "calories_estimated": 480,
                 },
             ],
         },
@@ -51,6 +53,7 @@ MOCK_PARSED_MENU: dict = {
                     "spice_level": 2,
                     "tags": [],
                     "ingredients": [],
+                    "calories_estimated": 620,
                 },
             ],
         },

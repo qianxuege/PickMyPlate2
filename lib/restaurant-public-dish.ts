@@ -1,3 +1,4 @@
+import { getPublishedRestaurantDishSelectColumns } from '@/lib/dish-calories-columns-support';
 import {
   ingredientNamesForLegacy,
   parseIngredientItemsFromDb,
@@ -21,6 +22,8 @@ export type PublishedRestaurantDishDetail = {
   is_featured: boolean;
   is_new: boolean;
   restaurantName: string;
+  calories_manual: number | null;
+  calories_estimated: number | null;
 };
 
 function coerceSpice(v: unknown): 0 | 1 | 2 | 3 {
@@ -38,11 +41,10 @@ function coerceSpice(v: unknown): 0 | 1 | 2 | 3 {
 export async function fetchPublishedRestaurantDishDetail(
   dishId: string,
 ): Promise<{ ok: true; dish: PublishedRestaurantDishDetail } | { ok: false; error: string }> {
+  const dishCols = await getPublishedRestaurantDishSelectColumns();
   const { data: dish, error: dErr } = await supabase
     .from('restaurant_menu_dishes')
-    .select(
-      'id, section_id, name, description, price_amount, price_currency, price_display, spice_level, tags, ingredients, ingredient_items, image_url, is_featured, is_new',
-    )
+    .select(dishCols as any)
     .eq('id', dishId)
     .maybeSingle();
 
@@ -52,7 +54,7 @@ export async function fetchPublishedRestaurantDishDetail(
   const { data: sec, error: sErr } = await supabase
     .from('restaurant_menu_sections')
     .select('scan_id')
-    .eq('id', (dish as { section_id: string }).section_id)
+    .eq('id', (dish as unknown as { section_id: string }).section_id)
     .maybeSingle();
 
   if (sErr || !sec?.scan_id) return { ok: false, error: 'Menu not found' };
@@ -77,11 +79,13 @@ export async function fetchPublishedRestaurantDishDetail(
     return { ok: false, error: 'This dish is not on the live menu.' };
   }
 
-  const row = dish as Record<string, unknown>;
+  const row = dish as unknown as Record<string, unknown>;
   const name = typeof row.name === 'string' ? row.name : '';
   const restaurantName =
     typeof rest.name === 'string' && rest.name.trim() ? rest.name.trim() : 'Restaurant';
 
+  const cm = row.calories_manual;
+  const ce = row.calories_estimated;
   let ingredientItems = parseIngredientItemsFromDb(row.ingredient_items);
   if (ingredientItems.length === 0) {
     const leg = Array.isArray(row.ingredients) ? (row.ingredients as string[]) : [];
@@ -108,6 +112,8 @@ export async function fetchPublishedRestaurantDishDetail(
       is_featured: Boolean(row.is_featured),
       is_new: Boolean(row.is_new),
       restaurantName,
+      calories_manual: typeof cm === 'number' && Number.isFinite(cm) ? Math.round(cm) : null,
+      calories_estimated: typeof ce === 'number' && Number.isFinite(ce) ? Math.round(ce) : null,
     },
   };
 }

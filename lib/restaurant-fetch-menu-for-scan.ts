@@ -1,3 +1,4 @@
+import { getRestaurantMenuDishSelectColumns } from '@/lib/dish-calories-columns-support';
 import {
   ingredientNamesForLegacy,
   parseIngredientItemsFromDb,
@@ -29,6 +30,8 @@ export type RestaurantMenuDishRow = {
   needs_review: boolean;
   is_featured: boolean;
   is_new: boolean;
+  calories_manual: number | null;
+  calories_estimated: number | null;
 };
 
 export type FetchRestaurantMenuForScanResult =
@@ -67,17 +70,18 @@ export async function fetchRestaurantMenuForScan(scanId: string): Promise<FetchR
     let dishes: RestaurantMenuDishRow[] = [];
 
     if (sectionIds.length > 0) {
+      const dishCols = await getRestaurantMenuDishSelectColumns();
       const { data: dishRows, error: dishErr } = await supabase
         .from('restaurant_menu_dishes')
-        .select(
-          'id, section_id, sort_order, name, description, price_amount, price_currency, price_display, spice_level, tags, ingredients, ingredient_items, image_url, needs_review, is_featured, is_new',
-        )
+        .select(dishCols as any)
         .in('section_id', sectionIds)
         .order('sort_order', { ascending: true });
 
       if (dishErr) return { ok: false, error: dishErr.message };
       dishes = (dishRows ?? []).map((d) => {
-        const row = d as Record<string, unknown>;
+        const row = d as unknown as Record<string, unknown>;
+        const cm = row.calories_manual;
+        const ce = row.calories_estimated;
         let ingredientItems = parseIngredientItemsFromDb(row.ingredient_items);
         if (ingredientItems.length === 0) {
           const leg = Array.isArray(row.ingredients) ? (row.ingredients as string[]) : [];
@@ -96,6 +100,8 @@ export async function fetchRestaurantMenuForScan(scanId: string): Promise<FetchR
           is_new: Boolean(row.is_new),
           ingredients,
           ingredientItems,
+          calories_manual: typeof cm === 'number' && Number.isFinite(cm) ? Math.round(cm) : null,
+          calories_estimated: typeof ce === 'number' && Number.isFinite(ce) ? Math.round(ce) : null,
         } as RestaurantMenuDishRow;
       });
     }

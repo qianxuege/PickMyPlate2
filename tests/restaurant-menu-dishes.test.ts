@@ -212,6 +212,35 @@ describe('saveRestaurantDish', () => {
     // Only one `from` call (for the dish update), not a second one for the scan touch
     expect(mockFrom).toHaveBeenCalledTimes(1);
   });
+
+  it('strips calories_manual and retries update when PostgREST reports missing calories columns', async () => {
+    const missingColErr = {
+      message: 'column calories_manual of relation restaurant_menu_dishes does not exist',
+    };
+    let eqCall = 0;
+    const updateSpy = jest.fn((patch: Record<string, unknown>) => ({
+      eq: jest.fn(() => {
+        eqCall++;
+        if (eqCall === 1) return Promise.resolve({ data: null, error: missingColErr });
+        expect(patch).not.toHaveProperty('calories_manual');
+        return Promise.resolve({ data: null, error: null });
+      }),
+    }));
+    mockFrom.mockReturnValue({ update: updateSpy });
+
+    const result = await saveRestaurantDish({
+      ...baseInput,
+      touchScan: false,
+      caloriesManual: 450,
+    });
+    expect(result.ok).toBe(true);
+    expect(mockFrom).toHaveBeenCalledTimes(2);
+    expect(mockFrom).toHaveBeenNthCalledWith(1, 'restaurant_menu_dishes');
+    expect(mockFrom).toHaveBeenNthCalledWith(2, 'restaurant_menu_dishes');
+    expect(updateSpy).toHaveBeenCalledTimes(2);
+    expect(updateSpy.mock.calls[0][0]).toMatchObject({ calories_manual: 450 });
+    expect(updateSpy.mock.calls[1][0]).not.toHaveProperty('calories_manual');
+  });
 });
 
 // ---------------------------------------------------------------------------

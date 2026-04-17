@@ -72,8 +72,9 @@ Hard rules:
 9. items[].spice_level: JSON integer 0, 1, 2, or 3 only. Infer from dish name, menu cues (hot, spicy, chili, jalapeño, etc.), and typical preparation when not spelled out: 0 = not spicy, 1 = mild, 2 = medium, 3 = hot. Do not output floats or strings for this field.
 10. items[].tags: CRITICAL — only strings from the "allowed_tags" array in the user message. Copy each allowed string exactly. Subjective judgment is OK: include a tag when the dish plausibly matches that user preference. If allowed_tags is empty, every items[].tags must be []. Never output tag strings not in allowed_tags.
 11. items[].ingredients: string array — key ingredients when inferable from name/description; otherwise []. For very simple snacks or single-component dishes (e.g. popcorn, fries, soda), still list the obvious main component(s) inferred from the name (e.g. popcorn → ["popcorn"] or ["corn"]); avoid [] when the name alone implies what it is.
-12. Do not invent dishes that are not supported by the OCR text or the image. If OCR is unreadable, return minimal sections with empty items only if nothing can be inferred; prefer inferring from the image when it is provided.
-13. Do not duplicate the same dish in multiple sections unless the menu clearly lists it twice.
+12. items[].calories_estimated: optional JSON integer or null — your best rough estimate of calories for one typical restaurant serving, from the dish name and ingredients only. Use null when you cannot make a reasonable guess. Stay within 0–20000. Do not copy values from a printed menu unless the menu explicitly states calories.
+13. Do not invent dishes that are not supported by the OCR text or the image. If OCR is unreadable, return minimal sections with empty items only if nothing can be inferred; prefer inferring from the image when it is provided.
+14. Do not duplicate the same dish in multiple sections unless the menu clearly lists it twice.
 """
 
 
@@ -108,7 +109,7 @@ allowed_tags — the ONLY strings you may put in items[].tags (copy exactly). If
 
 {ocr_block}
 
-Return ParsedMenu JSON with schema_version 1. tags must be a subset of allowed_tags only; infer spice_level (0–3) and short descriptions where helpful for the dish detail UI; leave price amount/display null when not on the menu."""
+Return ParsedMenu JSON with schema_version 1. tags must be a subset of allowed_tags only; infer spice_level (0–3) and short descriptions where helpful for the dish detail UI; leave price amount/display null when not on the menu. Include calories_estimated per item when you can infer it from name and ingredients (integer or null)."""
 
 
 def _log_llm_attempt(*, label: str, raw_text: str, parsed: dict[str, Any]) -> None:

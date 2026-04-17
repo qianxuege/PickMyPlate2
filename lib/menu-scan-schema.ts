@@ -66,6 +66,8 @@ export type ParsedMenuItem = {
   ingredientItems?: DishIngredientItem[];
   /** Saved public URL for real or generated dish image */
   image_url?: string | null;
+  /** LLM rough kcal per serving; null if unknown (menu parse or copy from restaurant). */
+  calories_estimated?: number | null;
 };
 
 export type ParsedMenuSection = {
@@ -110,6 +112,8 @@ export type DinerScannedDishRow = {
   /** Partner copies: jsonb array; omit on OCR rows */
   ingredient_items?: unknown;
   image_url: string | null;
+  calories_manual: number | null;
+  calories_estimated: number | null;
 };
 
 function isNonEmptyString(v: unknown): v is string {
@@ -199,6 +203,7 @@ function parseItem(raw: unknown): ParsedMenuItem | null {
   if (!price) return null;
   if (!isSpiceLevel(o.spice_level)) return null;
   if (!Array.isArray(o.tags) || !o.tags.every((t) => typeof t === 'string')) return null;
+
   let mergedNames: string[];
   let mergedItems: DishIngredientItem[];
   const fromIngredients = parseMenuItemIngredients(o.ingredients);
@@ -218,6 +223,15 @@ function parseItem(raw: unknown): ParsedMenuItem | null {
     mergedItems = mergedNames.map((name) => ({ name, origin: null as string | null }));
   }
 
+  let calories_estimated: number | null = null;
+  if ('calories_estimated' in o && o.calories_estimated !== undefined && o.calories_estimated !== null) {
+    const c = o.calories_estimated;
+    if (typeof c === 'number' && Number.isFinite(c)) {
+      const n = Math.round(c);
+      if (n >= 0 && n <= 20000) calories_estimated = n;
+    }
+  }
+
   const out: ParsedMenuItem = {
     id: o.id,
     name: o.name,
@@ -227,6 +241,7 @@ function parseItem(raw: unknown): ParsedMenuItem | null {
     tags: o.tags as string[],
     ingredients: mergedNames,
     image_url: null,
+    calories_estimated,
   };
   if (mergedItems.length > 0) {
     out.ingredientItems = mergedItems;
@@ -299,6 +314,15 @@ function normalizeSpiceLevel(n: unknown): 0 | 1 | 2 | 3 {
 }
 
 /** Map a DB dish row to the API/menu item shape (e.g. after Supabase select). */
+function normalizeCaloriesColumn(v: unknown): number | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'number' && Number.isFinite(v)) {
+    const n = Math.round(v);
+    if (n >= 0 && n <= 20000) return n;
+  }
+  return null;
+}
+
 export function dishRowToParsedItem(row: DinerScannedDishRow): ParsedMenuItem {
   const ingredientItems = parseIngredientItemsFromDb(row.ingredient_items);
   const base: ParsedMenuItem = {
@@ -314,6 +338,7 @@ export function dishRowToParsedItem(row: DinerScannedDishRow): ParsedMenuItem {
     tags: Array.isArray(row.tags) ? row.tags : [],
     ingredients: Array.isArray(row.ingredients) ? row.ingredients : [],
     image_url: typeof row.image_url === 'string' ? row.image_url : null,
+    calories_estimated: normalizeCaloriesColumn(row.calories_estimated),
   };
   if (ingredientItems.length > 0) {
     return { ...base, ingredientItems };

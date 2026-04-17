@@ -10,6 +10,7 @@ Run locally:
 Endpoints:
   GET  /health
   POST /v1/parse-menu   JSON body — see parse_menu_handler docstring
+  POST /v1/restaurant-dishes/<id>/estimate-calories   (cooldown: CALORIE_ESTIMATE_MIN_INTERVAL_SECONDS; unauthenticated key uses request.remote_addr — set TRUSTED_PROXY_HOPS when behind a reverse proxy)
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ import copy
 import json
 import os
 import sys
+import time
 import traceback
 from typing import Any
 from urllib.parse import quote, urlparse
@@ -34,6 +36,7 @@ from mock_menu import MOCK_PARSED_MENU
 MOCK_MENU_PARSE = os.getenv("MOCK_MENU_PARSE", "1") == "1"
 MAX_JSON_BODY_BYTES = 2 * 1024 * 1024  # 2 MiB guardrail for preferences payload
 DISH_IMAGES_BUCKET = os.getenv("DISH_IMAGES_BUCKET", "dish-images").strip() or "dish-images"
+_calorie_estimate_last_requested_at: dict[str, float] = {}
 
 
 def _is_flask_debug(app: Flask) -> bool:
@@ -90,8 +93,47 @@ def _log_backend_supabase_project_hint() -> None:
     )
 
 
+def _calorie_estimate_retry_after_seconds(*, subject: str, dish_id: str) -> int | None:
+    """Small cost guardrail for repeated owner-triggered calorie estimates (per subject + dish)."""
+    interval = int(os.getenv("CALORIE_ESTIMATE_MIN_INTERVAL_SECONDS", "30"))
+    if interval <= 0:
+        return None
+
+    now = time.monotonic()
+    stale_before = now - max(interval * 10, 300)
+    for key, ts in list(_calorie_estimate_last_requested_at.items()):
+        if ts < stale_before:
+            _calorie_estimate_last_requested_at.pop(key, None)
+
+    key = f"{subject}:{dish_id}"
+    last = _calorie_estimate_last_requested_at.get(key)
+    if last is not None:
+        retry_after = interval - (now - last)
+        if retry_after > 0:
+            return int(retry_after) + 1
+
+    _calorie_estimate_last_requested_at[key] = now
+    return None
+
+
+def reset_calorie_estimate_cooldown_for_tests() -> None:
+    """Clear in-memory cooldown timestamps (pytest only)."""
+    _calorie_estimate_last_requested_at.clear()
+
+
 def create_app() -> Flask:
     app = Flask(__name__)
+
+    # Behind reverse proxies, trust X-Forwarded-* so request.remote_addr reflects the client (e.g. calorie cooldown when unauthenticated).
+    _trusted_proxy_hops = int(os.getenv("TRUSTED_PROXY_HOPS", "0") or "0")
+    if _trusted_proxy_hops > 0:
+        from werkzeug.middleware.proxy_fix import ProxyFix
+
+        app.wsgi_app = ProxyFix(
+            app.wsgi_app,
+            x_for=_trusted_proxy_hops,
+            x_proto=_trusted_proxy_hops,
+        )
 
     from flask_cors import CORS
 
@@ -599,6 +641,110 @@ def create_app() -> Flask:
             if _is_flask_debug(app):
                 traceback.print_exc(file=sys.stderr)
             return jsonify({"ok": False, "error": f"summary_generation_failed: {e!s}"}), 502
+
+    @app.post("/v1/restaurant-dishes/<dish_id>/estimate-calories")
+    def estimate_restaurant_dish_calories(dish_id: str):
+        payload = None
+        if REQUIRE_AUTH:
+            payload = verify_bearer_token(request.headers.get("Authorization"))
+            if payload is None:
+                return auth_error_response()
+
+        from llm_dish_vertex import generate_dish_calories_estimate
+        from storage_supabase import get_supabase_admin
+
+        client = get_supabase_admin()
+
+        try:
+            dish_res = (
+                client.table("restaurant_menu_dishes")
+                .select("id, section_id, name, ingredients")
+                .eq("id", dish_id)
+                .limit(1)
+                .execute()
+            )
+            dish_rows = getattr(dish_res, "data", None) or []
+            if not dish_rows:
+                return jsonify({"ok": False, "error": "dish not found"}), 404
+            dish = dish_rows[0]
+
+            sec_res = (
+                client.table("restaurant_menu_sections")
+                .select("id, scan_id")
+                .eq("id", dish["section_id"])
+                .limit(1)
+                .execute()
+            )
+            sec_rows = getattr(sec_res, "data", None) or []
+            if not sec_rows:
+                return jsonify({"ok": False, "error": "dish section not found"}), 404
+            section = sec_rows[0]
+
+            scan_res = (
+                client.table("restaurant_menu_scans")
+                .select("id, restaurant_id, restaurant_name")
+                .eq("id", section["scan_id"])
+                .limit(1)
+                .execute()
+            )
+            scan_rows = getattr(scan_res, "data", None) or []
+            if not scan_rows:
+                return jsonify({"ok": False, "error": "scan not found"}), 404
+            scan = scan_rows[0]
+
+            if payload is not None:
+                rest_res = (
+                    client.table("restaurants")
+                    .select("owner_id")
+                    .eq("id", scan["restaurant_id"])
+                    .limit(1)
+                    .execute()
+                )
+                rest_rows = getattr(rest_res, "data", None) or []
+                if not rest_rows or rest_rows[0].get("owner_id") != payload.get("sub"):
+                    return jsonify({"ok": False, "error": "unauthorized"}), 401
+
+            rate_limit_subject = payload.get("sub") if payload is not None else request.remote_addr or "anonymous"
+            retry_after = _calorie_estimate_retry_after_seconds(
+                subject=str(rate_limit_subject),
+                dish_id=dish_id,
+            )
+            if retry_after is not None:
+                return (
+                    jsonify(
+                        {
+                            "ok": False,
+                            "error": "calorie_estimate_rate_limited",
+                            "retry_after_seconds": retry_after,
+                        }
+                    ),
+                    429,
+                    {"Retry-After": str(retry_after)},
+                )
+
+            ingredients = dish.get("ingredients")
+            if not isinstance(ingredients, list):
+                ingredients = []
+
+            cal = generate_dish_calories_estimate(
+                dish_name=(dish.get("name") or "Dish").strip(),
+                ingredients=[str(item) for item in ingredients if isinstance(item, str)],
+                restaurant_name=scan.get("restaurant_name"),
+                debug_llm=_is_flask_debug(app),
+            )
+
+            (
+                client.table("restaurant_menu_dishes")
+                .update({"calories_estimated": cal})
+                .eq("id", dish_id)
+                .execute()
+            )
+
+            return jsonify({"ok": True, "calories_estimated": cal}), 200
+        except Exception as e:
+            if _is_flask_debug(app):
+                traceback.print_exc(file=sys.stderr)
+            return jsonify({"ok": False, "error": f"calories_estimate_failed: {e!s}"}), 502
 
     return app
 

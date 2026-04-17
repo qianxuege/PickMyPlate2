@@ -54,27 +54,38 @@ async function main() {
 
   let specMarkdown = await callGemini(prompt);
 
-  // Self-healing Mermaid validation loop — up to 3 fix attempts
-  const MAX_FIX_ATTEMPTS = 3;
+  // Self-healing Mermaid validation loop — runs until clean or MAX_FIX_ATTEMPTS reached.
+  // Each fix call receives the full history of prior errors so Gemini knows what it got wrong.
+  const MAX_FIX_ATTEMPTS = 20;
+  const errorHistory = []; // accumulated per-attempt error records
   for (let attempt = 1; attempt <= MAX_FIX_ATTEMPTS; attempt++) {
     const mermaidErrors = validateMermaidBlocks(specMarkdown);
-    if (mermaidErrors.length === 0) break;
+    if (mermaidErrors.length === 0) {
+      process.stdout.write(`Mermaid validation passed${attempt > 1 ? ` after ${attempt - 1} fix(es)` : ""}.\n`);
+      break;
+    }
 
     process.stdout.write(
-      `Mermaid validation attempt ${attempt}: found ${mermaidErrors.length} error(s). Asking Gemini to fix...\n`,
+      `Mermaid validation attempt ${attempt}/${MAX_FIX_ATTEMPTS}: found ${mermaidErrors.length} error(s). Asking Gemini to fix...\n`,
     );
     mermaidErrors.forEach(({ diagramIndex, errors }) => {
       process.stdout.write(`  Diagram ${diagramIndex + 1}: ${errors.join("; ")}\n`);
     });
 
-    specMarkdown = await fixMermaidErrors(specMarkdown, mermaidErrors);
+    // Record this attempt's errors in the history before calling fix
+    errorHistory.push({ attempt, mermaidErrors });
 
+    specMarkdown = await fixMermaidErrors(specMarkdown, mermaidErrors, errorHistory);
+
+    // After the last attempt, do a final validation check
     if (attempt === MAX_FIX_ATTEMPTS) {
       const remaining = validateMermaidBlocks(specMarkdown);
       if (remaining.length > 0) {
         process.stdout.write(
           `Warning: ${remaining.length} Mermaid error(s) remain after ${MAX_FIX_ATTEMPTS} fix attempts. Writing spec anyway.\n`,
         );
+      } else {
+        process.stdout.write(`Mermaid validation passed after ${MAX_FIX_ATTEMPTS} fix(es).\n`);
       }
     }
   }
@@ -488,9 +499,12 @@ function checkMermaidContent(content) {
 
 /**
  * Call Gemini with a targeted prompt to fix only the broken diagrams.
+ * @param {string} spec - full spec markdown
+ * @param {Array} mermaidErrors - current round's errors: [{ diagramIndex, content, errors[] }]
+ * @param {Array} errorHistory - all prior rounds: [{ attempt, mermaidErrors[] }]
  * Returns the spec with fixed diagrams substituted back in.
  */
-async function fixMermaidErrors(spec, mermaidErrors) {
+async function fixMermaidErrors(spec, mermaidErrors, errorHistory = []) {
   const blocks = extractMermaidBlocks(spec);
 
   // Build a prompt that shows only the broken diagrams + their errors
@@ -498,7 +512,7 @@ async function fixMermaidErrors(spec, mermaidErrors) {
     return [
       `### Diagram ${diagramIndex + 1}`,
       "",
-      "**Errors found:**",
+      "**Errors found in this attempt:**",
       errors.map((e) => `- ${e}`).join("\n"),
       "",
       "**Current (broken) Mermaid code:**",
@@ -508,21 +522,43 @@ async function fixMermaidErrors(spec, mermaidErrors) {
     ].join("\n");
   });
 
+  // Summarise errors from all prior attempts so Gemini sees what it got wrong before
+  const priorAttemptSummary = errorHistory.slice(0, -1); // exclude the current (last) attempt
+  const historySection = priorAttemptSummary.length > 0
+    ? [
+        "## Prior fix attempts (DO NOT repeat these mistakes)",
+        "",
+        ...priorAttemptSummary.map(({ attempt, mermaidErrors: prevErrors }) =>
+          [
+            `### Attempt ${attempt} errors`,
+            ...prevErrors.flatMap(({ diagramIndex, errors }) =>
+              errors.map((e) => `- Diagram ${diagramIndex + 1}: ${e}`),
+            ),
+          ].join("\n"),
+        ),
+        "",
+      ]
+    : [];
+
   const fixPrompt = [
     "You are fixing broken Mermaid diagrams in a development specification.",
     "Return ONLY the corrected Mermaid diagrams — one per section, in the same order as shown below.",
     "Do not add any prose, explanations, or extra text.",
     "",
-    "## Rules",
+    "## Rules (strictly enforce every rule — previous attempts violated them)",
     "- Always use `flowchart TB` — never `flowchart LR`",
     "- Node IDs must be alphanumeric with underscores only — NO hyphens, NO slashes, NO dots",
-    "- Never use `()`, `[]`, `{}`, `/`, or `<>` inside unquoted node label text — wrap the entire label in double quotes: `nodeId[\"my label\"]`",
-    "- Arrow pipe labels `-->|label|` must NOT contain `()`, `[]`, or `{}` — remove or simplify those characters from the label text",
+    "  WRONG: `dish-detail`, `app/config`, `dish.tsx`  RIGHT: `dish_detail`, `app_config`, `dish_tsx`",
+    "- NEVER put file paths or route strings in node IDs or labels. Use short descriptive aliases.",
+    "  WRONG: `dish_dishId_tsx[dish/[dishId].tsx]`  RIGHT: `dish_detail[dish detail]`",
+    "  WRONG: `restaurant-edit-dish/[dishId].tsx`    RIGHT: `edit_dish_screen`",
+    "- Never use `()`, `[]`, `{}`, `/`, or `<>` inside unquoted node label text — wrap in double quotes if needed",
+    "- Arrow pipe labels `-->|label|` must NOT contain `()`, `[]`, or `{}` — simplify or remove them",
     "- Always use `-->|label|` for labeled arrows — never `-- label -->`",
     "- Never use reserved keywords (`end`, `subgraph`, `style`, `classDef`) as bare node IDs",
-    "- In classDiagram, member return types must not contain `{` or `}` — write `map` or `object` instead of `{ok: boolean}`",
-    "- Wrap any label containing special characters in double quotes",
+    "- In classDiagram, member return types must not use `{` or `}` — write `map` or `object` instead",
     "",
+    ...historySection,
     "## Diagrams to fix",
     "",
     brokenSections.join("\n\n"),

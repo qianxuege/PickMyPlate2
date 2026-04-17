@@ -66,7 +66,7 @@ Return the complete updated specification as a single Markdown document. Do not 
 
 - Always use `flowchart TB` — never `flowchart LR`
 - Maximum **12 nodes per diagram** — split into sub-diagrams if more are needed
-- Use short, human-readable node labels — no file extensions, no full paths
+- Use **short descriptive aliases** for node IDs and labels — never file paths or route strings. E.g. use `edit_dish_screen` not `restaurant-edit-dish/[dishId].tsx`, use `dish_detail` not `dish/[dishId].tsx`. Node IDs must be alphanumeric with underscores only.
 - Use `subgraph` blocks to group related nodes visually
 - Keep arrow labels short (under 40 characters); omit if they add no information
 - Never nest subgraphs more than 2 levels deep

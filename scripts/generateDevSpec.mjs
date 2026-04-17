@@ -56,7 +56,7 @@ async function main() {
 
   // Self-healing Mermaid validation loop — runs until clean or MAX_FIX_ATTEMPTS reached.
   // Each fix call receives the full history of prior errors so Gemini knows what it got wrong.
-  const MAX_FIX_ATTEMPTS = 20;
+  const MAX_FIX_ATTEMPTS = 10;
   const errorHistory = []; // accumulated per-attempt error records
   for (let attempt = 1; attempt <= MAX_FIX_ATTEMPTS; attempt++) {
     const mermaidErrors = validateMermaidBlocks(specMarkdown);

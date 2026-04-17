@@ -31,6 +31,21 @@ const DEFAULT_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 const CREATE_PROMPT_PATH = "ai-workflows/DEV_SPEC_CREATE_PROMPT.md";
 const UPDATE_PROMPT_PATH = "ai-workflows/DEV_SPEC_UPDATE_PROMPT.md";
 
+// Lazy-loaded mermaid parser. mermaid expects a browser environment, so we
+// install jsdom + isomorphic-dompurify shims on globalThis before importing it.
+// classDiagram in particular calls DOMPurify.addHook during init.
+let _mermaid = null;
+async function getMermaid() {
+  if (_mermaid) return _mermaid;
+  const { JSDOM } = await import("jsdom");
+  const dom = new JSDOM();
+  globalThis.window = dom.window;
+  globalThis.document = dom.window.document;
+  globalThis.DOMPurify = (await import("isomorphic-dompurify")).default;
+  _mermaid = (await import("mermaid")).default;
+  return _mermaid;
+}
+
 async function main() {
   const diffPath = process.env.PR_DIFF_PATH;
   if (!diffPath) throw new Error("PR_DIFF_PATH is required.");
@@ -64,7 +79,7 @@ async function main() {
   const MAX_FIX_ATTEMPTS = 5;
   const errorHistory = []; // accumulated per-attempt error records
   for (let attempt = 1; attempt <= MAX_FIX_ATTEMPTS; attempt++) {
-    const mermaidErrors = validateMermaidBlocks(specMarkdown);
+    const mermaidErrors = await validateMermaidBlocks(specMarkdown);
     if (mermaidErrors.length === 0) {
       process.stdout.write(`Mermaid validation passed${attempt > 1 ? ` after ${attempt - 1} fix(es)` : ""}.\n`);
       break;
@@ -84,7 +99,7 @@ async function main() {
 
     // After the last attempt, do a final validation check
     if (attempt === MAX_FIX_ATTEMPTS) {
-      const remaining = validateMermaidBlocks(specMarkdown);
+      const remaining = await validateMermaidBlocks(specMarkdown);
       if (remaining.length > 0) {
         process.stdout.write(
           `Warning: ${remaining.length} Mermaid error(s) remain after ${MAX_FIX_ATTEMPTS} fix attempts. Writing spec anyway.\n`,
@@ -349,15 +364,24 @@ function extractMermaidBlocks(spec) {
 
 /**
  * Validate all Mermaid blocks in the spec.
- * Returns an array of { diagramIndex, content, errors[] } for blocks with errors.
- * Returns an empty array if all diagrams are clean.
+ *
+ * Hybrid strategy:
+ *   1. mermaid.parse() is the gatekeeper — if it accepts, the diagram WILL
+ *      render on GitHub, so we ship it (no static-rule false positives).
+ *   2. If the parser rejects, we ALSO collect any matches from the static
+ *      rules as plain-English hints (e.g. "use underscores only") and append
+ *      them to the parser error. This gives Gemini both the precise location
+ *      (from the parser) and actionable guidance (from the rules).
+ *
+ * Returns an array of { diagramIndex, content, errors[] } for blocks the
+ * parser rejected. Returns [] when all diagrams parse cleanly.
  */
-function validateMermaidBlocks(spec) {
+async function validateMermaidBlocks(spec) {
   const blocks = extractMermaidBlocks(spec);
   const results = [];
 
   for (const block of blocks) {
-    const errors = checkMermaidContent(block.content);
+    const errors = await checkMermaidContent(block.content);
     if (errors.length > 0) {
       results.push({ diagramIndex: block.diagramIndex, content: block.content, errors });
     }
@@ -366,10 +390,29 @@ function validateMermaidBlocks(spec) {
 }
 
 /**
- * Run all grammar checks on a single Mermaid diagram's content (without fences).
- * Returns a list of human-readable error strings.
+ * Parser-first check: returns [] if mermaid.parse() accepts the diagram.
+ * If the parser rejects, returns the parser error followed by any matching
+ * static-rule hints to enrich the fix prompt.
  */
-function checkMermaidContent(content) {
+async function checkMermaidContent(content) {
+  const mermaid = await getMermaid();
+  try {
+    await mermaid.parse(content);
+    return [];
+  } catch (err) {
+    const parserError = `Mermaid parser error: ${err?.message || String(err)}`;
+    const hints = collectStaticHints(content);
+    return hints.length > 0 ? [parserError, ...hints] : [parserError];
+  }
+}
+
+/**
+ * Run plain-English static rules on a diagram's content. Used only as
+ * supplementary hints when the parser already failed — these hints are NOT
+ * authoritative and may have false positives, so we never block a
+ * parser-valid diagram on them.
+ */
+function collectStaticHints(content) {
   const errors = [];
   const lines = content.split("\n");
 

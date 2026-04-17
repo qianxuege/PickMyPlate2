@@ -326,14 +326,22 @@ function checkMermaidContent(content) {
     // Check 1: Invalid characters in node IDs (hyphens, dots, slashes).
     // Node IDs must be alphanumeric + underscores only.
     // Run against lineNoQuotes so we don't flag chars inside quoted labels.
+    // Three sub-cases:
+    //   a) Token before an arrow or shape delimiter on the same line
+    //   b) Token after an arrow on the same line
+    //   c) Standalone bare token — entire (non-structural) line is just an ID
     // -------------------------------------------------------------------
     const invalidNodeIdRe = /[-./]/; // characters banned in node IDs
-    const nodeTokenRe = /\b([A-Za-z_][A-Za-z0-9_./-]*)\s*(?:-->|---|~~>|--o|--x|[\[({>])/g;
-    while ((m = nodeTokenRe.exec(lineNoQuotes)) !== null) {
+
+    // 1a: node ID before arrow or shape delimiter
+    const nodeBeforeRe = /\b([A-Za-z_][A-Za-z0-9_./-]*)\s*(?:-->|---|~~>|--o|--x|[\[({>])/g;
+    while ((m = nodeBeforeRe.exec(lineNoQuotes)) !== null) {
       if (invalidNodeIdRe.test(m[1])) {
         errors.push(`Line ${lineNum}: node ID "${m[1]}" contains invalid chars (- . /) — use underscores only`);
       }
     }
+
+    // 1b: node ID after arrow
     const nodeAfterRe = /(?:-->|---|~~>|--o|--x)\s*(?:\|[^|]*\|\s*)?([A-Za-z_][A-Za-z0-9_./-]*)\s*(?:[\[({>]|$)/g;
     while ((m = nodeAfterRe.exec(lineNoQuotes)) !== null) {
       if (invalidNodeIdRe.test(m[1])) {
@@ -341,18 +349,71 @@ function checkMermaidContent(content) {
       }
     }
 
+    // 1c: standalone bare node ID — line is just one or more bare tokens (possibly joined by &)
+    // e.g. "my-node" or "nodeA & my-node"
+    const strippedLine = lineNoQuotes
+      .replace(/\[[^\]]*\]/g, "")   // remove [...] labels
+      .replace(/\([^)]*\)/g, "")    // remove (...) labels
+      .replace(/\{[^}]*\}/g, "")    // remove {...} labels
+      .replace(/-->.*$/g, "")       // remove arrows and everything after
+      .replace(/---.*$/g, "")
+      .trim();
+    // Guard: skip if remaining text still contains > or | (leftover arrow syntax);
+    // do NOT include - in this check since hyphens appear in the node IDs we want to catch.
+    if (strippedLine && !/[>|]/.test(strippedLine)) {
+      // What remains should be only bare node IDs (possibly separated by & or whitespace)
+      const bareTokens = strippedLine.split(/[\s&]+/).filter(Boolean);
+      for (const tok of bareTokens) {
+        if (/^[A-Za-z_][A-Za-z0-9_./-]*$/.test(tok) && invalidNodeIdRe.test(tok)) {
+          errors.push(`Line ${lineNum}: standalone node ID "${tok}" contains invalid chars (- . /) — use underscores only`);
+        }
+      }
+    }
+
     // -------------------------------------------------------------------
     // Check 1b: Reserved Mermaid keywords used as bare (unquoted) node IDs.
-    // "end" closes a subgraph prematurely; others open structural blocks.
+    // Covers keywords from flowchart, sequence, class, state, ER, git diagrams.
     // Run against lineNoQuotes to avoid false positives inside quoted labels.
     // -------------------------------------------------------------------
-    const reservedBeforeRe = /\b(end|style|classDef|subgraph|graph|flowchart|direction)\s*(?:-->|---|[\[({>])/gi;
-    const reservedAfterRe = /(?:-->|---)\s*(?:\|[^|]*\|\s*)?(end|style|classDef|subgraph|graph|flowchart|direction)\s*(?:[\[({>]|$)/gi;
+    const RESERVED_KW = [
+      // Structural / flow control
+      "end", "subgraph", "direction", "graph", "flowchart",
+      // Styling
+      "style", "classDef", "linkStyle", "click",
+      // Sequence diagram
+      "participant", "actor", "activate", "deactivate", "destroy",
+      "create", "note", "loop", "alt", "else", "opt", "par", "and",
+      "break", "critical", "option", "rect", "title", "autonumber",
+      // State diagram
+      "state", "choice", "fork", "join", "concurrency",
+      // ER diagram
+      "erDiagram", "entity", "relationship",
+      // Class diagram
+      "namespace",
+      // Git diagram
+      "commit", "branch", "checkout", "merge", "cherry-pick", "tag",
+      // Misc
+      "section", "gantt", "pie", "gitGraph",
+    ].join("|");
+    const reservedPattern = new RegExp(`\\b(${RESERVED_KW})\\b`, "gi");
+    // Only flag when the keyword appears in a node-ID position (before/after an arrow or shape delimiter)
+    const reservedBeforeRe = new RegExp(`\\b(${RESERVED_KW})\\s*(?:-->|---|[\\[({>])`, "gi");
+    const reservedAfterRe = new RegExp(`(?:-->|---)\\s*(?:\\|[^|]*\\|\\s*)?(${RESERVED_KW})\\s*(?:[\\[({>]|$)`, "gi");
     while ((m = reservedBeforeRe.exec(lineNoQuotes)) !== null) {
       errors.push(`Line ${lineNum}: "${m[1]}" is a reserved Mermaid keyword — rename this node`);
     }
     while ((m = reservedAfterRe.exec(lineNoQuotes)) !== null) {
       errors.push(`Line ${lineNum}: "${m[1]}" is a reserved Mermaid keyword — rename this node`);
+    }
+    // Also catch standalone reserved keywords on their own line (bare node definition)
+    if (strippedLine && !/[>|]/.test(strippedLine)) {
+      const bareTokens2 = strippedLine.split(/[\s&]+/).filter(Boolean);
+      for (const tok of bareTokens2) {
+        if (reservedPattern.test(tok) && /^[A-Za-z]+$/.test(tok)) {
+          errors.push(`Line ${lineNum}: standalone node ID "${tok}" is a reserved Mermaid keyword — rename this node`);
+        }
+        reservedPattern.lastIndex = 0; // reset stateful regex
+      }
     }
 
     // -------------------------------------------------------------------

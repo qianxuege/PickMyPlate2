@@ -134,6 +134,34 @@ def test_estimate_llm_runtime_error_502(flask_client):
     assert "calories_estimate_failed" in res.get_json().get("error", "")
 
 
+def test_estimate_rate_limit_uses_distinct_clients_when_trusted_proxy_hops_set(monkeypatch, flask_client):
+    """With ProxyFix, X-Forwarded-For yields different cooldown subjects for unauthenticated requests."""
+    monkeypatch.setenv("CALORIE_ESTIMATE_MIN_INTERVAL_SECONDS", "2")
+    monkeypatch.setenv("TRUSTED_PROXY_HOPS", "1")
+    client = app_module.create_app().test_client()
+    dish_id = "00000000-0000-0000-0000-0000000000d5"
+
+    def build_track():
+        return _SupabaseTrack(
+            [
+                _row(id=dish_id, section_id="s1", name="S", ingredients=[]),
+                _row(id="s1", scan_id="sc1"),
+                _row(id="sc1", restaurant_id="r1", restaurant_name="Z"),
+                _empty(),
+            ]
+        )
+
+    headers_a = {"X-Forwarded-For": "198.51.100.1"}
+    headers_b = {"X-Forwarded-For": "198.51.100.2"}
+    with patch("storage_supabase.get_supabase_admin", side_effect=lambda: build_track()), patch(
+        "llm_dish_vertex.generate_dish_calories_estimate",
+        return_value=100,
+    ):
+        assert client.post(f"/v1/restaurant-dishes/{dish_id}/estimate-calories", headers=headers_a).status_code == 200
+        r2 = client.post(f"/v1/restaurant-dishes/{dish_id}/estimate-calories", headers=headers_b)
+    assert r2.status_code == 200
+
+
 def test_estimate_rate_limited(monkeypatch, flask_client):
     monkeypatch.setenv("CALORIE_ESTIMATE_MIN_INTERVAL_SECONDS", "2")
     dish_id = "00000000-0000-0000-0000-0000000000d4"

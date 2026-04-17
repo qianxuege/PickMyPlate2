@@ -10,7 +10,7 @@ Run locally:
 Endpoints:
   GET  /health
   POST /v1/parse-menu   JSON body — see parse_menu_handler docstring
-  POST /v1/restaurant-dishes/<id>/estimate-calories   (optional per-user/per-dish cooldown, see CALORIE_ESTIMATE_MIN_INTERVAL_SECONDS)
+  POST /v1/restaurant-dishes/<id>/estimate-calories   (cooldown: CALORIE_ESTIMATE_MIN_INTERVAL_SECONDS; unauthenticated key uses request.remote_addr — set TRUSTED_PROXY_HOPS when behind a reverse proxy)
 """
 
 from __future__ import annotations
@@ -123,6 +123,17 @@ def reset_calorie_estimate_cooldown_for_tests() -> None:
 
 def create_app() -> Flask:
     app = Flask(__name__)
+
+    # Behind reverse proxies, trust X-Forwarded-* so request.remote_addr reflects the client (e.g. calorie cooldown when unauthenticated).
+    _trusted_proxy_hops = int(os.getenv("TRUSTED_PROXY_HOPS", "0") or "0")
+    if _trusted_proxy_hops > 0:
+        from werkzeug.middleware.proxy_fix import ProxyFix
+
+        app.wsgi_app = ProxyFix(
+            app.wsgi_app,
+            x_for=_trusted_proxy_hops,
+            x_proto=_trusted_proxy_hops,
+        )
 
     from flask_cors import CORS
 

@@ -63,8 +63,7 @@ export async function dinerScannedDishesHasCaloriesColumns(): Promise<boolean> {
   if (isMissingDishCaloriesColumnsError(error)) {
     return false;
   }
-  dinerCaloriesProbe = true;
-  return true;
+  return false;
 }
 
 /** Whether public.restaurant_menu_dishes has calories columns. */
@@ -78,8 +77,7 @@ export async function restaurantMenuDishesHasCaloriesColumns(): Promise<boolean>
   if (isMissingDishCaloriesColumnsError(error)) {
     return false;
   }
-  restaurantCaloriesProbe = true;
-  return true;
+  return false;
 }
 
 export function stripDishCaloriesFields<T extends Record<string, unknown>>(row: T): Omit<T, 'calories_manual' | 'calories_estimated'> {

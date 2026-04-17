@@ -737,9 +737,46 @@ async function fixSingleDiagram(content, errors, diagramIndex, historySection) {
 
   const fixedText = await callGemini(fixPrompt);
 
-  // Take the first fenced mermaid block from the response.
-  const match = fixedText.match(/```mermaid\s*\n[\s\S]*?```/);
-  return match ? match[0] : null;
+  // Two cases to handle:
+  //   1. Response still contains a fenced ```mermaid ... ``` block — extract it directly.
+  //   2. Response has no fences because callGemini → extractText already stripped the
+  //      outer ``` wrapper (its regex matches any ``` ... ``` whether the language
+  //      tag is "markdown", "mermaid", or absent). In that case we get back something
+  //      like "mermaid\nflowchart TB\n..." and must strip the leading language tag
+  //      and re-wrap it ourselves.
+  let body;
+  const fenced = fixedText.match(/```mermaid\s*\n([\s\S]*?)```/);
+  if (fenced) {
+    body = fenced[1].trimEnd();
+  } else {
+    body = fixedText
+      .replace(/^\s*mermaid\s*\n/, "") // drop leading "mermaid" line left by extractText
+      .trim();
+  }
+  if (!body) return null;
+
+  // Sanity check: a real Mermaid diagram must begin with a known diagram-type
+  // keyword. If the response is prose ("I cannot fix this..." / explanation /
+  // chain-of-thought), wrapping it as a diagram would burn a fix attempt and
+  // produce a confusing parser error on the next round. Skip instead.
+  if (!isMermaidDiagramBody(body)) return null;
+
+  return `\`\`\`mermaid\n${body}\n\`\`\``;
+}
+
+/**
+ * Return true if `body` looks like a Mermaid diagram — i.e. its first
+ * non-blank, non-comment line begins with a known diagram-type keyword.
+ */
+function isMermaidDiagramBody(body) {
+  const KNOWN_TYPES =
+    /^(flowchart|graph|classDiagram|sequenceDiagram|erDiagram|stateDiagram(?:-v2)?|gantt|pie|gitGraph|journey|mindmap|timeline|requirementDiagram|quadrantChart|xychart-beta|sankey-beta|block-beta|C4Context|C4Container|C4Component|C4Dynamic|C4Deployment)\b/i;
+  for (const raw of body.split("\n")) {
+    const line = raw.trim();
+    if (!line || line.startsWith("%%")) continue;
+    return KNOWN_TYPES.test(line);
+  }
+  return false;
 }
 
 // ---------------------------------------------------------------------------

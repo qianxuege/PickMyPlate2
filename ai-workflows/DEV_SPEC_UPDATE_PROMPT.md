@@ -72,6 +72,7 @@ Return the complete updated specification as a single Markdown document. Do not 
 - Never nest subgraphs more than 2 levels deep
 - **Never use parentheses `()`, brackets `[]`, braces `{}`, slashes `/`, or angle brackets `<>` inside node label text** — these are Mermaid shape delimiters and will cause parse errors. If a label must contain any of these characters, wrap the entire label in double quotes: `nodeId["label with (parens)"]`
 - **Arrow pipe labels must also be free of `()`, `[]`, and `{}`** — `-->|upsertNote|` is valid, `-->|upsertNote(id)|` is not. Strip all parens/brackets from arrow labels.
+- **Never use TypeScript array notation `Type[]` in labels or arrow labels** — `[]` breaks the Mermaid parser. Write `Type list` instead: `-->|DinerFavoriteListItem list|` not `-->|DinerFavoriteListItem[]|`
 - **Never use hyphens, dots, or slashes in node IDs** — these conflict with arrow syntax and cause parse errors. Use underscores instead: `dish_dishId_tsx` not `dish-[dishId].tsx`. Node IDs must be alphanumeric with underscores only.
 - **Always use `-->|label|` syntax for labeled arrows**, never `-- label -->` — the latter causes parse errors
 - **In `classDiagram`, member return types must not contain `{` or `}`** — write `map` or `object` instead of `{ok: boolean}`

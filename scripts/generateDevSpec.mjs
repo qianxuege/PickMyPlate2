@@ -54,6 +54,10 @@ async function main() {
 
   let specMarkdown = await callGemini(prompt);
 
+  // Pre-sanitize pass: automatically fix deterministic patterns that Gemini
+  // consistently gets wrong before entering the validation loop.
+  specMarkdown = preSanitizeMermaid(specMarkdown);
+
   // Self-healing Mermaid validation loop — runs until clean or MAX_FIX_ATTEMPTS reached.
   // Each fix call receives a truncated history of recent errors so Gemini knows what it got
   // wrong without the prompt growing unboundedly across many attempts.
@@ -255,6 +259,52 @@ async function fileExists(filePath) {
   } catch {
     return false;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Mermaid pre-sanitizer — deterministic fixes applied before validation
+// ---------------------------------------------------------------------------
+
+/**
+ * Automatically repair common recurring Mermaid errors that Gemini reliably
+ * produces, so the validation loop starts from a cleaner baseline.
+ *
+ * Operates only inside ```mermaid ... ``` blocks. Does not touch prose sections.
+ */
+function preSanitizeMermaid(spec) {
+  return spec.replace(/```mermaid\s*\n([\s\S]*?)```/g, (fullMatch, body) => {
+    let fixed = body;
+
+    // 1. TypeScript array notation in arrow pipe labels: -->|Type[]| → -->|Type list|
+    //    Matches any [...] that looks like a type annotation (starts with uppercase or
+    //    contains word chars) inside a pipe label.
+    fixed = fixed.replace(
+      /(\|[^|]*?)([A-Za-z_]\w*)\[\]([^|]*?\|)/g,
+      (m, pre, typeName, post) => `${pre}${typeName} list${post}`,
+    );
+
+    // 2. TypeScript array notation in unquoted square-bracket node labels:
+    //    nodeId[Type[]] → nodeId["Type list"]
+    //    nodeId[foo Type[] bar] → nodeId["foo Type list bar"]
+    fixed = fixed.replace(
+      /(\w+)\[([^\]"]*?)([A-Za-z_]\w*)\[\]([^\]"]*?)\]/g,
+      (m, nodeId, pre, typeName, post) =>
+        `${nodeId}["${(pre + typeName + " list" + post).trim()}"]`,
+    );
+
+    // 3. Hyphens in node IDs that appear before shape delimiters or arrows.
+    //    e.g. my-node[label] → my_node[label], my-node --> → my_node -->
+    //    Only replaces hyphens in the ID token, not inside quoted labels.
+    fixed = fixed.replace(
+      /\b([A-Za-z_][A-Za-z0-9_]*(?:-[A-Za-z0-9_]+)+)(\s*(?:-->|---|[\[({]))/g,
+      (m, nodeId, suffix) => `${nodeId.replace(/-/g, "_")}${suffix}`,
+    );
+
+    // 4. Old-style labeled arrows: -- label --> → -->|label|
+    fixed = fixed.replace(/--\s+([^-\n][^\n]*?)\s+-->/g, (_m, label) => `-->|${label.trim()}|`);
+
+    return `\`\`\`mermaid\n${fixed}\`\`\``;
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -557,6 +607,9 @@ async function fixMermaidErrors(spec, mermaidErrors, errorHistory = []) {
     "- NEVER put file paths or route strings in node IDs or labels. Use short descriptive aliases.",
     "  WRONG: `dish_dishId_tsx[dish/[dishId].tsx]`  RIGHT: `dish_detail[dish detail]`",
     "  WRONG: `restaurant-edit-dish/[dishId].tsx`    RIGHT: `edit_dish_screen`",
+    "- NEVER use TypeScript array notation `Type[]` in node labels or arrow labels — the `[]` breaks the parser.",
+    "  WRONG: `-->|DinerFavoriteListItem[] with note|`  RIGHT: `-->|DinerFavoriteListItem list with note|`",
+    "  WRONG: `lib[IngredientFormRow[]]`               RIGHT: `lib[IngredientFormRow list]` or `lib[\"IngredientFormRow list\"]`",
     "- Never use `()`, `[]`, `{}`, `/`, or `<>` inside unquoted node label text — wrap in double quotes if needed",
     "- Arrow pipe labels `-->|label|` must NOT contain `()`, `[]`, or `{}` — simplify or remove them",
     "- Always use `-->|label|` for labeled arrows — never `-- label -->`",

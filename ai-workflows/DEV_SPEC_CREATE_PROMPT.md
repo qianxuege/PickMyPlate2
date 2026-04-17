@@ -162,3 +162,5 @@ For each item:
 - Keep arrow labels short (under 40 characters); omit if they add no information
 - Never nest subgraphs more than 2 levels deep
 - **Never use parentheses `()`, brackets `[]`, braces `{}`, or angle brackets `<>` inside node label text** — these are Mermaid shape delimiters and will cause parse errors. Strip function call parens (e.g. use `upsertFavoriteNote` not `upsertFavoriteNote()`). If a label must contain special characters, wrap the entire label in double quotes: `nodeId["label with (parens)"]`
+- **Never use hyphens in node IDs** — hyphens conflict with the `--` arrow syntax and cause parse errors. Use underscores instead: `restaurant_ingredient_items` not `restaurant-ingredient-items`. Node IDs must be alphanumeric with underscores only
+- **Always use `-->|label|` syntax for labeled arrows**, never `-- label -->` — the latter causes parse errors when node IDs contain hyphens or special characters

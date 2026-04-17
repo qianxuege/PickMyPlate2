@@ -52,7 +52,32 @@ async function main() {
   const prompt = buildPrompt(promptTemplate, diff, sourceContext, existingSpec, isUpdate, linkedIssue);
   process.stdout.write(`Calling Gemini (${isUpdate ? "update" : "create"} mode)...\n`);
 
-  const specMarkdown = await callGemini(prompt);
+  let specMarkdown = await callGemini(prompt);
+
+  // Self-healing Mermaid validation loop — up to 3 fix attempts
+  const MAX_FIX_ATTEMPTS = 3;
+  for (let attempt = 1; attempt <= MAX_FIX_ATTEMPTS; attempt++) {
+    const mermaidErrors = validateMermaidBlocks(specMarkdown);
+    if (mermaidErrors.length === 0) break;
+
+    process.stdout.write(
+      `Mermaid validation attempt ${attempt}: found ${mermaidErrors.length} error(s). Asking Gemini to fix...\n`,
+    );
+    mermaidErrors.forEach(({ diagramIndex, errors }) => {
+      process.stdout.write(`  Diagram ${diagramIndex + 1}: ${errors.join("; ")}\n`);
+    });
+
+    specMarkdown = await fixMermaidErrors(specMarkdown, mermaidErrors);
+
+    if (attempt === MAX_FIX_ATTEMPTS) {
+      const remaining = validateMermaidBlocks(specMarkdown);
+      if (remaining.length > 0) {
+        process.stdout.write(
+          `Warning: ${remaining.length} Mermaid error(s) remain after ${MAX_FIX_ATTEMPTS} fix attempts. Writing spec anyway.\n`,
+        );
+      }
+    }
+  }
 
   await fs.mkdir(path.dirname(outPath), { recursive: true });
   await fs.writeFile(outPath, specMarkdown);
@@ -218,6 +243,203 @@ async function fileExists(filePath) {
   } catch {
     return false;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Mermaid validation and self-healing
+// ---------------------------------------------------------------------------
+
+/**
+ * Extract all ```mermaid ... ``` blocks from a Markdown string.
+ * Returns an array of { diagramIndex, content, start, end } objects,
+ * where start/end are character offsets in the original string.
+ */
+function extractMermaidBlocks(spec) {
+  const blocks = [];
+  const re = /```mermaid\s*\n([\s\S]*?)```/g;
+  let match;
+  let index = 0;
+  while ((match = re.exec(spec)) !== null) {
+    blocks.push({
+      diagramIndex: index++,
+      content: match[1],
+      fullMatch: match[0],
+      start: match.index,
+      end: match.index + match[0].length,
+    });
+  }
+  return blocks;
+}
+
+/**
+ * Validate all Mermaid blocks in the spec.
+ * Returns an array of { diagramIndex, content, errors[] } for blocks with errors.
+ * Returns an empty array if all diagrams are clean.
+ */
+function validateMermaidBlocks(spec) {
+  const blocks = extractMermaidBlocks(spec);
+  const results = [];
+
+  for (const block of blocks) {
+    const errors = checkMermaidContent(block.content);
+    if (errors.length > 0) {
+      results.push({ diagramIndex: block.diagramIndex, content: block.content, errors });
+    }
+  }
+  return results;
+}
+
+/**
+ * Run all grammar checks on a single Mermaid diagram's content (without fences).
+ * Returns a list of human-readable error strings.
+ */
+function checkMermaidContent(content) {
+  const errors = [];
+  const lines = content.split("\n");
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const lineNum = i + 1;
+
+    // Skip comment lines and subgraph/end/direction lines
+    const trimmed = line.trim();
+    if (trimmed.startsWith("%%") || trimmed === "") continue;
+
+    // Check 1: Hyphens in node IDs adjacent to arrow syntax.
+    // Node IDs must be alphanumeric + underscores only.
+    // Pattern: a node ID (word chars + hyphens) followed by --> or <--
+    // We look for unquoted tokens before/after arrows that contain hyphens.
+    const arrowPattern = /([A-Za-z_][A-Za-z0-9_]*-[A-Za-z0-9_-]*)\s*(?:-->|---)/g;
+    const arrowPatternRev = /(?:-->|---)\s*([A-Za-z_][A-Za-z0-9_]*-[A-Za-z0-9_-]*)/g;
+    let m;
+    while ((m = arrowPattern.exec(line)) !== null) {
+      errors.push(`Line ${lineNum}: node ID "${m[1]}" contains hyphens — use underscores instead`);
+    }
+    while ((m = arrowPatternRev.exec(line)) !== null) {
+      errors.push(`Line ${lineNum}: node ID "${m[1]}" contains hyphens — use underscores instead`);
+    }
+
+    // Check 2: Parentheses in unquoted node labels.
+    // Shape: nodeId(label) is a stadium shape — but if label has () that's also ambiguous.
+    // More specifically, catch text like nodeId["label (with parens)"] is fine, but
+    // nodeId[label (extra)] or nodeId(something(nested)) are problematic.
+    // Simple heuristic: unquoted label text containing ( or ) after a node shape delimiter.
+    const unquotedParens = /\[[^\]"]*[()][^\]"]*\]/g;
+    while ((m = unquotedParens.exec(line)) !== null) {
+      errors.push(`Line ${lineNum}: unquoted parentheses in node label "${m[0]}" — wrap entire label in double quotes`);
+    }
+
+    // Check 3: Old-style labeled arrow "-- text -->" which causes parse errors.
+    if (/--\s+\S.*?\s+-->/.test(line)) {
+      errors.push(`Line ${lineNum}: use "-->|label|" syntax instead of "-- label -->" for labeled arrows`);
+    }
+
+    // Check 4: Reserved keyword used as a bare (unquoted) node ID.
+    // "end" as a node ID closes the subgraph prematurely.
+    if (/^\s*end\s*$/.test(line)) continue; // this is a valid subgraph end
+    if (/(?:^|\s)end(?:\s|$)/.test(trimmed) && !/subgraph|-->|---|classDef|class /.test(trimmed)) {
+      // Heuristic: if "end" appears as a standalone token in a node definition context
+      if (/\bend\b/.test(trimmed) && /-->|(\bend\b\s*\[|\bend\b\s*\()/.test(trimmed)) {
+        errors.push(`Line ${lineNum}: "end" is a reserved Mermaid keyword — rename this node`);
+      }
+    }
+
+    // Check 5: Unclosed double-quote in a label
+    const quoteCount = (line.match(/"/g) || []).length;
+    if (quoteCount % 2 !== 0) {
+      errors.push(`Line ${lineNum}: odd number of double-quotes — possible unclosed label`);
+    }
+
+    // Check 6: Raw & or # outside of quoted strings (can break some renderers)
+    const unquotedSpecial = line.replace(/"[^"]*"/g, '""');
+    if (/[&#]/.test(unquotedSpecial)) {
+      errors.push(`Line ${lineNum}: unquoted "&" or "#" in label — wrap label in double quotes`);
+    }
+  }
+
+  return errors;
+}
+
+/**
+ * Call Gemini with a targeted prompt to fix only the broken diagrams.
+ * Returns the spec with fixed diagrams substituted back in.
+ */
+async function fixMermaidErrors(spec, mermaidErrors) {
+  const blocks = extractMermaidBlocks(spec);
+
+  // Build a prompt that shows only the broken diagrams + their errors
+  const brokenSections = mermaidErrors.map(({ diagramIndex, content, errors }) => {
+    return [
+      `### Diagram ${diagramIndex + 1}`,
+      "",
+      "**Errors found:**",
+      errors.map((e) => `- ${e}`).join("\n"),
+      "",
+      "**Current (broken) Mermaid code:**",
+      "```mermaid",
+      content.trimEnd(),
+      "```",
+    ].join("\n");
+  });
+
+  const fixPrompt = [
+    "You are fixing broken Mermaid diagrams in a development specification.",
+    "Return ONLY the corrected Mermaid diagrams — one per section, in the same order as shown below.",
+    "Do not add any prose, explanations, or extra text.",
+    "",
+    "## Rules",
+    "- Always use `flowchart TB` — never `flowchart LR`",
+    "- Node IDs must be alphanumeric with underscores only — NO hyphens",
+    "- Never use `()`, `[]`, `{}`, or `<>` inside unquoted node label text",
+    "- Always use `-->|label|` for labeled arrows — never `-- label -->`",
+    "- Never use reserved keywords (`end`, `subgraph`, `style`, `classDef`) as bare node IDs",
+    "- Wrap any label containing special characters in double quotes",
+    "",
+    "## Diagrams to fix",
+    "",
+    brokenSections.join("\n\n"),
+    "",
+    "## Output format",
+    "Return one fenced Mermaid block per diagram, in order, with no other text:",
+    "```mermaid",
+    "flowchart TB",
+    "...",
+    "```",
+  ].join("\n");
+
+  const fixedText = await callGemini(fixPrompt);
+
+  // Extract the fixed diagrams from the response
+  const fixedBlocks = [];
+  const fixedRe = /```mermaid\s*\n([\s\S]*?)```/g;
+  let fm;
+  while ((fm = fixedRe.exec(fixedText)) !== null) {
+    fixedBlocks.push(fm[0]); // full fenced block including backticks
+  }
+
+  if (fixedBlocks.length !== mermaidErrors.length) {
+    process.stdout.write(
+      `Warning: expected ${mermaidErrors.length} fixed diagram(s), got ${fixedBlocks.length}. Skipping replacement.\n`,
+    );
+    return spec;
+  }
+
+  // Replace broken diagrams in spec with fixed versions (process in reverse order to preserve offsets)
+  const errorIndices = mermaidErrors.map((e) => e.diagramIndex);
+  let result = spec;
+
+  // Rebuild by replacing matching blocks; work backwards to keep indices stable
+  for (let i = errorIndices.length - 1; i >= 0; i--) {
+    const diagIdx = errorIndices[i];
+    const originalBlock = blocks[diagIdx];
+    if (!originalBlock) continue;
+    result =
+      result.slice(0, originalBlock.start) +
+      fixedBlocks[i] +
+      result.slice(originalBlock.end);
+  }
+
+  return result;
 }
 
 // ---------------------------------------------------------------------------

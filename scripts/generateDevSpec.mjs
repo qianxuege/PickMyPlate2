@@ -318,20 +318,41 @@ function checkMermaidContent(content) {
 
     let m;
 
+    // Strip quoted string content so checks don't fire on label text.
+    // Replace "..." with "___" (same length preserves offsets enough for error reporting).
+    const lineNoQuotes = line.replace(/"[^"]*"/g, (s) => '"' + "_".repeat(s.length - 2) + '"');
+
     // -------------------------------------------------------------------
-    // Check 1: Hyphens in node IDs.
-    // A node ID is any unquoted identifier token that precedes a shape
-    // delimiter ([, (, {, >, >) or an arrow, OR follows an arrow.
+    // Check 1: Invalid characters in node IDs (hyphens, dots, slashes).
+    // Node IDs must be alphanumeric + underscores only.
+    // Run against lineNoQuotes so we don't flag chars inside quoted labels.
     // -------------------------------------------------------------------
-    // Before arrows or shape delimiters
-    const nodeBeforeRe = /\b([A-Za-z_][A-Za-z0-9_]*(?:-[A-Za-z0-9_]+)+)\s*(?:-->|---|~~>|--o|--x|[\[({>])/g;
-    while ((m = nodeBeforeRe.exec(line)) !== null) {
-      errors.push(`Line ${lineNum}: node ID "${m[1]}" contains hyphens — use underscores instead`);
+    const invalidNodeIdRe = /[-./]/; // characters banned in node IDs
+    const nodeTokenRe = /\b([A-Za-z_][A-Za-z0-9_./-]*)\s*(?:-->|---|~~>|--o|--x|[\[({>])/g;
+    while ((m = nodeTokenRe.exec(lineNoQuotes)) !== null) {
+      if (invalidNodeIdRe.test(m[1])) {
+        errors.push(`Line ${lineNum}: node ID "${m[1]}" contains invalid chars (- . /) — use underscores only`);
+      }
     }
-    // After arrows
-    const nodeAfterRe = /(?:-->|---|~~>|--o|--x)\s*(?:\|[^|]*\|\s*)?([A-Za-z_][A-Za-z0-9_]*(?:-[A-Za-z0-9_]+)+)\s*(?:[\[({>]|$)/g;
-    while ((m = nodeAfterRe.exec(line)) !== null) {
-      errors.push(`Line ${lineNum}: node ID "${m[1]}" contains hyphens — use underscores instead`);
+    const nodeAfterRe = /(?:-->|---|~~>|--o|--x)\s*(?:\|[^|]*\|\s*)?([A-Za-z_][A-Za-z0-9_./-]*)\s*(?:[\[({>]|$)/g;
+    while ((m = nodeAfterRe.exec(lineNoQuotes)) !== null) {
+      if (invalidNodeIdRe.test(m[1])) {
+        errors.push(`Line ${lineNum}: node ID "${m[1]}" contains invalid chars (- . /) — use underscores only`);
+      }
+    }
+
+    // -------------------------------------------------------------------
+    // Check 1b: Reserved Mermaid keywords used as bare (unquoted) node IDs.
+    // "end" closes a subgraph prematurely; others open structural blocks.
+    // Run against lineNoQuotes to avoid false positives inside quoted labels.
+    // -------------------------------------------------------------------
+    const reservedBeforeRe = /\b(end|style|classDef|subgraph|graph|flowchart|direction)\s*(?:-->|---|[\[({>])/gi;
+    const reservedAfterRe = /(?:-->|---)\s*(?:\|[^|]*\|\s*)?(end|style|classDef|subgraph|graph|flowchart|direction)\s*(?:[\[({>]|$)/gi;
+    while ((m = reservedBeforeRe.exec(lineNoQuotes)) !== null) {
+      errors.push(`Line ${lineNum}: "${m[1]}" is a reserved Mermaid keyword — rename this node`);
+    }
+    while ((m = reservedAfterRe.exec(lineNoQuotes)) !== null) {
+      errors.push(`Line ${lineNum}: "${m[1]}" is a reserved Mermaid keyword — rename this node`);
     }
 
     // -------------------------------------------------------------------

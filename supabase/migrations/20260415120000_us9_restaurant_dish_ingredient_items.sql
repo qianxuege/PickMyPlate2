@@ -1,15 +1,19 @@
--- ============================================================================
--- PLACEHOLDER MIGRATION — READ BEFORE `supabase db reset` LOCALLY
--- ============================================================================
---
--- Production applied US9 `restaurant_dish_ingredient_items` as version 20260415120000.
--- This repo does not ship that DDL so local migration filenames stay aligned with
--- the hosted history (avoids duplicate version numbers / repair pain).
---
--- If you need a correct local reset: replace this file with the real US9 migration
--- from your team branch / remote, then run `db reset`.
---
--- Leaving this placeholder means US9 tables will NOT exist locally until you do.
---
--- ============================================================================
-select 1;
+-- US9: structured ingredient name + optional origin per restaurant menu dish
+
+alter table public.restaurant_menu_dishes
+  add column if not exists ingredient_items jsonb not null default '[]'::jsonb;
+
+comment on column public.restaurant_menu_dishes.ingredient_items is
+  'JSON array of { "name": string, "origin": string | null }. `ingredients` text[] remains name-only for legacy/search.';
+
+-- Backfill from existing flat ingredient list when structured data is still empty
+update public.restaurant_menu_dishes d
+set ingredient_items = coalesce(
+  (
+    select jsonb_agg(jsonb_build_object('name', x, 'origin', null))
+    from unnest(d.ingredients) as x
+  ),
+  '[]'::jsonb
+)
+where jsonb_array_length(d.ingredient_items) = 0
+  and cardinality(d.ingredients) > 0;

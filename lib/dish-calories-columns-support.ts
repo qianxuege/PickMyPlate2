@@ -19,10 +19,10 @@ export function resetDishCaloriesColumnProbes(): void {
 }
 
 const DINER_DISH_SELECT_BASE =
-  'id, section_id, sort_order, name, description, price_amount, price_currency, price_display, spice_level, tags, ingredients, image_url';
+  'id, section_id, sort_order, name, description, price_amount, price_currency, price_display, spice_level, tags, ingredients, ingredient_items, image_url';
 
 const REST_DISH_SELECT_BASE =
-  'id, section_id, sort_order, name, description, price_amount, price_currency, price_display, spice_level, tags, ingredients, image_url, needs_review, is_featured, is_new';
+  'id, section_id, sort_order, name, description, price_amount, price_currency, price_display, spice_level, tags, ingredients, ingredient_items, image_url, needs_review, is_featured, is_new';
 
 export async function getDinerScannedDishSelectColumns(): Promise<string> {
   const ok = await dinerScannedDishesHasCaloriesColumns();
@@ -37,15 +37,15 @@ export async function getRestaurantMenuDishSelectColumns(): Promise<string> {
 export async function getPublishedRestaurantDishSelectColumns(): Promise<string> {
   const ok = await restaurantMenuDishesHasCaloriesColumns();
   return ok
-    ? 'id, section_id, name, description, price_amount, price_currency, price_display, spice_level, tags, ingredients, image_url, is_featured, is_new, calories_manual, calories_estimated'
-    : 'id, section_id, name, description, price_amount, price_currency, price_display, spice_level, tags, ingredients, image_url, is_featured, is_new';
+    ? 'id, section_id, name, description, price_amount, price_currency, price_display, spice_level, tags, ingredients, ingredient_items, image_url, is_featured, is_new, calories_manual, calories_estimated'
+    : 'id, section_id, name, description, price_amount, price_currency, price_display, spice_level, tags, ingredients, ingredient_items, image_url, is_featured, is_new';
 }
 
 export async function getRestaurantOwnerDishSelectColumns(): Promise<string> {
   const ok = await restaurantMenuDishesHasCaloriesColumns();
   return ok
-    ? 'id, section_id, name, description, price_amount, price_currency, price_display, spice_level, tags, ingredients, image_url, is_featured, is_new, needs_review, calories_manual, calories_estimated'
-    : 'id, section_id, name, description, price_amount, price_currency, price_display, spice_level, tags, ingredients, image_url, is_featured, is_new, needs_review';
+    ? 'id, section_id, name, description, price_amount, price_currency, price_display, spice_level, tags, ingredients, ingredient_items, image_url, is_featured, is_new, needs_review, calories_manual, calories_estimated'
+    : 'id, section_id, name, description, price_amount, price_currency, price_display, spice_level, tags, ingredients, ingredient_items, image_url, is_featured, is_new, needs_review';
 }
 
 /** Cached only when columns are known to exist (avoids stale false after user runs SQL without restarting). */

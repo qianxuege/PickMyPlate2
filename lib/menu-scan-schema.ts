@@ -16,7 +16,18 @@
  * vocabulary only (dietary keys, spice_label, budget_tier, cuisine names, smart_tag
  * labels — same strings as `buildMenuParseUserPreferences`). The Flask API enforces
  * this allowlist server-side so chips match on the menu screen.
+ *
+ * **Ingredients (LLM / menu parse)** — `ingredients` is always `string[]` (names only).
+ * The parser accepts `string[]`, a comma- or semicolon-separated `string`, or an array of
+ * `{ name, origin? }` objects (origin optional). Shapes are normalized so owners can add
+ * origins later in the dish editor (`ingredient_items` on `restaurant_menu_dishes`).
  */
+
+import {
+  fallbackIngredientNamesFromDishName,
+  parseIngredientItemsFromDb,
+  type DishIngredientItem,
+} from '@/lib/restaurant-ingredient-items';
 
 export const MENU_SCAN_SCHEMA_VERSION = 1 as const;
 
@@ -51,6 +62,8 @@ export type ParsedMenuItem = {
   tags: string[];
   /** Key ingredients (Diner Dish Details); empty array if unknown */
   ingredients: string[];
+  /** Structured rows (name + optional origin); set from parse when inferable, for DB + editor */
+  ingredientItems?: DishIngredientItem[];
   /** Saved public URL for real or generated dish image */
   image_url?: string | null;
   /** LLM rough kcal per serving; null if unknown (menu parse or copy from restaurant). */
@@ -96,6 +109,8 @@ export type DinerScannedDishRow = {
   spice_level: 0 | 1 | 2 | 3;
   tags: string[];
   ingredients: string[];
+  /** Partner copies: jsonb array; omit on OCR rows */
+  ingredient_items?: unknown;
   image_url: string | null;
   calories_manual: number | null;
   calories_estimated: number | null;
@@ -125,11 +140,57 @@ function parsePrice(raw: unknown): ParsedMenuPrice | null {
   };
 }
 
-function parseIngredients(raw: unknown): string[] | null {
-  if (raw === undefined) return [];
-  if (!Array.isArray(raw)) return null;
-  if (!raw.every((t) => typeof t === 'string')) return null;
-  return raw as string[];
+/**
+ * Normalize `ingredients` from menu-parse / LLM JSON (Flask may send flexible shapes).
+ * Origins are optional; unknown shapes yield empty lists (menu item still validates).
+ */
+export function parseMenuItemIngredients(raw: unknown): { names: string[]; items: DishIngredientItem[] } {
+  if (raw === undefined || raw === null) {
+    return { names: [], items: [] };
+  }
+  if (typeof raw === 'string') {
+    const names = raw.split(/[,;]/).map((s) => s.trim()).filter(Boolean);
+    const items = names.map((name) => ({ name, origin: null as string | null }));
+    return { names, items };
+  }
+  if (!Array.isArray(raw)) {
+    return { names: [], items: [] };
+  }
+  const items: DishIngredientItem[] = [];
+  for (const el of raw) {
+    if (typeof el === 'string') {
+      const n = el.trim();
+      if (n) items.push({ name: n, origin: null });
+      continue;
+    }
+    if (el && typeof el === 'object') {
+      const o = el as Record<string, unknown>;
+      const nameFromName = typeof o.name === 'string' ? o.name.trim() : '';
+      const nameFromIngredient =
+        typeof o.ingredient === 'string' ? o.ingredient.trim() : '';
+      const name = nameFromName || nameFromIngredient;
+      if (!name) continue;
+      let origin: string | null = null;
+      if (typeof o.origin === 'string') {
+        const t = o.origin.trim();
+        if (t.length > 0) origin = t;
+      }
+      items.push({ name, origin });
+    }
+  }
+  const names = items.map((i) => i.name);
+  return { names, items };
+}
+
+/** Rows for `ingredient_items` jsonb when persisting a parsed `ParsedMenuItem`. */
+export function structuredIngredientsForPersist(it: ParsedMenuItem): DishIngredientItem[] {
+  if (it.ingredientItems && it.ingredientItems.length > 0) return it.ingredientItems;
+  const fromStrings = it.ingredients
+    .map((name) => (typeof name === 'string' ? name.trim() : String(name).trim()))
+    .filter((name) => name.length > 0)
+    .map((name) => ({ name, origin: null as string | null }));
+  if (fromStrings.length > 0) return fromStrings;
+  return fallbackIngredientNamesFromDishName(it.name).map((name) => ({ name, origin: null }));
 }
 
 function parseItem(raw: unknown): ParsedMenuItem | null {
@@ -142,8 +203,26 @@ function parseItem(raw: unknown): ParsedMenuItem | null {
   if (!price) return null;
   if (!isSpiceLevel(o.spice_level)) return null;
   if (!Array.isArray(o.tags) || !o.tags.every((t) => typeof t === 'string')) return null;
-  const ingredients = parseIngredients(o.ingredients);
-  if (ingredients === null) return null;
+
+  let mergedNames: string[];
+  let mergedItems: DishIngredientItem[];
+  const fromIngredients = parseMenuItemIngredients(o.ingredients);
+  mergedNames = [...fromIngredients.names];
+  mergedItems = [...fromIngredients.items];
+
+  if (mergedItems.length === 0 && o.ingredient_items != null) {
+    const fromStructured = parseIngredientItemsFromDb(o.ingredient_items);
+    if (fromStructured.length > 0) {
+      mergedNames = fromStructured.map((i) => i.name);
+      mergedItems = fromStructured;
+    }
+  }
+
+  if (mergedItems.length === 0 && mergedNames.length === 0) {
+    mergedNames = fallbackIngredientNamesFromDishName(String(o.name));
+    mergedItems = mergedNames.map((name) => ({ name, origin: null as string | null }));
+  }
+
   let calories_estimated: number | null = null;
   if ('calories_estimated' in o && o.calories_estimated !== undefined && o.calories_estimated !== null) {
     const c = o.calories_estimated;
@@ -152,17 +231,22 @@ function parseItem(raw: unknown): ParsedMenuItem | null {
       if (n >= 0 && n <= 20000) calories_estimated = n;
     }
   }
-  return {
+
+  const out: ParsedMenuItem = {
     id: o.id,
     name: o.name,
     description: o.description === null || typeof o.description === 'string' ? (o.description as string | null) : null,
     price,
     spice_level: o.spice_level,
     tags: o.tags as string[],
-    ingredients,
+    ingredients: mergedNames,
     image_url: null,
     calories_estimated,
   };
+  if (mergedItems.length > 0) {
+    out.ingredientItems = mergedItems;
+  }
+  return out;
 }
 
 function parseSection(raw: unknown): ParsedMenuSection | null {
@@ -240,7 +324,8 @@ function normalizeCaloriesColumn(v: unknown): number | null {
 }
 
 export function dishRowToParsedItem(row: DinerScannedDishRow): ParsedMenuItem {
-  return {
+  const ingredientItems = parseIngredientItemsFromDb(row.ingredient_items);
+  const base: ParsedMenuItem = {
     id: row.id,
     name: row.name,
     description: row.description,
@@ -255,6 +340,10 @@ export function dishRowToParsedItem(row: DinerScannedDishRow): ParsedMenuItem {
     image_url: typeof row.image_url === 'string' ? row.image_url : null,
     calories_estimated: normalizeCaloriesColumn(row.calories_estimated),
   };
+  if (ingredientItems.length > 0) {
+    return { ...base, ingredientItems };
+  }
+  return base;
 }
 
 /**

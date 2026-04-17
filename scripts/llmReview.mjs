@@ -240,8 +240,23 @@ async function parseModelResponse(response, provider) {
 
 function parseJsonResponse(rawResponse) {
   const fenced = rawResponse.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const candidate = fenced ? fenced[1] : rawResponse;
-  return JSON.parse(candidate);
+  const candidate = (fenced ? fenced[1] : rawResponse).trim();
+
+  // First attempt: parse as-is (works when the model returns clean JSON).
+  try {
+    return JSON.parse(candidate);
+  } catch {
+    // gemini-2.5-pro sometimes emits invalid JSON escape sequences such as \w or \d
+    // (from regex patterns or Windows-style paths in the diff) even with
+    // responseMimeType:"application/json" set.
+    // Sanitize by escaping lone backslashes not part of a valid JSON escape sequence.
+    // Valid JSON escapes after \: " \ / b f n r t u{4hex}
+    const sanitized = candidate.replace(
+      /\\(?!["\\\/bfnrt]|u[0-9a-fA-F]{4})/g,
+      "\\\\",
+    );
+    return JSON.parse(sanitized);
+  }
 }
 
 function normalizeReview(review) {

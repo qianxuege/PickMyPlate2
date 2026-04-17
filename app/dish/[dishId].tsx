@@ -9,19 +9,31 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { dinerRoleTheme } from '@/constants/role-theme';
 import { BorderRadius, Colors, Typography } from '@/constants/theme';
+import {
+  DISH_INGREDIENT_ORIGIN_NOT_SPECIFIED,
+  parseIngredientItemsFromDb,
+  type DishIngredientItem,
+} from '@/lib/restaurant-ingredient-items';
 import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
 import { dishCaloriesPrimaryText, dishCaloriesUsesMutedStyle } from '@/lib/dish-calories-label';
 import { getDinerScannedDishSelectColumns } from '@/lib/dish-calories-columns-support';
 import { generateDishImage } from '@/lib/dish-image-api';
 import type { DinerPreferenceSnapshot } from '@/lib/diner-preferences';
 import { fetchDinerPreferences, spiceDbToLabel } from '@/lib/diner-preferences';
-import { isDishFavorited, toggleDishFavorite } from '@/lib/diner-favorites';
+import {
+  isDishFavorited,
+  toggleDishFavorite,
+  fetchFavoriteNote,
+  upsertFavoriteNote,
+  NOTE_MAX_LENGTH,
+} from '@/lib/diner-favorites';
 import type { DinerScannedDishRow } from '@/lib/menu-scan-schema';
 import { supabase } from '@/lib/supabase';
 
@@ -75,6 +87,8 @@ type DishDetail = {
   flavorTags: string[];
   dietaryIndicators: string[];
   ingredients: string[];
+  /** Partner QR copies with structured ingredients */
+  ingredientItems: DishIngredientItem[];
   summary: string;
   description: string | null;
   caloriesManual: number | null;
@@ -231,6 +245,10 @@ export default function DishDetailScreen() {
   const [favorite, setFavorite] = useState(false);
   const [imageLoading, setImageLoading] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const [noteInput, setNoteInput] = useState('');
+  const [editingNote, setEditingNote] = useState(false);
+  const [savingNote, setSavingNote] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -269,6 +287,7 @@ export default function DishDetailScreen() {
           | 'spice_level'
           | 'tags'
           | 'ingredients'
+          | 'ingredient_items'
           | 'image_url'
           | 'calories_manual'
           | 'calories_estimated'
@@ -300,6 +319,7 @@ export default function DishDetailScreen() {
         const flavorTags = deriveFlavorTags(typedRow.tags ?? [], typedRow.spice_level ?? 0, typedRow.description);
         const dietaryIndicators = deriveDietaryIndicators(typedRow.tags ?? []);
         const ingredients = Array.isArray(typedRow.ingredients) ? typedRow.ingredients : [];
+        const ingredientItems = parseIngredientItemsFromDb(typedRow.ingredient_items);
         const summary = buildFallbackSummary({
           name: typedRow.name,
           description: typedRow.description,
@@ -328,6 +348,7 @@ export default function DishDetailScreen() {
           flavorTags,
           dietaryIndicators,
           ingredients,
+          ingredientItems,
           summary,
           description: typedRow.description,
           caloriesManual: typeof cm === 'number' && Number.isFinite(cm) ? Math.round(cm) : null,
@@ -337,6 +358,14 @@ export default function DishDetailScreen() {
         try {
           const fav = await isDishFavorited(typedRow.id);
           if (!cancelled) setFavorite(fav);
+          if (fav && !cancelled) {
+            try {
+              const existingNote = await fetchFavoriteNote(typedRow.id);
+              if (!cancelled) setNote(existingNote);
+            } catch {
+              // non-critical — note load failure doesn't block the page
+            }
+          }
         } catch {
           if (!cancelled) setFavorite(false);
         }
@@ -478,6 +507,11 @@ export default function DishDetailScreen() {
                       try {
                         const next = await toggleDishFavorite(detail.id);
                         setFavorite(next);
+                        if (!next) {
+                          setNote(null);
+                          setNoteInput('');
+                          setEditingNote(false);
+                        }
                       } catch (err) {
                         Alert.alert(
                           'Favorites',
@@ -557,7 +591,27 @@ export default function DishDetailScreen() {
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Key Ingredients</Text>
                 <View style={styles.ingredientCard}>
-                  {detail.ingredients.length > 0 ? (
+                  {detail.ingredientItems.length > 0 ? (
+                    detail.ingredientItems.map((item, idx) => {
+                      const originShown = item.origin?.trim() ?? '';
+                      return (
+                        <View key={`${idx}-${item.name}`} style={styles.ingredientStructuredRow}>
+                          <View style={styles.ingredientTitleRow}>
+                            <View style={styles.ingredientDot} />
+                            <Text style={styles.ingredientText}>{titleize(item.name)}</Text>
+                          </View>
+                          <Text
+                            style={[
+                              styles.ingredientOriginLine,
+                              !originShown ? styles.ingredientOriginPlaceholder : null,
+                            ]}
+                          >
+                            {originShown || DISH_INGREDIENT_ORIGIN_NOT_SPECIFIED}
+                          </Text>
+                        </View>
+                      );
+                    })
+                  ) : detail.ingredients.length > 0 ? (
                     detail.ingredients.map((item) => (
                       <View key={item} style={styles.ingredientRow}>
                         <View style={styles.ingredientDot} />
@@ -581,6 +635,95 @@ export default function DishDetailScreen() {
                       </View>
                     ))}
                   </View>
+                </View>
+              )}
+
+              {favorite && (
+                <View style={styles.section}>
+                  <View style={styles.noteSectionHeader}>
+                    <Text style={styles.sectionTitle}>My Note</Text>
+                    {!editingNote && (
+                      <Pressable
+                        onPress={() => {
+                          setNoteInput(note ?? '');
+                          setEditingNote(true);
+                        }}
+                        style={({ pressed }) => [styles.noteEditButton, pressed && styles.favoriteButtonPressed]}
+                        accessibilityRole="button"
+                        accessibilityLabel={note ? 'Edit note' : 'Add note'}
+                      >
+                        <MaterialCommunityIcons name="pencil-outline" size={16} color={FIG.muted} />
+                        <Text style={styles.noteEditButtonText}>{note ? 'Edit' : 'Add'}</Text>
+                      </Pressable>
+                    )}
+                  </View>
+
+                  {editingNote ? (
+                    <View style={styles.noteEditWrap}>
+                      <TextInput
+                        value={noteInput}
+                        onChangeText={setNoteInput}
+                        placeholder="Add a private note…"
+                        placeholderTextColor={FIG.muted}
+                        style={[styles.noteInput, noteInput.length > NOTE_MAX_LENGTH && styles.noteInputError]}
+                        multiline
+                        maxLength={NOTE_MAX_LENGTH + 20}
+                        autoFocus
+                        accessibilityLabel="Note text input"
+                      />
+                      <View style={styles.noteEditFooter}>
+                        <Text style={[styles.noteCharCount, noteInput.length > NOTE_MAX_LENGTH && styles.noteCharCountError]}>
+                          {noteInput.length} / {NOTE_MAX_LENGTH}
+                        </Text>
+                        <View style={styles.noteEditButtons}>
+                          <Pressable
+                            onPress={() => {
+                              setNoteInput(note ?? '');
+                              setEditingNote(false);
+                            }}
+                            style={({ pressed }) => [styles.noteCancelButton, pressed && styles.favoriteButtonPressed]}
+                            accessibilityRole="button"
+                            accessibilityLabel="Cancel"
+                          >
+                            <Text style={styles.noteCancelText}>Cancel</Text>
+                          </Pressable>
+                          <Pressable
+                            onPress={() => {
+                              void (async () => {
+                                if (noteInput.length > NOTE_MAX_LENGTH || savingNote) return;
+                                setSavingNote(true);
+                                try {
+                                  await upsertFavoriteNote(detail.id, noteInput);
+                                  setNote(noteInput.trim().length > 0 ? noteInput.trim() : null);
+                                  setEditingNote(false);
+                                } catch (err) {
+                                  Alert.alert('Could not save note', err instanceof Error ? err.message : 'Unknown error');
+                                } finally {
+                                  setSavingNote(false);
+                                }
+                              })();
+                            }}
+                            disabled={savingNote || noteInput.length > NOTE_MAX_LENGTH}
+                            style={({ pressed }) => [
+                              styles.noteSaveButton,
+                              (savingNote || noteInput.length > NOTE_MAX_LENGTH) && styles.noteSaveButtonDisabled,
+                              pressed && styles.favoriteButtonPressed,
+                            ]}
+                            accessibilityRole="button"
+                            accessibilityLabel="Save note"
+                          >
+                            <Text style={styles.noteSaveText}>{savingNote ? 'Saving…' : 'Save'}</Text>
+                          </Pressable>
+                        </View>
+                      </View>
+                    </View>
+                  ) : note ? (
+                    <View style={styles.noteSavedCard}>
+                      <Text style={styles.noteSavedText}>{note}</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.placeholderText}>No note yet. Tap Add to jot something down.</Text>
+                  )}
                 </View>
               )}
             </View>
@@ -828,6 +971,24 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 10,
   },
+  ingredientStructuredRow: {
+    gap: 4,
+  },
+  ingredientTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  ingredientOriginLine: {
+    ...Typography.caption,
+    color: FIG.sub,
+    marginLeft: 16,
+    lineHeight: 18,
+  },
+  ingredientOriginPlaceholder: {
+    color: FIG.muted,
+    fontStyle: 'italic',
+  },
   ingredientDot: {
     width: 6,
     height: 6,
@@ -862,5 +1023,100 @@ const styles = StyleSheet.create({
     flex: 1,
     ...Typography.body,
     color: FIG.greenText,
+  },
+  noteSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  noteEditButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: FIG.border,
+  },
+  noteEditButtonText: {
+    fontSize: 13,
+    fontWeight: '500' as const,
+    color: FIG.muted,
+  },
+  noteEditWrap: {
+    gap: 8,
+  },
+  noteInput: {
+    borderWidth: 1,
+    borderColor: FIG.border,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    lineHeight: 20,
+    color: FIG.text,
+    backgroundColor: FIG.cardBg,
+    minHeight: 80,
+    textAlignVertical: 'top' as const,
+  },
+  noteInputError: {
+    borderColor: Colors.error,
+  },
+  noteEditFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  noteCharCount: {
+    fontSize: 12,
+    lineHeight: 16,
+    color: FIG.muted,
+  },
+  noteCharCountError: {
+    color: Colors.error,
+  },
+  noteEditButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  noteCancelButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: FIG.border,
+    backgroundColor: Colors.white,
+  },
+  noteCancelText: {
+    fontSize: 14,
+    fontWeight: '500' as const,
+    color: FIG.sub,
+  },
+  noteSaveButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: dinerRoleTheme.primary,
+  },
+  noteSaveButtonDisabled: {
+    opacity: 0.5,
+  },
+  noteSaveText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.white,
+  },
+  noteSavedCard: {
+    backgroundColor: FIG.cardBg,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: FIG.border,
+    padding: 14,
+  },
+  noteSavedText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: FIG.sub,
   },
 });

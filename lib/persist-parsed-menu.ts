@@ -1,5 +1,10 @@
 import { insertDishesWithCaloriesColumnFallback } from '@/lib/dish-calories-columns-support';
-import type { ParsedMenu, ParsedMenuItem, ParsedMenuSection } from '@/lib/menu-scan-schema';
+import {
+  structuredIngredientsForPersist,
+  type ParsedMenu,
+  type ParsedMenuItem,
+  type ParsedMenuSection,
+} from '@/lib/menu-scan-schema';
 import { supabase } from '@/lib/supabase';
 
 export type PersistParsedMenuResult =
@@ -57,6 +62,7 @@ export async function persistParsedMenu(menu: ParsedMenu, profileId: string): Pr
         spice_level: it.spice_level,
         tags: it.tags,
         ingredients: it.ingredients,
+        ingredient_items: structuredIngredientsForPersist(it),
         image_url: null,
         calories_manual: null,
         calories_estimated:

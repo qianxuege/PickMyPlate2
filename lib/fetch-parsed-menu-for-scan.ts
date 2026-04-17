@@ -37,7 +37,7 @@ export async function fetchParsedMenuForScan(scanId: string): Promise<FetchParse
       const dishCols = await getDinerScannedDishSelectColumns();
       const { data: dishRows, error: dishErr } = await supabase
         .from('diner_scanned_dishes')
-        // Dynamic column list: literals required for generated types
+        // Dynamic column list (includes ingredient_items + optional calories)
         .select(dishCols as any)
         .in('section_id', sectionIds)
         .order('sort_order', { ascending: true });

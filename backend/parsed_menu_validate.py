@@ -199,9 +199,25 @@ def _parse_ingredients(raw: Any) -> list[str] | None:
         return []
     if not isinstance(raw, list):
         return None
-    if not all(isinstance(t, str) for t in raw):
+    out: list[str] = []
+    for t in raw:
+        if isinstance(t, str):
+            s = t.strip()
+            if s:
+                out.append(s)
+            continue
+        if isinstance(t, dict):
+            n = t.get("name")
+            if isinstance(n, str) and n.strip():
+                out.append(n.strip())
+                continue
+            ing = t.get("ingredient")
+            if isinstance(ing, str) and ing.strip():
+                out.append(ing.strip())
+                continue
+            return None
         return None
-    return raw
+    return out
 
 
 def _parse_optional_calories_estimated(raw: Any) -> int | None:

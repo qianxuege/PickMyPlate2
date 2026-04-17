@@ -1,4 +1,9 @@
 import { getRestaurantMenuDishSelectColumns } from '@/lib/dish-calories-columns-support';
+import {
+  ingredientNamesForLegacy,
+  parseIngredientItemsFromDb,
+  type DishIngredientItem,
+} from '@/lib/restaurant-ingredient-items';
 import { supabase } from '@/lib/supabase';
 
 export type RestaurantMenuSectionRow = {
@@ -20,6 +25,7 @@ export type RestaurantMenuDishRow = {
   spice_level: 0 | 1 | 2 | 3;
   tags: string[];
   ingredients: string[];
+  ingredientItems: DishIngredientItem[];
   image_url: string | null;
   needs_review: boolean;
   is_featured: boolean;
@@ -76,11 +82,24 @@ export async function fetchRestaurantMenuForScan(scanId: string): Promise<FetchR
         const row = d as unknown as Record<string, unknown>;
         const cm = row.calories_manual;
         const ce = row.calories_estimated;
+        let ingredientItems = parseIngredientItemsFromDb(row.ingredient_items);
+        if (ingredientItems.length === 0) {
+          const leg = Array.isArray(row.ingredients) ? (row.ingredients as string[]) : [];
+          ingredientItems = leg
+            .map((n) => ({
+              name: typeof n === 'string' ? n.trim() : String(n).trim(),
+              origin: null as string | null,
+            }))
+            .filter((x) => x.name.length > 0);
+        }
+        const ingredients = ingredientNamesForLegacy(ingredientItems);
         return {
           ...(d as object),
           spice_level: coerceSpiceLevel(row.spice_level),
           is_featured: Boolean(row.is_featured),
           is_new: Boolean(row.is_new),
+          ingredients,
+          ingredientItems,
           calories_manual: typeof cm === 'number' && Number.isFinite(cm) ? Math.round(cm) : null,
           calories_estimated: typeof ce === 'number' && Number.isFinite(ce) ? Math.round(ce) : null,
         } as RestaurantMenuDishRow;

@@ -55,8 +55,9 @@ async function main() {
   let specMarkdown = await callGemini(prompt);
 
   // Self-healing Mermaid validation loop — runs until clean or MAX_FIX_ATTEMPTS reached.
-  // Each fix call receives the full history of prior errors so Gemini knows what it got wrong.
-  const MAX_FIX_ATTEMPTS = 10;
+  // Each fix call receives a truncated history of recent errors so Gemini knows what it got
+  // wrong without the prompt growing unboundedly across many attempts.
+  const MAX_FIX_ATTEMPTS = 5;
   const errorHistory = []; // accumulated per-attempt error records
   for (let attempt = 1; attempt <= MAX_FIX_ATTEMPTS; attempt++) {
     const mermaidErrors = validateMermaidBlocks(specMarkdown);
@@ -522,11 +523,15 @@ async function fixMermaidErrors(spec, mermaidErrors, errorHistory = []) {
     ].join("\n");
   });
 
-  // Summarise errors from all prior attempts so Gemini sees what it got wrong before
-  const priorAttemptSummary = errorHistory.slice(0, -1); // exclude the current (last) attempt
+  // Summarise errors from recent prior attempts so Gemini sees what it got wrong before.
+  // Cap at the last 3 attempts to keep the prompt from growing unboundedly.
+  const MAX_HISTORY_ENTRIES = 3;
+  const priorAttemptSummary = errorHistory
+    .slice(0, -1)                          // exclude the current (last) attempt
+    .slice(-MAX_HISTORY_ENTRIES);          // keep only the most recent N entries
   const historySection = priorAttemptSummary.length > 0
     ? [
-        "## Prior fix attempts (DO NOT repeat these mistakes)",
+        `## Prior fix attempts — last ${priorAttemptSummary.length} shown (DO NOT repeat these mistakes)`,
         "",
         ...priorAttemptSummary.map(({ attempt, mermaidErrors: prevErrors }) =>
           [

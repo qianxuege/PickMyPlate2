@@ -285,11 +285,13 @@ function preSanitizeMermaid(spec) {
 
     // 2. TypeScript array notation in unquoted square-bracket node labels.
     //    Two-stage: capture the full unquoted label, then replace ALL Type[] inside it.
-    //    The inner pattern (?:[^\]"[]|\[\])* excludes [ from the filler chars so that
-    //    [] pairs are only consumed by the explicit \[\] branch, preventing the [ in a
-    //    Type[] from being greedily eaten before the pair can be matched as a unit.
-    //    e.g. nodeId[TypeA[], TypeB[]] → nodeId["TypeA list, TypeB list"]
-    fixed = fixed.replace(/(\w+)\[((?:[^\]"[]|\[\])*)\]/g, (match, nodeId, label) => {
+    //    The inner pattern (?:[^\]"[]|\[[^\]]*\])* excludes [ from the filler chars so
+    //    that bracket pairs are only consumed by the explicit \[[^\]]*\] branch — this
+    //    handles both empty []  pairs (Type[]) and non-empty pairs (e.g. [nested]) inside
+    //    the outer label without the engine prematurely closing on an inner ].
+    //    e.g. nodeId[TypeA[], TypeB[]]                    → nodeId["TypeA list, TypeB list"]
+    //    e.g. nodeId[Label with [nested] text and Type[]] → nodeId["Label with [nested] text and Type list"]
+    fixed = fixed.replace(/(\w+)\[((?:[^\]"[]|\[[^\]]*\])*)\]/g, (match, nodeId, label) => {
       if (!/[A-Za-z_]\w*\[\]/.test(label)) return match;
       const newLabel = label.replace(/([A-Za-z_]\w*)\[\]/g, "$1 list");
       return `${nodeId}["${newLabel.trim()}"]`;

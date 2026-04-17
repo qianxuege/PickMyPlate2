@@ -31,6 +31,21 @@ const DEFAULT_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 const CREATE_PROMPT_PATH = "ai-workflows/DEV_SPEC_CREATE_PROMPT.md";
 const UPDATE_PROMPT_PATH = "ai-workflows/DEV_SPEC_UPDATE_PROMPT.md";
 
+// Lazy-loaded mermaid parser. mermaid expects a browser environment, so we
+// install jsdom + isomorphic-dompurify shims on globalThis before importing it.
+// classDiagram in particular calls DOMPurify.addHook during init.
+let _mermaid = null;
+async function getMermaid() {
+  if (_mermaid) return _mermaid;
+  const { JSDOM } = await import("jsdom");
+  const dom = new JSDOM();
+  globalThis.window = dom.window;
+  globalThis.document = dom.window.document;
+  globalThis.DOMPurify = (await import("isomorphic-dompurify")).default;
+  _mermaid = (await import("mermaid")).default;
+  return _mermaid;
+}
+
 async function main() {
   const diffPath = process.env.PR_DIFF_PATH;
   if (!diffPath) throw new Error("PR_DIFF_PATH is required.");
@@ -64,7 +79,7 @@ async function main() {
   const MAX_FIX_ATTEMPTS = 5;
   const errorHistory = []; // accumulated per-attempt error records
   for (let attempt = 1; attempt <= MAX_FIX_ATTEMPTS; attempt++) {
-    const mermaidErrors = validateMermaidBlocks(specMarkdown);
+    const mermaidErrors = await validateMermaidBlocks(specMarkdown);
     if (mermaidErrors.length === 0) {
       process.stdout.write(`Mermaid validation passed${attempt > 1 ? ` after ${attempt - 1} fix(es)` : ""}.\n`);
       break;
@@ -84,7 +99,7 @@ async function main() {
 
     // After the last attempt, do a final validation check
     if (attempt === MAX_FIX_ATTEMPTS) {
-      const remaining = validateMermaidBlocks(specMarkdown);
+      const remaining = await validateMermaidBlocks(specMarkdown);
       if (remaining.length > 0) {
         process.stdout.write(
           `Warning: ${remaining.length} Mermaid error(s) remain after ${MAX_FIX_ATTEMPTS} fix attempts. Writing spec anyway.\n`,
@@ -308,6 +323,15 @@ function preSanitizeMermaid(spec) {
     // 4. Old-style labeled arrows: -- label --> → -->|label|
     fixed = fixed.replace(/--\s+([^-\n][^\n]*?)\s+-->/g, (_m, label) => `-->|${label.trim()}|`);
 
+    // 5. Invalid subgraph "id label" syntax → subgraph id["label"]
+    //    Mermaid rejects `subgraph Client "Expo / React Native"` — it expects either
+    //    a bare ID, a quoted-only label, or `id["label"]` form.
+    //    e.g. subgraph Client "Expo / React Native" → subgraph Client["Expo / React Native"]
+    fixed = fixed.replace(
+      /^(\s*subgraph\s+)([A-Za-z_]\w*)\s+("[^"]*")\s*$/gm,
+      (_m, prefix, id, label) => `${prefix}${id}[${label}]`,
+    );
+
     return `\`\`\`mermaid\n${fixed}\`\`\``;
   });
 }
@@ -340,15 +364,24 @@ function extractMermaidBlocks(spec) {
 
 /**
  * Validate all Mermaid blocks in the spec.
- * Returns an array of { diagramIndex, content, errors[] } for blocks with errors.
- * Returns an empty array if all diagrams are clean.
+ *
+ * Hybrid strategy:
+ *   1. mermaid.parse() is the gatekeeper — if it accepts, the diagram WILL
+ *      render on GitHub, so we ship it (no static-rule false positives).
+ *   2. If the parser rejects, we ALSO collect any matches from the static
+ *      rules as plain-English hints (e.g. "use underscores only") and append
+ *      them to the parser error. This gives Gemini both the precise location
+ *      (from the parser) and actionable guidance (from the rules).
+ *
+ * Returns an array of { diagramIndex, content, errors[] } for blocks the
+ * parser rejected. Returns [] when all diagrams parse cleanly.
  */
-function validateMermaidBlocks(spec) {
+async function validateMermaidBlocks(spec) {
   const blocks = extractMermaidBlocks(spec);
   const results = [];
 
   for (const block of blocks) {
-    const errors = checkMermaidContent(block.content);
+    const errors = await checkMermaidContent(block.content);
     if (errors.length > 0) {
       results.push({ diagramIndex: block.diagramIndex, content: block.content, errors });
     }
@@ -357,10 +390,29 @@ function validateMermaidBlocks(spec) {
 }
 
 /**
- * Run all grammar checks on a single Mermaid diagram's content (without fences).
- * Returns a list of human-readable error strings.
+ * Parser-first check: returns [] if mermaid.parse() accepts the diagram.
+ * If the parser rejects, returns the parser error followed by any matching
+ * static-rule hints to enrich the fix prompt.
  */
-function checkMermaidContent(content) {
+async function checkMermaidContent(content) {
+  const mermaid = await getMermaid();
+  try {
+    await mermaid.parse(content);
+    return [];
+  } catch (err) {
+    const parserError = `Mermaid parser error: ${err?.message || String(err)}`;
+    const hints = collectStaticHints(content);
+    return hints.length > 0 ? [parserError, ...hints] : [parserError];
+  }
+}
+
+/**
+ * Run plain-English static rules on a diagram's content. Used only as
+ * supplementary hints when the parser already failed — these hints are NOT
+ * authoritative and may have false positives, so we never block a
+ * parser-valid diagram on them.
+ */
+function collectStaticHints(content) {
   const errors = [];
   const lines = content.split("\n");
 
@@ -372,6 +424,16 @@ function checkMermaidContent(content) {
     const line = lines[i];
     const lineNum = i + 1;
     const trimmed = line.trim();
+
+    // Detect malformed subgraph syntax BEFORE the skip rule below.
+    // Valid forms: `subgraph "label"` | `subgraph id` | `subgraph id["label"]`
+    // Invalid:     `subgraph id "label"` (bare ID followed by quoted string)
+    const subgraphMatch = trimmed.match(/^subgraph\s+(.+)$/i);
+    if (subgraphMatch && /^[A-Za-z_]\w*\s+"/.test(subgraphMatch[1].trim())) {
+      errors.push(
+        `Line ${lineNum}: subgraph "id label" syntax is invalid — use \`subgraph id["label"]\` instead`,
+      );
+    }
 
     // Skip blank lines, comments, diagram type declarations, subgraph/end markers
     if (
@@ -554,7 +616,15 @@ function checkMermaidContent(content) {
 }
 
 /**
- * Call Gemini with a targeted prompt to fix only the broken diagrams.
+ * Dispatch one Gemini call per broken diagram in parallel and substitute fixes
+ * back into the spec.
+ *
+ * Per-diagram dispatch (vs. one big call for all diagrams) eliminates the
+ * count-mismatch failure mode — Gemini was reliably collapsing N broken
+ * diagrams into a single response block, causing the all-or-nothing guard to
+ * discard every fix and loop forever. Each per-diagram call only needs to
+ * return ONE block, and individual failures no longer poison sibling fixes.
+ *
  * @param {string} spec - full spec markdown
  * @param {Array} mermaidErrors - current round's errors: [{ diagramIndex, content, errors[] }]
  * @param {Array} errorHistory - all prior rounds: [{ attempt, mermaidErrors[] }]
@@ -562,47 +632,73 @@ function checkMermaidContent(content) {
  */
 async function fixMermaidErrors(spec, mermaidErrors, errorHistory = []) {
   const blocks = extractMermaidBlocks(spec);
+  const historySection = buildHistorySection(errorHistory);
 
-  // Build a prompt that shows only the broken diagrams + their errors
-  const brokenSections = mermaidErrors.map(({ diagramIndex, content, errors }) => {
-    return [
-      `### Diagram ${diagramIndex + 1}`,
-      "",
-      "**Errors found in this attempt:**",
-      errors.map((e) => `- ${e}`).join("\n"),
-      "",
-      "**Current (broken) Mermaid code:**",
-      "```mermaid",
-      content.trimEnd(),
-      "```",
-    ].join("\n");
-  });
+  // Fire one Gemini call per broken diagram in parallel.
+  const fixResults = await Promise.all(
+    mermaidErrors.map(async ({ diagramIndex, content, errors }) => {
+      try {
+        const fixedBlock = await fixSingleDiagram(content, errors, diagramIndex, historySection);
+        return { diagramIndex, fixedBlock };
+      } catch (err) {
+        process.stdout.write(`  Diagram ${diagramIndex + 1}: fix call failed (${err.message}) — leaving as-is\n`);
+        return { diagramIndex, fixedBlock: null };
+      }
+    }),
+  );
 
-  // Summarise errors from recent prior attempts so Gemini sees what it got wrong before.
-  // Cap at the last 3 attempts to keep the prompt from growing unboundedly.
+  // Apply fixes in reverse diagram order so character offsets in `blocks` stay valid.
+  let result = spec;
+  const sortedResults = [...fixResults].sort((a, b) => b.diagramIndex - a.diagramIndex);
+  for (const { diagramIndex, fixedBlock } of sortedResults) {
+    if (!fixedBlock) {
+      process.stdout.write(`  Diagram ${diagramIndex + 1}: skipped (no valid fix returned)\n`);
+      continue;
+    }
+    const originalBlock = blocks[diagramIndex];
+    if (!originalBlock) continue;
+    result = result.slice(0, originalBlock.start) + fixedBlock + result.slice(originalBlock.end);
+  }
+
+  return result;
+}
+
+/**
+ * Build the prior-attempt summary block shared across all per-diagram calls.
+ * Capped at the last MAX_HISTORY_ENTRIES rounds so the prompt does not grow
+ * unboundedly across many fix attempts.
+ */
+function buildHistorySection(errorHistory) {
   const MAX_HISTORY_ENTRIES = 3;
   const priorAttemptSummary = errorHistory
-    .slice(0, -1)                          // exclude the current (last) attempt
-    .slice(-MAX_HISTORY_ENTRIES);          // keep only the most recent N entries
-  const historySection = priorAttemptSummary.length > 0
-    ? [
-        `## Prior fix attempts — last ${priorAttemptSummary.length} shown (DO NOT repeat these mistakes)`,
-        "",
-        ...priorAttemptSummary.map(({ attempt, mermaidErrors: prevErrors }) =>
-          [
-            `### Attempt ${attempt} errors`,
-            ...prevErrors.flatMap(({ diagramIndex, errors }) =>
-              errors.map((e) => `- Diagram ${diagramIndex + 1}: ${e}`),
-            ),
-          ].join("\n"),
-        ),
-        "",
-      ]
-    : [];
+    .slice(0, -1)                  // exclude the current (last) attempt
+    .slice(-MAX_HISTORY_ENTRIES);  // keep only the most recent N entries
 
+  if (priorAttemptSummary.length === 0) return [];
+  return [
+    `## Prior fix attempts — last ${priorAttemptSummary.length} shown (DO NOT repeat these mistakes)`,
+    "",
+    ...priorAttemptSummary.map(({ attempt, mermaidErrors: prevErrors }) =>
+      [
+        `### Attempt ${attempt} errors`,
+        ...prevErrors.flatMap(({ diagramIndex, errors }) =>
+          errors.map((e) => `- Diagram ${diagramIndex + 1}: ${e}`),
+        ),
+      ].join("\n"),
+    ),
+    "",
+  ];
+}
+
+/**
+ * Ask Gemini to fix a single broken diagram. Returns the corrected fenced
+ * Mermaid block (including backticks) or null if the response did not contain
+ * a parseable block.
+ */
+async function fixSingleDiagram(content, errors, diagramIndex, historySection) {
   const fixPrompt = [
-    "You are fixing broken Mermaid diagrams in a development specification.",
-    "Return ONLY the corrected Mermaid diagrams — one per section, in the same order as shown below.",
+    `You are fixing a single broken Mermaid diagram (Diagram ${diagramIndex + 1}) in a development specification.`,
+    "Return ONLY the corrected Mermaid diagram in a single fenced code block.",
     "Do not add any prose, explanations, or extra text.",
     "",
     "## Rules (strictly enforce every rule — previous attempts violated them)",
@@ -619,15 +715,20 @@ async function fixMermaidErrors(spec, mermaidErrors, errorHistory = []) {
     "- Arrow pipe labels `-->|label|` must NOT contain `()`, `[]`, or `{}` — simplify or remove them",
     "- Always use `-->|label|` for labeled arrows — never `-- label -->`",
     "- Never use reserved keywords (`end`, `subgraph`, `style`, `classDef`) as bare node IDs",
+    "- For subgraphs, use `subgraph id[\"label\"]` — NEVER `subgraph id \"label\"` (bare ID followed by a quoted string is invalid)",
     "- In classDiagram, member return types must not use `{` or `}` — write `map` or `object` instead",
     "",
     ...historySection,
-    "## Diagrams to fix",
+    "## Errors found in this diagram",
+    errors.map((e) => `- ${e}`).join("\n"),
     "",
-    brokenSections.join("\n\n"),
+    "## Current (broken) Mermaid code",
+    "```mermaid",
+    content.trimEnd(),
+    "```",
     "",
     "## Output format",
-    "Return one fenced Mermaid block per diagram, in order, with no other text:",
+    "Return exactly ONE fenced Mermaid block, no other text:",
     "```mermaid",
     "flowchart TB",
     "...",
@@ -636,37 +737,9 @@ async function fixMermaidErrors(spec, mermaidErrors, errorHistory = []) {
 
   const fixedText = await callGemini(fixPrompt);
 
-  // Extract the fixed diagrams from the response
-  const fixedBlocks = [];
-  const fixedRe = /```mermaid\s*\n([\s\S]*?)```/g;
-  let fm;
-  while ((fm = fixedRe.exec(fixedText)) !== null) {
-    fixedBlocks.push(fm[0]); // full fenced block including backticks
-  }
-
-  if (fixedBlocks.length !== mermaidErrors.length) {
-    process.stdout.write(
-      `Warning: expected ${mermaidErrors.length} fixed diagram(s), got ${fixedBlocks.length}. Skipping replacement.\n`,
-    );
-    return spec;
-  }
-
-  // Replace broken diagrams in spec with fixed versions (process in reverse order to preserve offsets)
-  const errorIndices = mermaidErrors.map((e) => e.diagramIndex);
-  let result = spec;
-
-  // Rebuild by replacing matching blocks; work backwards to keep indices stable
-  for (let i = errorIndices.length - 1; i >= 0; i--) {
-    const diagIdx = errorIndices[i];
-    const originalBlock = blocks[diagIdx];
-    if (!originalBlock) continue;
-    result =
-      result.slice(0, originalBlock.start) +
-      fixedBlocks[i] +
-      result.slice(originalBlock.end);
-  }
-
-  return result;
+  // Take the first fenced mermaid block from the response.
+  const match = fixedText.match(/```mermaid\s*\n[\s\S]*?```/);
+  return match ? match[0] : null;
 }
 
 // ---------------------------------------------------------------------------

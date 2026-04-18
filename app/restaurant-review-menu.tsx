@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { restaurantRoleTheme } from '@/constants/role-theme';
 import { Colors, Typography } from '@/constants/theme';
+import { useRestaurantActiveMenuScan } from '@/contexts/RestaurantActiveMenuScanContext';
 import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
 import { fetchRestaurantMenuForScan, type RestaurantMenuDishRow } from '@/lib/restaurant-fetch-menu-for-scan';
 import { publishRestaurantMenu } from '@/lib/restaurant-publish-menu';
@@ -85,6 +86,13 @@ export default function RestaurantReviewMenuScreen() {
 
   const scanIdRaw = params.scanId;
   const scanId = Array.isArray(scanIdRaw) ? scanIdRaw[0] : scanIdRaw;
+
+  const { setActiveRestaurantMenuScan } = useRestaurantActiveMenuScan();
+
+  useEffect(() => {
+    const id = scanId?.trim();
+    if (id) void setActiveRestaurantMenuScan(id);
+  }, [scanId, setActiveRestaurantMenuScan]);
 
   const [loading, setLoading] = useState(Boolean(scanId));
   const [error, setError] = useState<string | null>(null);

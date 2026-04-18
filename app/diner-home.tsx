@@ -29,6 +29,9 @@ import { MenuUploadError, uploadMenuImageFromUri } from '@/lib/upload-menu-image
 
 const MAX_BYTES = 20 * 1024 * 1024;
 
+/** Bound Home fetch so heavy users do not download unbounded scan rows (LLM review / perf). */
+const RECENT_SCANS_HOME_LIMIT = 100;
+
 /** Figma Diner Scan Menu */
 const FIG = {
   text: '#101828',
@@ -72,7 +75,7 @@ export default function DinerHomeScreen() {
   const loadRecentScans = useCallback(async () => {
     setScansLoading(true);
     try {
-      const rows = await fetchDinerRecentScans();
+      const rows = await fetchDinerRecentScans(RECENT_SCANS_HOME_LIMIT);
       setRecentScans(rows);
     } catch {
       setRecentScans([]);

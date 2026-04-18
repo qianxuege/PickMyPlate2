@@ -112,10 +112,18 @@ export default function DinerMenuScreen() {
       const prefSnap = await fetchDinerPreferences();
       const fetched = await fetchParsedMenuForScan(effectiveScanId);
       if (!fetched.ok) {
-        if (/not found/i.test(fetched.error)) {
+        const msg = fetched.error;
+        const isMissingScan = /^scan not found$/i.test(msg.trim());
+        if (isMissingScan) {
           await setActiveDinerMenuScan(null);
+          setPrefs(null);
+          setMenu(null);
+          setSelectedTags([]);
+          setError(null);
+          router.replace('/diner-menu');
+          return;
         }
-        throw new Error(fetched.error);
+        throw new Error(msg);
       }
 
       setPrefs(prefSnap);

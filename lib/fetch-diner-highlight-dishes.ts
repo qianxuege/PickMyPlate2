@@ -25,7 +25,7 @@ export async function fetchDinerHighlightDishes(): Promise<{
   restaurantName: string | null;
   rows: DinerHighlightDishRow[];
 }> {
-  const recentScans = await fetchDinerRecentScans();
+  const recentScans = await fetchDinerRecentScans(50);
   const latestRestaurantName = recentScans[0]?.restaurant_name?.trim() ?? null;
   if (!latestRestaurantName) return { restaurantName: null, rows: [] };
 

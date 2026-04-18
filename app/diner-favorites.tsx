@@ -463,7 +463,7 @@ export default function DinerFavoritesScreen() {
                   </Pressable>
                   {!collapsed &&
                     rows.map((row) => (
-                      <View key={row.dishId}>
+                      <View key={`${groupKey}:${row.dishId}`}>
                         <View style={styles.stackDivider} />
                         {renderDishRow(row)}
                       </View>

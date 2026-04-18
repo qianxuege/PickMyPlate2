@@ -2,6 +2,7 @@ import { Stack } from "expo-router";
 
 import { AuthDeepLinkHandler } from "@/components/AuthDeepLinkHandler";
 import { ActiveRoleProvider } from "@/contexts/ActiveRoleContext";
+import { DinerActiveMenuScanProvider } from "@/contexts/DinerActiveMenuScanContext";
 import { RoleSwitchToastProvider } from "@/contexts/RoleSwitchToastContext";
 
 const noSwipeOptions = { gestureEnabled: false, animation: 'none' as const };
@@ -9,6 +10,7 @@ const noSwipeOptions = { gestureEnabled: false, animation: 'none' as const };
 export default function RootLayout() {
   return (
     <ActiveRoleProvider>
+    <DinerActiveMenuScanProvider>
     <RoleSwitchToastProvider>
     <AuthDeepLinkHandler />
     <Stack screenOptions={{ headerShown: false }}>
@@ -38,6 +40,7 @@ export default function RootLayout() {
       <Stack.Screen name="restaurant-profile" options={noSwipeOptions} />
     </Stack>
     </RoleSwitchToastProvider>
+    </DinerActiveMenuScanProvider>
     </ActiveRoleProvider>
   );
 }

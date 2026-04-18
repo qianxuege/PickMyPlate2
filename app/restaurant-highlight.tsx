@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -69,6 +69,11 @@ export default function RestaurantHighlightScreen() {
       void load();
     }, [load]),
   );
+
+  useEffect(() => {
+    if (!hydrated) return;
+    void load();
+  }, [hydrated, load]);
 
   const onToggle = useCallback(
     async (dishId: string, key: 'is_featured' | 'is_new', value: boolean) => {

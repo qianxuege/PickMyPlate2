@@ -60,6 +60,12 @@ Migration: [`supabase/migrations/20260324123000_restaurant_owner.sql`](../supaba
 
 To add restaurant access to an existing diner account, log in and use **Profile → Add restaurant** (`/add-restaurant`), which inserts `user_roles` and venue data.
 
+## Owner Menu / Highlight tabs (current app behavior)
+
+- **Home → Recent uploads:** includes a search field; tapping an upload sets the persisted **active menu scan** and navigates to **Menu**, so **Menu** and **Highlight** both load that scan’s dishes.
+- **Menu** no longer lists every upload on the tab; if no menu is selected yet, **Menu** and **Highlight** show an empty state that directs owners to choose an upload on **Home**.
+- **Highlight** toggles Featured/New on the **selected** menu scan; what diners see as “live” still follows **`restaurants.published_menu_scan_id`** (and partner QR), which may differ from the menu you’re editing.
+
 ## Applying migrations
 
 Requires **`cuisines`** (from `20260324120000_diner_personalization.sql`) before this file. From repo root:

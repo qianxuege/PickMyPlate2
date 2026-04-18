@@ -3,7 +3,7 @@
 
 **Story (summary):** As a restaurant owner, I want to mark dishes on my **published** menu as **Featured** and/or **New**; as a diner, I want to see those highlights when browsing the digital menu.
 
-**Build / PR reference (implementation):** Owner screen **`restaurant-highlight`** (restaurant bottom nav **Highlight**): toggles persist via `updateRestaurantDishHighlightFlags` on the **published** menu scan (`published_menu_scan_id`). Diner-facing UI uses **`HighlightDishBadges`** (“Featured” / “New”) and, on **`diner-menu`**, highlight-style **tag chips** when dish tags include `featured`, `new`, or `popular` (and parser alias “chef’s recommendation” → featured). **`diner-highlight`** lists highlighted dishes from the published menu for the restaurant that matches the diner’s **most recent scan name** (see prerequisites). Partner QR flow can copy owner flags into tags when opening **`partner-menu`** → **`diner-menu`**.
+**Build / PR reference (implementation):** Owner screen **`restaurant-highlight`** (restaurant bottom nav **Highlight**): toggles persist via `updateRestaurantDishHighlightFlags` on the owner’s **selected** menu scan (chosen on **Home → Recent uploads**; see `docs/restaurant-owner.md`). **`published_menu_scan_id`** still defines the live menu for diners / partner QR. Diner-facing UI uses **`HighlightDishBadges`** (“Featured” / “New”) and, on **`diner-menu`**, highlight-style **tag chips** when dish tags include `featured`, `new`, or `popular` (and parser alias “chef’s recommendation” → featured). **`diner-highlight`** lists highlighted dishes from the published menu for the restaurant that matches the diner’s **most recent scan name** (see prerequisites). Partner QR flow can copy owner flags into tags when opening **`partner-menu`** → **`diner-menu`**.
 
 ---
 
@@ -22,7 +22,7 @@ Full detail: repo root [`README.md`](../../README.md).
 ## Prerequisites (tester setup)
 
 1. **Environment:** Dev or shared build pointed at your team’s Supabase project (see **Environment setup** above).
-2. **Owner account:** Restaurant role, with a **published menu** (`published_menu_scan_id` set on your `restaurants` row—your team’s normal “go live” flow). The **Highlight** tab loads that published scan only; if nothing is published, the screen explains that highlights are unavailable until the menu is live.
+2. **Owner account:** Restaurant role, with at least one menu upload. On **Home → Recent uploads**, select a menu so **Highlight** has a scan to load (empty state until you pick one). For diner-visible highlights, you still need **`published_menu_scan_id`** aligned with what diners scan (see story above).
 3. **Diner account:** Signed in as a **diner**.
 4. **Data alignment for `diner-highlight`:** The diner must have at least one **recent menu scan** whose **restaurant name** (as stored on the scan) **exactly matches** (trimmed, case-insensitive) a restaurant row that has **`published_menu_scan_id`** and highlights on dishes. If names differ, the Highlight dishes screen may show **no highlights** even though the owner toggled flags—record that as a data/setup issue.
 5. **Optional — partner path:** If you test **partner QR / partner link**, use the flow your team documents (`diner-partner-qr-scan` → **`partner-menu`** resolves to **`diner-menu`** with a `scanId`).
@@ -33,9 +33,9 @@ Full detail: repo root [`README.md`](../../README.md).
 
 ### Part A — Restaurant owner: mark highlights
 
-1. Sign in as **restaurant** and open bottom nav **Highlight** (route **`/restaurant-highlight`**).
-2. If you see **no published menu**, stop Part A and note: menu must be published first; otherwise continue.
-3. Confirm the list shows dishes from the **published** scan. Pick **three** dishes to remember by name: leave one **plain**, set one to **Featured** only, one to **New** only (or both on one dish if you want to test dual badges).
+1. Sign in as **restaurant**. On **Home → Recent uploads**, tap a menu so **Highlight** has an active scan; then open bottom nav **Highlight** (route **`/restaurant-highlight`**).
+2. If **Highlight** tells you to select a menu on Home, do step 1 first; otherwise continue.
+3. Confirm the list shows dishes from the **selected** scan (same scan as **Menu** after selection). Pick **three** dishes to remember by name: leave one **plain**, set one to **Featured** only, one to **New** only (or both on one dish if you want to test dual badges).
 4. Use the **switches** to turn **Featured** / **New** on and off. Confirm toggles **stick** after leaving the screen and returning (pull to refresh if available).
 5. Confirm **badges** on the owner list match the switches (**Featured** gold-style pill, **New** blue-style pill) via `HighlightDishBadges`.
 6. If the UI offers **clear** / remove highlight for a dish, use it and confirm both flags clear and badges disappear.
@@ -55,7 +55,7 @@ Full detail: repo root [`README.md`](../../README.md).
 
 ### Stop conditions
 
-- Owner **Highlight** tab empty → publish a menu first.
+- Owner **Highlight** tab empty / “select a menu” → choose an upload on **Home → Recent uploads** first.
 - Diner **Highlight dishes** empty but owner set flags → check **restaurant name** on latest scan vs `restaurants.name` and published scan id.
 - **RLS / auth errors** → record message; likely wrong account or env.
 

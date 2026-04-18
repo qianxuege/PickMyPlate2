@@ -4,19 +4,33 @@ import * as FileSystem from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
 import { DinerTabScreenLayout } from '@/components/DinerTabScreenLayout';
 import { Colors, Spacing, Typography } from '@/constants/theme';
+import { useDinerActiveMenuScan } from '@/contexts/DinerActiveMenuScanContext';
 import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
 import { fetchDinerRecentScans, type DinerMenuScanListRow } from '@/lib/diner-menu-scans';
+import { dedupeRecentMenuScansPreferNewest } from '@/lib/diner-recent-menu-scans';
 import { formatScannedAtPast } from '@/lib/format-scan-time';
 import { writePendingMenuScan } from '@/lib/pending-menu-scan';
 import { supabase } from '@/lib/supabase';
 import { MenuUploadError, uploadMenuImageFromUri } from '@/lib/upload-menu-image';
 
 const MAX_BYTES = 20 * 1024 * 1024;
+
+/** Bound Home fetch so heavy users do not download unbounded scan rows (LLM review / perf). */
+const RECENT_SCANS_HOME_LIMIT = 100;
 
 /** Figma Diner Scan Menu */
 const FIG = {
@@ -37,14 +51,31 @@ function scanDisplayTitle(row: DinerMenuScanListRow): string {
 export default function DinerHomeScreen() {
   useGuardActiveRole('diner');
   const router = useRouter();
+  const { setActiveDinerMenuScan } = useDinerActiveMenuScan();
   const [busy, setBusy] = useState(false);
   const [scansLoading, setScansLoading] = useState(true);
   const [recentScans, setRecentScans] = useState<DinerMenuScanListRow[]>([]);
+  const [recentSearchQuery, setRecentSearchQuery] = useState('');
+
+  const dedupedRecentScans = useMemo(
+    () => dedupeRecentMenuScansPreferNewest(recentScans),
+    [recentScans]
+  );
+
+  const filteredRecentScans = useMemo(() => {
+    const q = recentSearchQuery.trim().toLowerCase();
+    if (!q) return dedupedRecentScans;
+    return dedupedRecentScans.filter((row) => {
+      const title = scanDisplayTitle(row).toLowerCase();
+      const rel = formatScannedAtPast(row.scanned_at).toLowerCase();
+      return title.includes(q) || rel.includes(q);
+    });
+  }, [dedupedRecentScans, recentSearchQuery]);
 
   const loadRecentScans = useCallback(async () => {
     setScansLoading(true);
     try {
-      const rows = await fetchDinerRecentScans();
+      const rows = await fetchDinerRecentScans(RECENT_SCANS_HOME_LIMIT);
       setRecentScans(rows);
     } catch {
       setRecentScans([]);
@@ -157,12 +188,13 @@ export default function DinerHomeScreen() {
 
   const onOpenScan = useCallback(
     (scanId: string) => {
+      void setActiveDinerMenuScan(scanId);
       router.push({
         pathname: '/diner-menu',
         params: { scanId },
       });
     },
-    [router]
+    [router, setActiveDinerMenuScan]
   );
 
   const cardShadow = Platform.select({
@@ -267,30 +299,55 @@ export default function DinerHomeScreen() {
       ) : recentScans.length === 0 ? (
         <Text style={styles.emptyScans}>No scans yet — upload a menu to see it here.</Text>
       ) : (
-        recentScans.map((item) => (
-          <Pressable
-            key={item.id}
-            accessibilityRole="button"
-            onPress={() => onOpenScan(item.id)}
-            style={({ pressed }) => [styles.recentCard, { borderColor: FIG.borderCard }, cardShadow, pressed && styles.recentCardPressed]}
-          >
-            <LinearGradient
-              colors={['#FFEDD4', '#FFF7ED']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.recentIconGradient}
-            >
-              <MaterialCommunityIcons name="silverware-fork-knife" size={20} color={FIG.orangeStart} />
-            </LinearGradient>
-            <View style={styles.recentText}>
-              <Text style={styles.recentTitle} numberOfLines={1}>
-                {scanDisplayTitle(item)}
-              </Text>
-              <Text style={styles.recentSubtitle}>{formatScannedAtPast(item.scanned_at)}</Text>
-            </View>
-            <MaterialCommunityIcons name="chevron-right" size={20} color={FIG.chevron} />
-          </Pressable>
-        ))
+        <>
+          <View style={styles.recentSearchWrap}>
+            <MaterialCommunityIcons name="magnify" size={20} color={FIG.muted} style={styles.recentSearchIcon} />
+            <TextInput
+              value={recentSearchQuery}
+              onChangeText={setRecentSearchQuery}
+              placeholder="Search menus by name"
+              placeholderTextColor={FIG.muted}
+              style={styles.recentSearchInput}
+              autoCorrect={false}
+              autoCapitalize="none"
+              clearButtonMode="while-editing"
+              accessibilityLabel="Search recent scanned menus"
+            />
+          </View>
+          {filteredRecentScans.length === 0 ? (
+            <Text style={styles.emptyScans}>No menus match your search.</Text>
+          ) : (
+            filteredRecentScans.map((item) => (
+              <Pressable
+                key={item.id}
+                accessibilityRole="button"
+                onPress={() => onOpenScan(item.id)}
+                style={({ pressed }) => [
+                  styles.recentCard,
+                  { borderColor: FIG.borderCard },
+                  cardShadow,
+                  pressed && styles.recentCardPressed,
+                ]}
+              >
+                <LinearGradient
+                  colors={['#FFEDD4', '#FFF7ED']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.recentIconGradient}
+                >
+                  <MaterialCommunityIcons name="silverware-fork-knife" size={20} color={FIG.orangeStart} />
+                </LinearGradient>
+                <View style={styles.recentText}>
+                  <Text style={styles.recentTitle} numberOfLines={1}>
+                    {scanDisplayTitle(item)}
+                  </Text>
+                  <Text style={styles.recentSubtitle}>{formatScannedAtPast(item.scanned_at)}</Text>
+                </View>
+                <MaterialCommunityIcons name="chevron-right" size={20} color={FIG.chevron} />
+              </Pressable>
+            ))
+          )}
+        </>
       )}
     </DinerTabScreenLayout>
   );
@@ -377,6 +434,42 @@ const styles = StyleSheet.create({
     letterSpacing: -0.43,
     color: FIG.text,
     marginBottom: 12,
+  },
+  recentSearchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: FIG.borderCard,
+    paddingLeft: 14,
+    paddingRight: Platform.OS === 'ios' ? 12 : 10,
+    marginBottom: 12,
+    height: 48,
+    minHeight: 48,
+  },
+  recentSearchIcon: {
+    marginRight: 10,
+  },
+  recentSearchInput: {
+    flex: 1,
+    alignSelf: 'stretch',
+    fontSize: 16,
+    fontWeight: '400',
+    lineHeight: 20,
+    color: FIG.text,
+    paddingTop: Platform.OS === 'ios' ? 10 : 0,
+    paddingBottom: Platform.OS === 'ios' ? 14 : 0,
+    paddingRight: 6,
+    paddingLeft: 0,
+    margin: 0,
+    ...(Platform.OS === 'android'
+      ? {
+          textAlignVertical: 'center' as const,
+          includeFontPadding: false,
+          paddingVertical: 0,
+        }
+      : {}),
   },
   scansLoading: {
     paddingVertical: Spacing.xl,

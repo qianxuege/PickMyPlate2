@@ -3,12 +3,22 @@ import { useFocusEffect } from '@react-navigation/native';
 import * as FileSystem from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
 import { RestaurantTabScreenLayout } from '@/components/RestaurantTabScreenLayout';
 import { restaurantRoleTheme } from '@/constants/role-theme';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
+import { useRestaurantActiveMenuScan } from '@/contexts/RestaurantActiveMenuScanContext';
 import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
 import { fetchRestaurantRecentUploads, type RestaurantMenuScanListRow } from '@/lib/restaurant-menu-scans';
 import { formatScannedAtPast } from '@/lib/format-scan-time';
@@ -21,17 +31,31 @@ const t = restaurantRoleTheme;
 const MAX_BYTES = 20 * 1024 * 1024;
 
 /** Restaurant Upload Menu (images-only). */
+const RECENT_UPLOADS_LIMIT = 50;
+
 export default function RestaurantHomeScreen() {
   useGuardActiveRole('restaurant');
   const router = useRouter();
+  const { setActiveRestaurantMenuScan } = useRestaurantActiveMenuScan();
   const [busy, setBusy] = useState(false);
   const [scansLoading, setScansLoading] = useState(true);
   const [recentScans, setRecentScans] = useState<RestaurantMenuScanListRow[]>([]);
+  const [recentSearchQuery, setRecentSearchQuery] = useState('');
+
+  const filteredRecentUploads = useMemo(() => {
+    const q = recentSearchQuery.trim().toLowerCase();
+    if (!q) return recentScans;
+    return recentScans.filter((row) => {
+      const title = (row.restaurant_name?.trim() || 'Menu').toLowerCase();
+      const rel = formatScannedAtPast(row.last_activity_at).toLowerCase();
+      return title.includes(q) || rel.includes(q);
+    });
+  }, [recentScans, recentSearchQuery]);
 
   const loadRecent = useCallback(async () => {
     setScansLoading(true);
     try {
-      const rows = await fetchRestaurantRecentUploads(10);
+      const rows = await fetchRestaurantRecentUploads(RECENT_UPLOADS_LIMIT);
       setRecentScans(rows);
     } catch {
       setRecentScans([]);
@@ -130,6 +154,14 @@ export default function RestaurantHomeScreen() {
       }
     },
     [busy, resolveFileSize, router],
+  );
+
+  const onSelectMenuForOwnerTabs = useCallback(
+    (scanId: string) => {
+      void setActiveRestaurantMenuScan(scanId);
+      router.push('/restaurant-menu');
+    },
+    [router, setActiveRestaurantMenuScan]
   );
 
   const createBlank = useCallback(async () => {
@@ -239,11 +271,29 @@ export default function RestaurantHomeScreen() {
       ) : recentScans.length === 0 ? (
         <Text style={styles.emptyText}>No uploads yet — upload a menu to see it here.</Text>
       ) : (
-        recentScans.map((item) => (
+        <>
+          <View style={styles.recentSearchWrap}>
+            <MaterialCommunityIcons name="magnify" size={20} color={Colors.textSecondary} style={styles.recentSearchIcon} />
+            <TextInput
+              value={recentSearchQuery}
+              onChangeText={setRecentSearchQuery}
+              placeholder="Search uploads by name"
+              placeholderTextColor={Colors.textSecondary}
+              style={styles.recentSearchInput}
+              autoCorrect={false}
+              autoCapitalize="none"
+              clearButtonMode="while-editing"
+              accessibilityLabel="Search recent menu uploads"
+            />
+          </View>
+          {filteredRecentUploads.length === 0 ? (
+            <Text style={styles.emptyText}>No uploads match your search.</Text>
+          ) : (
+            filteredRecentUploads.map((item) => (
           <Pressable
             key={item.id}
             accessibilityRole="button"
-            onPress={() => router.push({ pathname: '/restaurant-review-menu', params: { scanId: item.id } })}
+            onPress={() => onSelectMenuForOwnerTabs(item.id)}
             style={({ pressed }) => [
               styles.recentCard,
               { borderColor: t.cardAccentBorder },
@@ -261,7 +311,9 @@ export default function RestaurantHomeScreen() {
             </View>
             <MaterialCommunityIcons name="chevron-right" size={24} color={Colors.textSecondary} />
           </Pressable>
-        ))
+            ))
+          )}
+        </>
       )}
     </RestaurantTabScreenLayout>
   );
@@ -327,6 +379,38 @@ const styles = StyleSheet.create({
     ...Typography.headingSmall,
     color: Colors.text,
     marginBottom: Spacing.base,
+  },
+  recentSearchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    borderRadius: BorderRadius.lg,
+    paddingLeft: 14,
+    paddingRight: Platform.OS === 'ios' ? 12 : 10,
+    marginBottom: Spacing.base,
+    height: 48,
+    minHeight: 48,
+  },
+  recentSearchIcon: {
+    marginRight: 10,
+  },
+  recentSearchInput: {
+    flex: 1,
+    fontSize: 16,
+    lineHeight: 20,
+    color: Colors.text,
+    paddingTop: Platform.OS === 'ios' ? 10 : 0,
+    paddingBottom: Platform.OS === 'ios' ? 14 : 0,
+    margin: 0,
+    ...(Platform.OS === 'android'
+      ? {
+          textAlignVertical: 'center' as const,
+          includeFontPadding: false,
+          paddingVertical: 0,
+        }
+      : {}),
   },
   scansLoading: { paddingVertical: Spacing.xl, alignItems: 'center' },
   emptyText: { ...Typography.body, color: Colors.textSecondary, marginBottom: Spacing.base },

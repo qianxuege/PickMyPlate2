@@ -9,11 +9,11 @@ import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, StyleShe
 import { HighlightDishBadges } from '@/components/HighlightDishBadges';
 import { restaurantRoleTheme } from '@/constants/role-theme';
 import { RestaurantTabScreenLayout } from '@/components/RestaurantTabScreenLayout';
-import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
+import { BorderRadius, Colors, Typography } from '@/constants/theme';
+import { useRestaurantActiveMenuScan } from '@/contexts/RestaurantActiveMenuScanContext';
 import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
-import { formatScannedAtPast } from '@/lib/format-scan-time';
 import { buildPartnerMenuLink, buildPartnerMenuQrUrl, getOrCreateOwnerPartnerMenuToken } from '@/lib/partner-menu-access';
-import { fetchRestaurantAllUploads, type RestaurantMenuScanListRow } from '@/lib/restaurant-menu-scans';
+import { scanBelongsToOwnerRestaurant } from '@/lib/restaurant-menu-scans';
 import { supabase } from '@/lib/supabase';
 import { fetchRestaurantMenuForScan } from '@/lib/restaurant-fetch-menu-for-scan';
 
@@ -35,13 +35,9 @@ type DishRow = {
 export default function RestaurantMenuScreen() {
   useGuardActiveRole('restaurant');
   const router = useRouter();
-  // --- uploads list ---
-  const [uploadsLoading, setUploadsLoading] = useState(true);
-  const [allUploads, setAllUploads] = useState<RestaurantMenuScanListRow[]>([]);
-  const [publishedScanId, setPublishedScanId] = useState<string | null>(null);
+  const { activeScanId, hydrated, setActiveRestaurantMenuScan } = useRestaurantActiveMenuScan();
 
-  // --- selected menu detail ---
-  const [selectedScanId, setSelectedScanId] = useState<string | null>(null);
+  const [publishedScanId, setPublishedScanId] = useState<string | null>(null);
   const [menuLoading, setMenuLoading] = useState(false);
   const [menuTitle, setMenuTitle] = useState<string>('My Menus');
   const [dishes, setDishes] = useState<DishRow[]>([]);
@@ -52,48 +48,42 @@ export default function RestaurantMenuScreen() {
   const [partnerLink, setPartnerLink] = useState<string | null>(null);
   const [partnerQrUrl, setPartnerQrUrl] = useState<string | null>(null);
 
-  // Load the owner's uploads + which scan is currently published.
-  const loadUploads = useCallback(async () => {
-    setUploadsLoading(true);
-    try {
-      const [uploads, { data: restRow }] = await Promise.all([
-        fetchRestaurantAllUploads(100),
-        supabase
-          .from('restaurants')
-          .select('published_menu_scan_id')
-          .eq(
-            'owner_id',
-            (await supabase.auth.getUser()).data?.user?.id ?? '',
-          )
-          .maybeSingle(),
-      ]);
-
-      const pubId = restRow?.published_menu_scan_id ? String(restRow.published_menu_scan_id) : null;
-      setAllUploads(uploads);
-      setPublishedScanId(pubId);
-
-      // Auto-select the published scan (or first upload) if nothing selected yet.
-      setSelectedScanId((prev) => {
-        if (prev && uploads.some((u) => u.id === prev)) return prev;
-        return pubId ?? uploads[0]?.id ?? null;
-      });
-    } catch {
-      // leave previous state on error
-    } finally {
-      setUploadsLoading(false);
-    }
-  }, []);
-
   useFocusEffect(
     useCallback(() => {
-      void loadUploads();
-    }, [loadUploads]),
+      let cancelled = false;
+      void (async () => {
+        try {
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
+          if (!user || cancelled) return;
+          const { data: restRow } = await supabase
+            .from('restaurants')
+            .select('published_menu_scan_id')
+            .eq('owner_id', user.id)
+            .maybeSingle();
+          if (cancelled) return;
+          const pubId = restRow?.published_menu_scan_id ? String(restRow.published_menu_scan_id) : null;
+          setPublishedScanId(pubId);
+
+          const aid = activeScanId?.trim();
+          if (aid && !(await scanBelongsToOwnerRestaurant(aid))) {
+            await setActiveRestaurantMenuScan(null);
+          }
+        } catch {
+          /* keep state */
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [activeScanId, setActiveRestaurantMenuScan]),
   );
 
-  // Load dishes for the selected scan.
   useEffect(() => {
     let cancelled = false;
-    if (!selectedScanId) {
+    const sid = activeScanId?.trim();
+    if (!sid) {
       setMenuTitle('My Menus');
       setDishes([]);
       return;
@@ -101,10 +91,11 @@ export default function RestaurantMenuScreen() {
     setMenuLoading(true);
     void (async () => {
       try {
-        const result = await fetchRestaurantMenuForScan(selectedScanId);
+        const result = await fetchRestaurantMenuForScan(sid);
         if (cancelled) return;
         if (!result.ok) {
-          setMenuTitle('Menu');
+          await setActiveRestaurantMenuScan(null);
+          setMenuTitle('My Menus');
           setDishes([]);
           return;
         }
@@ -130,7 +121,7 @@ export default function RestaurantMenuScreen() {
     return () => {
       cancelled = true;
     };
-  }, [selectedScanId]);
+  }, [activeScanId, setActiveRestaurantMenuScan]);
 
   const formatDishPrice = (dish: DishRow): string | null => {
     if (dish.price_display?.trim()) return dish.price_display.trim();
@@ -192,12 +183,22 @@ export default function RestaurantMenuScreen() {
     }
   }, [downloadQrToCache]);
 
+  if (!hydrated) {
+    return (
+      <RestaurantTabScreenLayout activeTab="menu">
+        <View style={styles.centerBlock}>
+          <ActivityIndicator color={t.primary} />
+        </View>
+      </RestaurantTabScreenLayout>
+    );
+  }
+
   return (
     <RestaurantTabScreenLayout activeTab="menu">
       {/* Header */}
       <View style={styles.headerRow}>
         <Text style={styles.headerTitle} numberOfLines={1}>
-          {selectedScanId ? menuTitle : 'My Menus'}
+          {activeScanId?.trim() ? menuTitle : 'My Menus'}
         </Text>
         <View style={styles.actionsRow}>
           <Pressable
@@ -224,142 +225,101 @@ export default function RestaurantMenuScreen() {
         </View>
       </View>
 
-      {uploadsLoading ? (
-        <View style={styles.centerBlock}>
-          <ActivityIndicator color={t.primary} />
+      {!activeScanId?.trim() ? (
+        <View style={styles.selectMenuEmpty}>
+          <MaterialCommunityIcons name="format-list-bulleted-square" size={40} color={Colors.textSecondary} />
+          <Text style={styles.selectMenuTitle}>Select a menu</Text>
+          <Text style={styles.selectMenuSubtitle}>
+            Go to Home, then choose a menu under Recent uploads to view dishes and manage this menu here.
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push('/restaurant-home')}
+            style={({ pressed }) => [styles.selectMenuBtn, pressed && { opacity: 0.88 }]}
+          >
+            <Text style={styles.selectMenuBtnText}>Go to Home</Text>
+          </Pressable>
         </View>
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-          {/* ── All uploaded menus list ── */}
-          <Text style={styles.sectionTitle}>All uploaded menus</Text>
+          <View style={styles.menuDetailHeader}>
+            <Text style={styles.sectionTitle}>{menuTitle}</Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() =>
+                router.push({
+                  pathname: '/restaurant-review-menu',
+                  params: { scanId: activeScanId?.trim() ?? '' },
+                })
+              }
+              style={({ pressed }) => [styles.editBtn, pressed && { opacity: 0.8 }]}
+            >
+              <MaterialCommunityIcons name="pencil-outline" size={14} color={t.primaryDark} />
+              <Text style={styles.editBtnText}>Edit</Text>
+            </Pressable>
+          </View>
 
-          {allUploads.length === 0 ? (
-            <View style={styles.emptyCard}>
-              <MaterialCommunityIcons name="tray-arrow-up" size={32} color={t.primary} style={{ marginBottom: 8 }} />
-              <Text style={styles.emptyTitle}>No menus yet</Text>
-              <Text style={styles.emptySubtitle}>Upload your first menu from the Home tab.</Text>
+          {activeScanId?.trim() === publishedScanId ? (
+            <View style={styles.liveBar}>
+              <MaterialCommunityIcons name="check-circle" size={14} color={t.primaryDark} />
+              <Text style={styles.liveBarText}>This menu is currently live for customers</Text>
               <Pressable
                 accessibilityRole="button"
-                onPress={() => router.push('/restaurant-home')}
-                style={({ pressed }) => [styles.uploadBtn, pressed && { opacity: 0.85 }]}
+                onPress={() => void openQrModal()}
+                disabled={qrBusy}
+                style={({ pressed }) => [styles.qrInlineBtn, pressed && { opacity: 0.85 }]}
               >
-                <Text style={styles.uploadBtnText}>Upload menu</Text>
+                <MaterialCommunityIcons name="qrcode" size={14} color={Colors.white} />
+                <Text style={styles.qrInlineBtnText}>QR Code</Text>
               </Pressable>
             </View>
+          ) : null}
+
+          {menuLoading ? (
+            <View style={[styles.centerBlock, { minHeight: 80 }]}>
+              <ActivityIndicator color={t.primary} />
+            </View>
+          ) : dishes.length === 0 ? (
+            <Text style={styles.emptySubtitle}>No dishes in this menu yet.</Text>
           ) : (
-            allUploads.map((scan) => {
-              const isSelected = scan.id === selectedScanId;
-              const isPublished = scan.id === publishedScanId;
+            dishes.map((dish) => {
+              const price = formatDishPrice(dish);
               return (
                 <Pressable
-                  key={scan.id}
+                  key={dish.id}
                   accessibilityRole="button"
-                  onPress={() => setSelectedScanId(scan.id)}
-                  style={({ pressed }) => [
-                    styles.scanCard,
-                    isSelected && styles.scanCardActive,
-                    pressed && { opacity: 0.88 },
-                  ]}
+                  onPress={() =>
+                    router.push({ pathname: '/restaurant-owner-dish/[dishId]', params: { dishId: dish.id } })
+                  }
+                  style={({ pressed }) => [styles.dishCard, pressed && { opacity: 0.88 }]}
                 >
-                  <View style={[styles.scanIcon, isSelected && { backgroundColor: Colors.white }]}>
-                    <MaterialCommunityIcons name="silverware-fork-knife" size={22} color={t.primaryDark} />
-                  </View>
-                  <View style={styles.scanTextCol}>
-                    <Text style={styles.scanName} numberOfLines={1}>
-                      {scan.restaurant_name?.trim() || 'Menu'}
-                    </Text>
-                    <Text style={styles.scanTime}>{formatScannedAtPast(scan.last_activity_at)}</Text>
-                  </View>
-                  {isPublished ? (
-                    <View style={styles.publishedBadge}>
-                      <Text style={styles.publishedBadgeText}>Live</Text>
+                  <View style={styles.dishRow}>
+                    {dish.image_url ? (
+                      <Image source={{ uri: dish.image_url }} style={styles.dishImage} accessibilityLabel={dish.name} />
+                    ) : (
+                      <View style={styles.dishImagePlaceholder}>
+                        <MaterialCommunityIcons name="silverware-fork-knife" size={20} color={Colors.textPlaceholder} />
+                      </View>
+                    )}
+                    <View style={styles.dishTextCol}>
+                      <View style={styles.dishNameRow}>
+                        <Text style={styles.dishName} numberOfLines={1}>
+                          {dish.name}
+                        </Text>
+                        {price ? <Text style={styles.dishPrice}>{price}</Text> : null}
+                      </View>
+                      {dish.description ? (
+                        <Text style={styles.dishDesc} numberOfLines={2}>
+                          {dish.description}
+                        </Text>
+                      ) : null}
+                      <HighlightDishBadges is_featured={dish.is_featured} is_new={dish.is_new} />
                     </View>
-                  ) : null}
-                  <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.textSecondary} />
+                  </View>
                 </Pressable>
               );
             })
           )}
-
-          {/* ── Selected menu detail ── */}
-          {selectedScanId ? (
-            <>
-              <View style={styles.sectionDivider} />
-              <View style={styles.menuDetailHeader}>
-                <Text style={styles.sectionTitle}>{menuTitle}</Text>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => router.push({ pathname: '/restaurant-review-menu', params: { scanId: selectedScanId } })}
-                  style={({ pressed }) => [styles.editBtn, pressed && { opacity: 0.8 }]}
-                >
-                  <MaterialCommunityIcons name="pencil-outline" size={14} color={t.primaryDark} />
-                  <Text style={styles.editBtnText}>Edit</Text>
-                </Pressable>
-              </View>
-
-              {selectedScanId === publishedScanId ? (
-                <View style={styles.liveBar}>
-                  <MaterialCommunityIcons name="check-circle" size={14} color={t.primaryDark} />
-                  <Text style={styles.liveBarText}>This menu is currently live for customers</Text>
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => void openQrModal()}
-                    disabled={qrBusy}
-                    style={({ pressed }) => [styles.qrInlineBtn, pressed && { opacity: 0.85 }]}
-                  >
-                    <MaterialCommunityIcons name="qrcode" size={14} color={Colors.white} />
-                    <Text style={styles.qrInlineBtnText}>QR Code</Text>
-                  </Pressable>
-                </View>
-              ) : null}
-
-              {menuLoading ? (
-                <View style={[styles.centerBlock, { minHeight: 80 }]}>
-                  <ActivityIndicator color={t.primary} />
-                </View>
-              ) : dishes.length === 0 ? (
-                <Text style={styles.emptySubtitle}>No dishes in this menu yet.</Text>
-              ) : (
-                dishes.map((dish) => {
-                  const price = formatDishPrice(dish);
-                  return (
-                    <Pressable
-                      key={dish.id}
-                      accessibilityRole="button"
-                      onPress={() =>
-                        router.push({ pathname: '/restaurant-owner-dish/[dishId]', params: { dishId: dish.id } })
-                      }
-                      style={({ pressed }) => [styles.dishCard, pressed && { opacity: 0.88 }]}
-                    >
-                      <View style={styles.dishRow}>
-                        {dish.image_url ? (
-                          <Image source={{ uri: dish.image_url }} style={styles.dishImage} accessibilityLabel={dish.name} />
-                        ) : (
-                          <View style={styles.dishImagePlaceholder}>
-                            <MaterialCommunityIcons name="silverware-fork-knife" size={20} color={Colors.textPlaceholder} />
-                          </View>
-                        )}
-                        <View style={styles.dishTextCol}>
-                          <View style={styles.dishNameRow}>
-                            <Text style={styles.dishName} numberOfLines={1}>
-                              {dish.name}
-                            </Text>
-                            {price ? <Text style={styles.dishPrice}>{price}</Text> : null}
-                          </View>
-                          {dish.description ? (
-                            <Text style={styles.dishDesc} numberOfLines={2}>
-                              {dish.description}
-                            </Text>
-                          ) : null}
-                          <HighlightDishBadges is_featured={dish.is_featured} is_new={dish.is_new} />
-                        </View>
-                      </View>
-                    </Pressable>
-                  );
-                })
-              )}
-            </>
-          ) : null}
         </ScrollView>
       )}
 
@@ -424,8 +384,38 @@ const styles = StyleSheet.create({
   centerBlock: { justifyContent: 'center', alignItems: 'center', paddingVertical: 40 },
   scrollContent: { paddingHorizontal: 16, paddingBottom: 120, gap: 10 },
 
+  selectMenuEmpty: {
+    alignItems: 'center',
+    paddingVertical: 48,
+    paddingHorizontal: 24,
+    gap: 12,
+  },
+  selectMenuTitle: {
+    ...Typography.headingSmall,
+    fontWeight: '800',
+    color: Colors.text,
+    textAlign: 'center',
+  },
+  selectMenuSubtitle: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  selectMenuBtn: {
+    marginTop: 8,
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+    borderRadius: BorderRadius.full,
+    backgroundColor: t.primary,
+  },
+  selectMenuBtnText: {
+    ...Typography.captionMedium,
+    fontWeight: '700',
+    color: Colors.white,
+  },
+
   sectionTitle: { ...Typography.headingSmall, fontSize: 15, fontWeight: '700', color: Colors.text, marginTop: 4 },
-  sectionDivider: { height: 1, backgroundColor: '#E5E7EB', marginVertical: 6 },
   menuDetailHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   editBtn: {
     flexDirection: 'row',
@@ -437,41 +427,6 @@ const styles = StyleSheet.create({
     backgroundColor: t.primaryLight,
   },
   editBtnText: { fontSize: 13, fontWeight: '600', color: t.primaryDark },
-
-  // Scan list cards (same style as home "Recent uploads")
-  scanCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: BorderRadius.lg,
-    paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.base,
-    gap: Spacing.base,
-  },
-  scanCardActive: {
-    borderColor: t.cardAccentBorder,
-    backgroundColor: t.primaryLight,
-  },
-  scanIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: BorderRadius.full,
-    backgroundColor: t.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  scanTextCol: { flex: 1, minWidth: 0 },
-  scanName: { ...Typography.bodyMedium, color: Colors.text },
-  scanTime: { ...Typography.caption, color: Colors.textSecondary, marginTop: 2 },
-  publishedBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: BorderRadius.full,
-    backgroundColor: t.primary,
-  },
-  publishedBadgeText: { fontSize: 11, fontWeight: '700', color: Colors.white },
 
   // Live bar shown under menu detail when scan is published
   liveBar: {
@@ -519,27 +474,7 @@ const styles = StyleSheet.create({
   dishName: { ...Typography.bodyMedium, fontWeight: '800', color: Colors.text, flex: 1 },
   dishPrice: { ...Typography.bodyMedium, fontWeight: '700', color: Colors.textSecondary },
   dishDesc: { ...Typography.body, color: Colors.textSecondary, marginTop: 4, fontSize: 13 },
-  // Empty state
-  emptyCard: {
-    alignItems: 'center',
-    paddingVertical: 32,
-    paddingHorizontal: 24,
-    backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: BorderRadius.lg,
-    gap: 4,
-  },
-  emptyTitle: { ...Typography.bodyMedium, fontWeight: '700', color: Colors.text },
   emptySubtitle: { ...Typography.caption, color: Colors.textSecondary, textAlign: 'center' as const },
-  uploadBtn: {
-    marginTop: 8,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: BorderRadius.full,
-    backgroundColor: t.primary,
-  },
-  uploadBtnText: { ...Typography.captionMedium, fontWeight: '700', color: Colors.white },
 
   // Modal
   modalBackdrop: {

@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -17,6 +17,7 @@ import {
 import { DinerTabScreenLayout } from '@/components/DinerTabScreenLayout';
 import { MenuFilterChip } from '@/components/MenuFilterChip';
 import { Colors, Spacing, Typography } from '@/constants/theme';
+import { useDinerActiveMenuScan } from '@/contexts/DinerActiveMenuScanContext';
 import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
 import type { DinerPreferenceSnapshot } from '@/lib/diner-preferences';
 import { fetchDinerPreferences, spiceDbToLabel } from '@/lib/diner-preferences';
@@ -48,6 +49,7 @@ const PRICE_SYMBOL: Record<string, string> = {
 export default function DinerMenuScreen() {
   useGuardActiveRole('diner');
   const router = useRouter();
+  const { setActiveDinerMenuScan } = useDinerActiveMenuScan();
   const params = useLocalSearchParams<{ scanId?: string | string[] }>();
   const scanIdRaw = params.scanId;
   const scanId = Array.isArray(scanIdRaw) ? scanIdRaw[0] : scanIdRaw;
@@ -58,6 +60,11 @@ export default function DinerMenuScreen() {
   const [error, setError] = useState<string | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const id = scanId?.trim();
+    if (id) void setActiveDinerMenuScan(id);
+  }, [scanId, setActiveDinerMenuScan]);
 
   useFocusEffect(
     useCallback(() => {
@@ -104,7 +111,20 @@ export default function DinerMenuScreen() {
 
       const prefSnap = await fetchDinerPreferences();
       const fetched = await fetchParsedMenuForScan(effectiveScanId);
-      if (!fetched.ok) throw new Error(fetched.error);
+      if (!fetched.ok) {
+        const msg = fetched.error;
+        const isMissingScan = /^scan not found$/i.test(msg.trim());
+        if (isMissingScan) {
+          await setActiveDinerMenuScan(null);
+          setPrefs(null);
+          setMenu(null);
+          setSelectedTags([]);
+          setError(null);
+          router.replace('/diner-menu');
+          return;
+        }
+        throw new Error(msg);
+      }
 
       setPrefs(prefSnap);
       setMenu(fetched.menu);
@@ -113,7 +133,7 @@ export default function DinerMenuScreen() {
     } finally {
       setLoading(false);
     }
-  }, [scanId, router]);
+  }, [scanId, router, setActiveDinerMenuScan]);
 
   useFocusEffect(
     useCallback(() => {
@@ -153,6 +173,7 @@ export default function DinerMenuScreen() {
 
     return menu.sections
       .map((sec) => ({
+        id: sec.id,
         title: sec.title,
         items: sec.items.filter(matchesSelected),
       }))
@@ -357,8 +378,8 @@ export default function DinerMenuScreen() {
             <Text style={styles.filterEmptyText}>No dishes match all selected filters.</Text>
           ) : null}
 
-          {sectionBlocks.map((sec, idx) => (
-            <View key={`${sec.title}-${idx}`} style={styles.sectionBlock}>
+          {sectionBlocks.map((sec) => (
+            <View key={sec.id} style={styles.sectionBlock}>
               <Text style={styles.sectionHeading}>{sec.title}</Text>
               <View style={styles.cardList}>
                 {sec.items.map((dish) => (

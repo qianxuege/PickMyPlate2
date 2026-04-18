@@ -3,7 +3,9 @@ import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useDinerActiveMenuScan } from '@/contexts/DinerActiveMenuScanContext';
 import { dinerRoleTheme } from '@/constants/role-theme';
+import { getStoredActiveDinerMenuScanId } from '@/lib/diner-active-menu-scan-storage';
 import { RestaurantUiInspect } from '@/constants/restaurant-ui-inspect';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 
@@ -14,7 +16,7 @@ type DinerBottomNavProps = {
   variant?: 'light' | 'dark';
 };
 
-const TABS: Array<{
+const TABS: {
   key: DinerTab;
   label: string;
   icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
@@ -23,7 +25,7 @@ const TABS: Array<{
     | '/diner-menu'
     | '/diner-favorites'
     | '/diner-profile';
-}> = [
+}[] = [
   { key: 'home', label: 'Home', icon: 'home-outline', route: '/diner-home' },
   { key: 'menu', label: 'Menu', icon: 'format-list-bulleted-square', route: '/diner-menu' },
   { key: 'favorites', label: 'Favorites', icon: 'heart-outline', route: '/diner-favorites' },
@@ -33,6 +35,7 @@ const TABS: Array<{
 export function DinerBottomNav({ activeTab, variant = 'light' }: DinerBottomNavProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { activeScanId, hydrated } = useDinerActiveMenuScan();
   const accent = variant === 'dark' ? RestaurantUiInspect.accent : dinerRoleTheme.primary;
   const inactiveColor = variant === 'dark' ? RestaurantUiInspect.muted : Colors.textSecondary;
   const barBg = variant === 'dark' ? RestaurantUiInspect.surfaceDark : Colors.white;
@@ -51,8 +54,22 @@ export function DinerBottomNav({ activeTab, variant = 'light' }: DinerBottomNavP
           tab.key === 'favorites' && isActive
             ? 'heart'
             : tab.icon;
+        const onPressTab = () => {
+          if (tab.key === 'menu') {
+            void (async () => {
+              const id = (hydrated ? activeScanId : await getStoredActiveDinerMenuScanId())?.trim();
+              if (id) {
+                router.replace({ pathname: '/diner-menu', params: { scanId: id } });
+              } else {
+                router.replace('/diner-menu');
+              }
+            })();
+            return;
+          }
+          router.replace(tab.route);
+        };
         return (
-          <Pressable key={tab.key} style={styles.tab} onPress={() => router.replace(tab.route)}>
+          <Pressable key={tab.key} style={styles.tab} onPress={onPressTab}>
             <MaterialCommunityIcons
               name={iconName}
               size={24}

@@ -43,3 +43,20 @@ export async function fetchRestaurantRecentUploads(limit = 10): Promise<Restaura
 export async function fetchRestaurantAllUploads(limit = 100): Promise<RestaurantMenuScanListRow[]> {
   return fetchRestaurantRecentUploads(limit);
 }
+
+/** True if this menu scan belongs to the signed-in owner's restaurant. */
+export async function scanBelongsToOwnerRestaurant(scanId: string): Promise<boolean> {
+  try {
+    const restaurantId = await fetchOwnerRestaurantId();
+    const { data, error } = await supabase
+      .from('restaurant_menu_scans')
+      .select('id')
+      .eq('restaurant_id', restaurantId)
+      .eq('id', scanId.trim())
+      .maybeSingle();
+    if (error) throw error;
+    return !!data;
+  } catch {
+    return false;
+  }
+}

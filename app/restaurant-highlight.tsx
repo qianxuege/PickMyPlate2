@@ -1,6 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { useCallback, useState } from 'react';
+import { useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -13,50 +14,47 @@ import {
 } from 'react-native';
 
 import { HighlightDishBadges } from '@/components/HighlightDishBadges';
-import { PrimaryButton } from '@/components/PrimaryButton';
 import { RestaurantTabScreenLayout } from '@/components/RestaurantTabScreenLayout';
 import { RestaurantUiInspect } from '@/constants/restaurant-ui-inspect';
 import { restaurantRoleTheme } from '@/constants/role-theme';
 import { Colors, Spacing, Typography } from '@/constants/theme';
+import { useRestaurantActiveMenuScan } from '@/contexts/RestaurantActiveMenuScanContext';
 import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
 import { fetchRestaurantMenuForScan, type RestaurantMenuDishRow } from '@/lib/restaurant-fetch-menu-for-scan';
+import { scanBelongsToOwnerRestaurant } from '@/lib/restaurant-menu-scans';
 import { touchRestaurantMenuScan, updateRestaurantDishHighlightFlags } from '@/lib/restaurant-menu-dishes';
-import { supabase } from '@/lib/supabase';
 
 const t = restaurantRoleTheme;
 
 export default function RestaurantHighlightScreen() {
   useGuardActiveRole('restaurant');
+  const router = useRouter();
+  const { activeScanId, hydrated, setActiveRestaurantMenuScan } = useRestaurantActiveMenuScan();
   const [loading, setLoading] = useState(true);
-  const [publishedScanId, setPublishedScanId] = useState<string | null>(null);
   const [dishes, setDishes] = useState<RestaurantMenuDishRow[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { data: userData } = await supabase.auth.getUser();
-      const user = userData?.user;
-      if (!user) {
-        setPublishedScanId(null);
+      if (!hydrated) {
         setDishes([]);
         return;
       }
-      const { data: restRow, error: restErr } = await supabase
-        .from('restaurants')
-        .select('published_menu_scan_id')
-        .eq('owner_id', user.id)
-        .maybeSingle();
-      if (restErr) throw restErr;
-      const scanId = restRow?.published_menu_scan_id ? String(restRow.published_menu_scan_id) : null;
-      setPublishedScanId(scanId);
-      if (!scanId) {
+      const sid = activeScanId?.trim();
+      if (!sid) {
         setDishes([]);
         return;
       }
-      const menu = await fetchRestaurantMenuForScan(scanId);
+      if (!(await scanBelongsToOwnerRestaurant(sid))) {
+        await setActiveRestaurantMenuScan(null);
+        setDishes([]);
+        return;
+      }
+      const menu = await fetchRestaurantMenuForScan(sid);
       if (menu.ok) {
         setDishes(menu.dishes);
       } else {
+        await setActiveRestaurantMenuScan(null);
         setDishes([]);
       }
     } catch {
@@ -64,7 +62,7 @@ export default function RestaurantHighlightScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeScanId, hydrated, setActiveRestaurantMenuScan]);
 
   useFocusEffect(
     useCallback(() => {
@@ -72,9 +70,15 @@ export default function RestaurantHighlightScreen() {
     }, [load]),
   );
 
+  useEffect(() => {
+    if (!hydrated) return;
+    void load();
+  }, [hydrated, load]);
+
   const onToggle = useCallback(
     async (dishId: string, key: 'is_featured' | 'is_new', value: boolean) => {
-      if (!publishedScanId) return;
+      const sid = activeScanId?.trim();
+      if (!sid) return;
       const prev = dishes.find((d) => d.id === dishId);
       if (!prev) return;
       setDishes((list) => list.map((d) => (d.id === dishId ? { ...d, [key]: value } : d)));
@@ -83,14 +87,15 @@ export default function RestaurantHighlightScreen() {
         setDishes((list) => list.map((d) => (d.id === dishId ? { ...d, [key]: prev[key] } : d)));
         return;
       }
-      await touchRestaurantMenuScan(publishedScanId);
+      await touchRestaurantMenuScan(sid);
     },
-    [dishes, publishedScanId],
+    [dishes, activeScanId],
   );
 
   const clearHighlight = useCallback(
     async (dishId: string) => {
-      if (!publishedScanId) return;
+      const sid = activeScanId?.trim();
+      if (!sid) return;
       const prev = dishes.find((d) => d.id === dishId);
       if (!prev) return;
       setDishes((list) =>
@@ -101,9 +106,9 @@ export default function RestaurantHighlightScreen() {
         setDishes((list) => list.map((d) => (d.id === dishId ? { ...d, ...prev } : d)));
         return;
       }
-      await touchRestaurantMenuScan(publishedScanId);
+      await touchRestaurantMenuScan(sid);
     },
-    [dishes, publishedScanId],
+    [dishes, activeScanId],
   );
 
   const highlighted = dishes.filter((d) => d.is_featured || d.is_new);
@@ -115,15 +120,24 @@ export default function RestaurantHighlightScreen() {
       <Text style={styles.title}>Highlight dishes</Text>
       <Text style={styles.subtitle}>Boost visibility and increase orders — mark items as Featured or New.</Text>
 
-      {loading ? (
+      {loading || !hydrated ? (
         <View style={styles.centerBlock}>
           <ActivityIndicator color={t.primary} />
         </View>
-      ) : !publishedScanId ? (
+      ) : !activeScanId?.trim() ? (
         <View style={styles.emptyRoot}>
           <MaterialCommunityIcons name="star-outline" size={40} color={Colors.textSecondary} />
-          <Text style={styles.emptyTitle}>Publish a menu first</Text>
-          <Text style={styles.emptySubtitle}>Once your menu is live, you can highlight dishes for diners.</Text>
+          <Text style={styles.emptyTitle}>Select a menu</Text>
+          <Text style={styles.emptySubtitle}>
+            Go to Home and choose a menu under Recent uploads to highlight dishes from that menu.
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push('/restaurant-home')}
+            style={({ pressed }) => [styles.goHomeBtn, pressed && { opacity: 0.88 }]}
+          >
+            <Text style={styles.goHomeBtnText}>Go to Home</Text>
+          </Pressable>
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -156,7 +170,7 @@ export default function RestaurantHighlightScreen() {
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>All menu items</Text>
-            <Text style={styles.hint}>Toggle Featured and New for any dish on your published menu.</Text>
+            <Text style={styles.hint}>Toggle Featured and New for any dish on the menu you selected on Home.</Text>
             {dishes.map((d) => (
               <View key={d.id} style={styles.rowCard}>
                 {d.image_url ? (
@@ -237,6 +251,18 @@ const styles = StyleSheet.create({
     ...Typography.body,
     color: Colors.textSecondary,
     textAlign: 'center',
+  },
+  goHomeBtn: {
+    marginTop: Spacing.md,
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+    borderRadius: 16,
+    backgroundColor: t.primary,
+  },
+  goHomeBtnText: {
+    ...Typography.captionMedium,
+    fontWeight: '700',
+    color: Colors.white,
   },
   scroll: {
     paddingBottom: 120,

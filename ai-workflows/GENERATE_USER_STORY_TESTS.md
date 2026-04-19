@@ -75,6 +75,34 @@ Each run requires only:
 
 ---
 
+### Step 4.5: Detect and Integrate Existing Tests (AI)
+
+Check for existing tests:
+
+```bash
+ls tests/ | grep <lib-filename>
+```
+
+#### REQUIRED OUTPUT
+
+TEST COVERAGE ANALYSIS
+
+Existing file: <yes/no>
+
+Covered:
+
+- ...
+
+Missing:
+
+- ...
+
+Planned additions:
+
+- ...
+
+---
+
 ### Step 5: Write the Tests (AI)
 
 Follow the style of existing test files in `tests/`:
@@ -85,13 +113,15 @@ Follow the style of existing test files in `tests/`:
   ```ts
   function makeChain(result: unknown) {
     const chain: Record<string, unknown> = {};
-    ['select', 'insert', 'delete', 'eq', 'in', 'order'].forEach((m) => {
+    ["select", "insert", "delete", "eq", "in", "order"].forEach((m) => {
       chain[m] = jest.fn().mockReturnThis();
     });
     chain.maybeSingle = jest.fn().mockResolvedValue(result);
-    chain.single      = jest.fn().mockResolvedValue(result);
-    chain.then        = (resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) =>
-      Promise.resolve(result).then(resolve, reject);
+    chain.single = jest.fn().mockResolvedValue(result);
+    chain.then = (
+      resolve: (v: unknown) => unknown,
+      reject: (e: unknown) => unknown,
+    ) => Promise.resolve(result).then(resolve, reject);
     return chain;
   }
   ```
@@ -102,6 +132,7 @@ Follow the style of existing test files in `tests/`:
 - Use `rejects.toThrow` for error cases
 
 Do NOT:
+
 - Use `@testing-library/react` unless testing a React component
 - Hardcode Supabase credentials
 - Import from files that do not exist
@@ -122,7 +153,61 @@ Do NOT:
 
 ---
 
-### Step 7: Commit and Push (AI)
+## Step 6.5: Mandatory Human Test Review Gate (HARD STOP)
+
+This step happens **AFTER tests pass, BEFORE any commit or push**.
+
+---
+
+### AI MUST:
+
+#### 1. Identify relevant test file(s)
+
+---
+
+#### 2. Provide structured summary
+
+TEST REVIEW SUMMARY
+
+File:
+
+- tests/<filename>.test.ts
+
+Functions covered:
+
+- ...
+
+New test cases:
+
+- ...
+
+Acceptance criteria coverage:
+
+- Criterion → test
+
+Test results:
+✅ All tests passing
+
+---
+
+#### 3. Request approval
+
+Reply with:
+
+- "approve" → proceed
+- "revise: <feedback>" → update tests
+
+---
+
+## ⛔ HARD STOP RULE
+
+- DO NOT commit before approval
+- DO NOT push before approval
+- DO NOT create PR before approval
+
+---
+
+### Step 7: Commit and Push (AI — AFTER APPROVAL ONLY)
 
 - Stage only the new test file:
   ```bash
@@ -165,6 +250,7 @@ The following steps are **not automated**:
 ## Human Responsibilities
 
 - Providing the GitHub Issue URL as input
+- Review test cases BEFORE creating the PR
 - Reviewing and approving the PR (Step 9)
 - Merging the PR (Step 9)
 - Exporting and saving this chat session as evidence for submission

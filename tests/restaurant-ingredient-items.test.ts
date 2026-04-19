@@ -1,11 +1,31 @@
 import {
+  DISH_INGREDIENT_ORIGIN_NOT_SPECIFIED,
   dishDbToIngredientFormRows,
   fallbackIngredientNamesFromDishName,
   ingredientNamesForLegacy,
   MAX_DISH_INGREDIENT_ORIGIN_LEN,
+  newIngredientFormRowId,
   normalizeIngredientItemsForPersist,
   parseIngredientItemsFromDb,
 } from '@/lib/restaurant-ingredient-items';
+
+describe('US9 ingredient constants', () => {
+  it('fixes max origin length at 100', () => {
+    expect(MAX_DISH_INGREDIENT_ORIGIN_LEN).toBe(100);
+  });
+
+  it('defines diner-facing copy when origin is omitted', () => {
+    expect(DISH_INGREDIENT_ORIGIN_NOT_SPECIFIED).toBe('Origin not specified');
+  });
+});
+
+describe('newIngredientFormRowId', () => {
+  it('returns a non-empty id string', () => {
+    const id = newIngredientFormRowId();
+    expect(typeof id).toBe('string');
+    expect(id.length).toBeGreaterThan(0);
+  });
+});
 
 describe('parseIngredientItemsFromDb', () => {
   it('returns empty for non-array', () => {
@@ -117,6 +137,15 @@ describe('normalizeIngredientItemsForPersist', () => {
       { name: 'x', origin: 'a'.repeat(MAX_DISH_INGREDIENT_ORIGIN_LEN + 1) },
     ]);
     expect(r.ok).toBe(false);
+  });
+
+  it('accepts origin trimmed to exactly max length', () => {
+    const origin = 'a'.repeat(MAX_DISH_INGREDIENT_ORIGIN_LEN);
+    const r = normalizeIngredientItemsForPersist([{ name: 'spice', origin }]);
+    expect(r).toEqual({
+      ok: true,
+      items: [{ name: 'spice', origin }],
+    });
   });
 });
 

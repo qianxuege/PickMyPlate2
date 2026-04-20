@@ -25,6 +25,8 @@ import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
 import { dishCaloriesPrimaryText, dishCaloriesUsesMutedStyle } from '@/lib/dish-calories-label';
 import { getDinerScannedDishSelectColumns } from '@/lib/dish-calories-columns-support';
 import { generateDishImage } from '@/lib/dish-image-api';
+import { smartTagFilterLabel } from '@/lib/allergy-tags';
+import { deriveDishInfoTags, derivePersonalizedDietaryIndicators, titleizeDishTag } from '@/lib/dish-detail-tags';
 import type { DinerPreferenceSnapshot } from '@/lib/diner-preferences';
 import { fetchDinerPreferences, spiceDbToLabel } from '@/lib/diner-preferences';
 import {
@@ -53,20 +55,6 @@ const FIG = {
   tagText: '#C2410C',
 } as const;
 
-const DIETARY_TAGS = new Set([
-  'vegetarian',
-  'vegan',
-  'gluten-free',
-  'gluten free',
-  'dairy-free',
-  'dairy free',
-  'halal',
-  'kosher',
-  'nut-free',
-  'nut free',
-  'pescatarian',
-]);
-
 const PRICE_SYMBOL: Record<string, string> = {
   USD: '$',
   EUR: '€',
@@ -94,44 +82,6 @@ type DishDetail = {
   caloriesManual: number | null;
   caloriesEstimated: number | null;
 };
-
-function titleize(label: string): string {
-  return label
-    .split(/[\s-]+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-}
-
-function deriveFlavorTags(tags: string[], spiceLevel: 0 | 1 | 2 | 3, description: string | null): string[] {
-  const cleaned = tags
-    .map((tag) => tag.trim())
-    .filter(Boolean)
-    .filter((tag) => !DIETARY_TAGS.has(tag.toLowerCase()))
-    .filter((tag) => !/^\$+$/.test(tag));
-
-  const out = new Set(cleaned.map(titleize));
-  const desc = description?.toLowerCase() ?? '';
-
-  if (spiceLevel >= 2) out.add('Spicy');
-  if (!out.size && /savory|umami|broth|garlic|soy/.test(desc)) out.add('Savory');
-  if (!out.size && /crispy|fried|crunch/.test(desc)) out.add('Crispy');
-  if (!out.size && /sweet/.test(desc)) out.add('Sweet');
-
-  return Array.from(out).slice(0, 5);
-}
-
-function deriveDietaryIndicators(tags: string[]): string[] {
-  return Array.from(
-    new Set(
-      tags
-        .map((tag) => tag.trim())
-        .filter(Boolean)
-        .filter((tag) => DIETARY_TAGS.has(tag.toLowerCase()))
-        .map(titleize)
-    )
-  );
-}
 
 function formatPrice(amount: number | null, currency: string, display: string | null): string {
   if (display?.trim()) return display.trim();
@@ -201,11 +151,11 @@ function buildWhyThisMatchesYou(detail: DishDetail, prefs: DinerPreferenceSnapsh
   }
 
   const smartTagMatch = prefs.smartTags.find((tag) => {
-    const label = tag.label.toLowerCase();
-    return flavorSet.has(label) || ingredientSet.has(label);
+    const label = smartTagFilterLabel(tag).toLowerCase();
+    return flavorSet.has(label) || dietarySet.has(label) || ingredientSet.has(label);
   });
   if (smartTagMatch) {
-    reasons.push(`Lines up with your preference for ${smartTagMatch.label.toLowerCase()}.`);
+    reasons.push(`Lines up with your preference for ${smartTagFilterLabel(smartTagMatch).toLowerCase()}.`);
   }
 
   const dietaryMatch = prefs.dietaryKeys.find((key) => dietarySet.has(key.toLowerCase()));
@@ -316,8 +266,8 @@ export default function DishDetailScreen() {
           restaurantName = scanRow?.restaurant_name?.trim() || null;
         }
 
-        const flavorTags = deriveFlavorTags(typedRow.tags ?? [], typedRow.spice_level ?? 0, typedRow.description);
-        const dietaryIndicators = deriveDietaryIndicators(typedRow.tags ?? []);
+        const flavorTags = deriveDishInfoTags(typedRow.tags ?? [], typedRow.spice_level ?? 0, typedRow.description, prefSnap);
+        const dietaryIndicators = derivePersonalizedDietaryIndicators(typedRow.tags ?? [], prefSnap);
         const ingredients = Array.isArray(typedRow.ingredients) ? typedRow.ingredients : [];
         const ingredientItems = parseIngredientItemsFromDb(typedRow.ingredient_items);
         const summary = buildFallbackSummary({
@@ -598,7 +548,7 @@ export default function DishDetailScreen() {
                         <View key={`${idx}-${item.name}`} style={styles.ingredientStructuredRow}>
                           <View style={styles.ingredientTitleRow}>
                             <View style={styles.ingredientDot} />
-                            <Text style={styles.ingredientText}>{titleize(item.name)}</Text>
+                            <Text style={styles.ingredientText}>{titleizeDishTag(item.name)}</Text>
                           </View>
                           <Text
                             style={[
@@ -615,7 +565,7 @@ export default function DishDetailScreen() {
                     detail.ingredients.map((item) => (
                       <View key={item} style={styles.ingredientRow}>
                         <View style={styles.ingredientDot} />
-                        <Text style={styles.ingredientText}>{titleize(item)}</Text>
+                        <Text style={styles.ingredientText}>{titleizeDishTag(item)}</Text>
                       </View>
                     ))
                   ) : (

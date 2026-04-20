@@ -19,6 +19,7 @@ import { MenuFilterChip } from '@/components/MenuFilterChip';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import { useDinerActiveMenuScan } from '@/contexts/DinerActiveMenuScanContext';
 import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
+import { smartTagFilterLabel } from '@/lib/allergy-tags';
 import type { DinerPreferenceSnapshot } from '@/lib/diner-preferences';
 import { fetchDinerPreferences, spiceDbToLabel } from '@/lib/diner-preferences';
 import { fetchFavoritedDishIds, toggleDishFavorite } from '@/lib/diner-favorites';
@@ -150,7 +151,7 @@ export default function DinerMenuScreen() {
     tags.push(...prefs.dietaryKeys);
     if (prefs.budget_tier) tags.push(prefs.budget_tier);
     tags.push(...prefs.cuisineNames);
-    tags.push(...prefs.smartTags.map((t) => t.label));
+    tags.push(...prefs.smartTags.map((t) => smartTagFilterLabel(t)));
 
     const seen = new Set<string>();
     const deduped = tags.filter((t) => t && !seen.has(t) && (seen.add(t), true));

@@ -34,6 +34,7 @@ describe('parseCaloriesManualInput', () => {
     expect(parseCaloriesManualInput('~450 cal')).toBe(450);
     expect(parseCaloriesManualInput('1,500')).toBe(1500);
     expect(parseCaloriesManualInput('low-calorie 100')).toBe(100);
+    expect(parseCaloriesManualInput('Salad-100-calories')).toBe(100);
   });
 
   it('returns null when no digits remain', () => {

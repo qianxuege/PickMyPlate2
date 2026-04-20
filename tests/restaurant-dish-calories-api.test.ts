@@ -42,6 +42,7 @@ describe('parseCaloriesManualInput', () => {
 
   it('returns null for values below 0 or above 20000', () => {
     expect(parseCaloriesManualInput('-100')).toBeNull();
+    expect(parseCaloriesManualInput('approx. -100')).toBeNull();
     expect(parseCaloriesManualInput('20001')).toBeNull();
     expect(parseCaloriesManualInput('99999')).toBeNull();
   });

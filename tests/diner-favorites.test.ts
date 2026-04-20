@@ -3,6 +3,9 @@ import {
   isDishFavorited,
   toggleDishFavorite,
   fetchDinerFavoritesList,
+  fetchFavoriteNote,
+  upsertFavoriteNote,
+  NOTE_MAX_LENGTH,
 } from '@/lib/diner-favorites';
 
 // ---------------------------------------------------------------------------
@@ -23,7 +26,7 @@ const mockFrom    = supabase.from as jest.Mock;
 
 function makeChain(result: unknown) {
   const chain: Record<string, unknown> = {};
-  ['select', 'insert', 'delete', 'eq', 'in', 'order'].forEach((m) => {
+  ['select', 'insert', 'update', 'delete', 'eq', 'in', 'order'].forEach((m) => {
     chain[m] = jest.fn().mockReturnThis();
   });
   chain.maybeSingle = jest.fn().mockResolvedValue(result);
@@ -166,7 +169,7 @@ describe('fetchDinerFavoritesList', () => {
       callCount++;
       if (callCount === 1) {
         // diner_favorite_dishes
-        return makeChain({ data: [{ dish_id: 'dish-1', created_at: '2025-01-01T00:00:00Z' }], error: null });
+        return makeChain({ data: [{ dish_id: 'dish-1', created_at: '2025-01-01T00:00:00Z', note: 'Loved the crunch' }], error: null });
       }
       if (callCount === 2) {
         // diner_scanned_dishes
@@ -200,7 +203,33 @@ describe('fetchDinerFavoritesList', () => {
       priceDisplay: '$8.99',
       spiceLevel: 1,
       imageUrl: null,
+      note: 'Loved the crunch',
     });
+  });
+
+  it('returns null note when the favorite row has no note', async () => {
+    let callCount = 0;
+    mockFrom.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        return makeChain({ data: [{ dish_id: 'dish-1', created_at: '2025-01-02T00:00:00Z', note: null }], error: null });
+      }
+      if (callCount === 2) {
+        return makeChain({
+          data: [{
+            id: 'dish-1', name: 'Pho',
+            price_amount: null, price_currency: 'USD', price_display: null,
+            spice_level: 0, image_url: null, section_id: 'sec-1',
+          }],
+          error: null,
+        });
+      }
+      if (callCount === 3) return makeChain({ data: [{ id: 'sec-1', scan_id: 'scan-1' }], error: null });
+      return makeChain({ data: [{ id: 'scan-1', restaurant_name: null }], error: null });
+    });
+
+    const [item] = await fetchDinerFavoritesList();
+    expect(item.note).toBeNull();
   });
 
   it('throws when the favorites query errors', async () => {
@@ -239,5 +268,128 @@ describe('fetchDinerFavoritesList', () => {
       return makeChain({ data: null, error: { message: 'scans error' } }); // diner_menu_scans fails
     });
     await expect(fetchDinerFavoritesList()).rejects.toThrow('scans error');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fetchFavoriteNote (US10)
+// ---------------------------------------------------------------------------
+
+describe('fetchFavoriteNote', () => {
+  it('returns null when no user is signed in', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null }, error: null });
+    expect(await fetchFavoriteNote('dish-1')).toBeNull();
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it('returns the saved note for the signed-in user + dish', async () => {
+    const chain = makeChain({ data: { note: 'Ask for extra sauce' }, error: null });
+    mockFrom.mockReturnValue(chain);
+
+    const result = await fetchFavoriteNote('dish-1');
+    expect(result).toBe('Ask for extra sauce');
+
+    expect(mockFrom).toHaveBeenCalledWith('diner_favorite_dishes');
+    expect(chain.select).toHaveBeenCalledWith('note');
+    expect(chain.eq).toHaveBeenCalledWith('profile_id', 'uid-1');
+    expect(chain.eq).toHaveBeenCalledWith('dish_id', 'dish-1');
+  });
+
+  it('returns null when the favorite row has no note stored', async () => {
+    mockFrom.mockReturnValue(makeChain({ data: { note: null }, error: null }));
+    expect(await fetchFavoriteNote('dish-1')).toBeNull();
+  });
+
+  it('returns null when no favorite row exists for the user + dish', async () => {
+    mockFrom.mockReturnValue(makeChain({ data: null, error: null }));
+    expect(await fetchFavoriteNote('dish-1')).toBeNull();
+  });
+
+  it('throws when Supabase returns an error', async () => {
+    mockFrom.mockReturnValue(makeChain({ data: null, error: { message: 'note fetch failed' } }));
+    await expect(fetchFavoriteNote('dish-1')).rejects.toThrow('note fetch failed');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// upsertFavoriteNote (US10)
+// ---------------------------------------------------------------------------
+
+describe('upsertFavoriteNote', () => {
+  it('throws "Sign in required" when no user is signed in', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null }, error: null });
+    await expect(upsertFavoriteNote('dish-1', 'hello')).rejects.toThrow('Sign in required');
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it('saves a trimmed note scoped to the signed-in user + dish', async () => {
+    const chain = makeChain({ data: null, error: null });
+    mockFrom.mockReturnValue(chain);
+
+    await upsertFavoriteNote('dish-1', '  Great with pickles  ');
+
+    expect(mockFrom).toHaveBeenCalledWith('diner_favorite_dishes');
+    expect(chain.update).toHaveBeenCalledWith({ note: 'Great with pickles' });
+    expect(chain.eq).toHaveBeenCalledWith('profile_id', 'uid-1');
+    expect(chain.eq).toHaveBeenCalledWith('dish_id', 'dish-1');
+  });
+
+  it('clears the note (sets to null) when passed an empty string', async () => {
+    const chain = makeChain({ data: null, error: null });
+    mockFrom.mockReturnValue(chain);
+
+    await upsertFavoriteNote('dish-1', '');
+
+    expect(chain.update).toHaveBeenCalledWith({ note: null });
+  });
+
+  it('clears the note (sets to null) when passed whitespace only', async () => {
+    const chain = makeChain({ data: null, error: null });
+    mockFrom.mockReturnValue(chain);
+
+    await upsertFavoriteNote('dish-1', '   \n\t  ');
+
+    expect(chain.update).toHaveBeenCalledWith({ note: null });
+  });
+
+  it('accepts a note of exactly NOTE_MAX_LENGTH characters', async () => {
+    const chain = makeChain({ data: null, error: null });
+    mockFrom.mockReturnValue(chain);
+
+    const exact = 'a'.repeat(NOTE_MAX_LENGTH);
+    await expect(upsertFavoriteNote('dish-1', exact)).resolves.toBeUndefined();
+    expect(chain.update).toHaveBeenCalledWith({ note: exact });
+  });
+
+  it('throws when the note exceeds NOTE_MAX_LENGTH characters', async () => {
+    const tooLong = 'x'.repeat(NOTE_MAX_LENGTH + 1);
+    await expect(upsertFavoriteNote('dish-1', tooLong)).rejects.toThrow(
+      `Notes must be ${NOTE_MAX_LENGTH} characters or fewer.`
+    );
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it('measures length after trimming (trailing whitespace does not push over the limit)', async () => {
+    const chain = makeChain({ data: null, error: null });
+    mockFrom.mockReturnValue(chain);
+
+    const padded = '   ' + 'b'.repeat(NOTE_MAX_LENGTH) + '   ';
+    await expect(upsertFavoriteNote('dish-1', padded)).resolves.toBeUndefined();
+    expect(chain.update).toHaveBeenCalledWith({ note: 'b'.repeat(NOTE_MAX_LENGTH) });
+  });
+
+  it('throws when Supabase update returns an error', async () => {
+    mockFrom.mockReturnValue(makeChain({ data: null, error: { message: 'update failed' } }));
+    await expect(upsertFavoriteNote('dish-1', 'hi')).rejects.toThrow('update failed');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// NOTE_MAX_LENGTH constant
+// ---------------------------------------------------------------------------
+
+describe('NOTE_MAX_LENGTH', () => {
+  it('is 300 characters per US10 acceptance criteria', () => {
+    expect(NOTE_MAX_LENGTH).toBe(300);
   });
 });

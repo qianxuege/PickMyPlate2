@@ -8,10 +8,25 @@ can persist into diner_menu_sections / diner_scanned_dishes (UUID primary keys).
 from __future__ import annotations
 
 import math
+import re
 import uuid
 from typing import Any
 
 MENU_SCAN_SCHEMA_VERSION = 1
+
+_COMMON_PLURAL_ALLERGENS = {
+    "peanuts": "Peanut",
+    "nuts": "Nut",
+    "tree nuts": "Tree nut",
+    "eggs": "Egg",
+}
+_INGREDIENT_SYNONYMS = {
+    "seafood": ("seafood", "fish", "salmon", "tuna", "cod", "shrimp", "prawn", "crab", "lobster", "clam", "mussel", "oyster", "scallop", "shellfish"),
+    "shellfish": ("shellfish", "shrimp", "prawn", "crab", "lobster", "clam", "mussel", "oyster", "scallop"),
+    "peanut": ("peanut", "peanuts", "groundnut"),
+    "nut": ("nut", "nuts", "peanut", "peanuts", "almond", "cashew", "walnut", "pecan", "pistachio", "hazelnut"),
+    "tree nut": ("tree nut", "tree nuts", "almond", "cashew", "walnut", "pecan", "pistachio", "hazelnut"),
+}
 DEFAULT_PRICE_CURRENCY = "USD"
 
 
@@ -326,6 +341,132 @@ def validate_parsed_menu(raw: Any) -> tuple[bool, str, dict[str, Any] | None]:
     return True, "", menu
 
 
+def allergy_label_to_base(label: str) -> str:
+    stripped = label.strip().rstrip(".")
+    stripped = re.sub(r"^allergic to\s+", "", stripped, flags=re.IGNORECASE).strip()
+    stripped = re.sub(r"\s+allerg(?:y|ies)$", "", stripped, flags=re.IGNORECASE).strip()
+    lower = stripped.lower()
+    if lower in _COMMON_PLURAL_ALLERGENS:
+        return _COMMON_PLURAL_ALLERGENS[lower]
+    if lower.endswith("s") and not lower.endswith(("ss", "us", "fish")):
+        stripped = stripped[:-1]
+    return " ".join(part[:1].upper() + part[1:].lower() for part in stripped.split() if part)
+
+
+def allergy_dish_tags(label: str) -> list[str]:
+    base = allergy_label_to_base(label)
+    if not base:
+        return []
+    return [base, f"Contains {base.lower()}", f"{base}-free"]
+
+
+def avoidance_label_to_base(label: str) -> str:
+    stripped = label.strip().rstrip(".")
+    stripped = re.sub(r"^no\s+", "", stripped, flags=re.IGNORECASE).strip()
+    stripped = re.sub(r"^(?:i\s+)?(?:don't|do not)\s+like\s+", "", stripped, flags=re.IGNORECASE).strip()
+    stripped = re.sub(r"^(?:i\s+)?(?:dislike|hate)\s+", "", stripped, flags=re.IGNORECASE).strip()
+    lower = stripped.lower()
+    if lower.endswith("s") and not lower.endswith(("ss", "us", "fish")):
+        stripped = stripped[:-1]
+    return " ".join(part[:1].upper() + part[1:].lower() for part in stripped.split() if part)
+
+
+def avoidance_dish_tags(label: str) -> list[str]:
+    base = avoidance_label_to_base(label)
+    if not base:
+        return []
+    return [base, f"Contains {base.lower()}", f"{base}-free"]
+
+
+def _avoidance_groups_from_user_preferences(prefs: Any) -> list[tuple[str, str, str]]:
+    if prefs is None or not isinstance(prefs, dict):
+        return []
+
+    groups: list[tuple[str, str, str]] = []
+    smart = prefs.get("smart_tags")
+    if not isinstance(smart, list):
+        return groups
+
+    seen: set[str] = set()
+    for row in smart:
+        if not isinstance(row, dict):
+            continue
+        lab = row.get("label")
+        cat = row.get("category")
+        if not isinstance(lab, str) or not lab.strip():
+            continue
+        if cat == "allergy":
+            base = allergy_label_to_base(lab)
+        elif cat == "dislike":
+            base = avoidance_label_to_base(lab)
+        else:
+            continue
+        if not base:
+            continue
+        key = base.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        groups.append((base, f"Contains {base.lower()}", f"{base}-free"))
+    return groups
+
+
+def _dish_mentions_base(item: dict[str, Any], base: str) -> bool:
+    text_parts: list[str] = []
+    for key in ("name", "description"):
+        value = item.get(key)
+        if isinstance(value, str):
+            text_parts.append(value)
+    ingredients = item.get("ingredients")
+    if isinstance(ingredients, list):
+        for ingredient in ingredients:
+            if isinstance(ingredient, str):
+                text_parts.append(ingredient)
+
+    haystack = " ".join(text_parts).lower()
+    if not haystack:
+        return False
+
+    terms = _INGREDIENT_SYNONYMS.get(base.lower(), (base.lower(),))
+    return any(re.search(rf"\b{re.escape(term)}s?\b", haystack) for term in terms)
+
+
+def add_personalized_avoidance_tags(menu: dict[str, Any], prefs: Any, allowed: frozenset[str]) -> None:
+    """
+    Adds deterministic dish-property tags for allergy/dislike preferences after LLM parsing.
+    If a dish name/description/ingredients mention the avoided item, add "X" and
+    "Contains x"; otherwise add "X-free". Only allowed tags are added.
+    """
+    groups = _avoidance_groups_from_user_preferences(prefs)
+    if not groups:
+        return
+
+    for sec in menu.get("sections") or []:
+        for it in sec.get("items") or []:
+            raw = it.get("tags")
+            tags = [x for x in raw if isinstance(x, str)] if isinstance(raw, list) else []
+
+            for base, contains, free in groups:
+                base_allowed = _resolve_tag_to_allowed(base, allowed)
+                contains_allowed = _resolve_tag_to_allowed(contains, allowed)
+                free_allowed = _resolve_tag_to_allowed(free, allowed)
+                if not (base_allowed or contains_allowed or free_allowed):
+                    continue
+
+                lowered = {tag.lower() for tag in tags}
+                has_contains = contains.lower() in lowered or base.lower() in lowered or _dish_mentions_base(it, base)
+
+                if has_contains:
+                    tags = [tag for tag in tags if tag.lower() != free.lower()]
+                    for tag in (base_allowed, contains_allowed):
+                        if tag and tag.lower() not in {existing.lower() for existing in tags}:
+                            tags.append(tag)
+                elif free_allowed and free.lower() not in lowered:
+                    tags.append(free_allowed)
+
+            it["tags"] = tags
+
+
 def parsed_menu_has_items(menu: dict[str, Any]) -> bool:
     return any(len(s.get("items") or []) > 0 for s in menu.get("sections") or [])
 
@@ -390,7 +531,12 @@ def build_allowed_tags_from_user_preferences(prefs: Any) -> frozenset[str]:
             if isinstance(row, dict):
                 lab = row.get("label")
                 if isinstance(lab, str) and lab.strip():
-                    out.add(lab.strip())
+                    if row.get("category") == "allergy":
+                        out.update(allergy_dish_tags(lab))
+                    elif row.get("category") == "dislike":
+                        out.update(avoidance_dish_tags(lab))
+                    else:
+                        out.add(lab.strip())
 
     return frozenset(out)
 

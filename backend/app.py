@@ -210,6 +210,7 @@ def create_app() -> Flask:
             # OCR + Vertex not used; return mock shape with server-issued UUIDs each time.
             from parsed_menu_validate import (
                 assign_server_uuid_ids,
+                add_personalized_avoidance_tags,
                 build_allowed_tags_from_user_preferences,
                 constrain_menu_tags_to_allowed_tags,
                 parsed_menu_has_items,
@@ -227,6 +228,12 @@ def create_app() -> Flask:
                 return jsonify({"ok": False, "error": f"menu_invalid: {id_err}"}), 502
             allowed_tags = build_allowed_tags_from_user_preferences(
                 user_preferences if isinstance(user_preferences, dict) else None
+            )
+            constrain_menu_tags_to_allowed_tags(menu, allowed_tags)
+            add_personalized_avoidance_tags(
+                menu,
+                user_preferences if isinstance(user_preferences, dict) else None,
+                allowed_tags,
             )
             constrain_menu_tags_to_allowed_tags(menu, allowed_tags)
             if not parsed_menu_has_items(menu):
@@ -293,6 +300,7 @@ def create_app() -> Flask:
             from llm_menu_vertex import parse_menu_with_vertex
             from parsed_menu_validate import (
                 assign_server_uuid_ids,
+                add_personalized_avoidance_tags,
                 build_allowed_tags_from_user_preferences,
                 constrain_menu_tags_to_allowed_tags,
                 normalize_llm_menu_shape,
@@ -326,6 +334,12 @@ def create_app() -> Flask:
 
         allowed_tags = build_allowed_tags_from_user_preferences(
             user_preferences if isinstance(user_preferences, dict) else None
+        )
+        constrain_menu_tags_to_allowed_tags(menu, allowed_tags)
+        add_personalized_avoidance_tags(
+            menu,
+            user_preferences if isinstance(user_preferences, dict) else None,
+            allowed_tags,
         )
         constrain_menu_tags_to_allowed_tags(menu, allowed_tags)
 

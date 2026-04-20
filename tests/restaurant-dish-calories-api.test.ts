@@ -33,6 +33,7 @@ describe('parseCaloriesManualInput', () => {
   it('strips non-digits (labels, commas, units)', () => {
     expect(parseCaloriesManualInput('~450 cal')).toBe(450);
     expect(parseCaloriesManualInput('1,500')).toBe(1500);
+    expect(parseCaloriesManualInput('low-calorie 100')).toBe(100);
   });
 
   it('returns null when no digits remain', () => {

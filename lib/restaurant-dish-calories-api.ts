@@ -7,7 +7,7 @@ const MENU_API_KEY = 'EXPO_PUBLIC_MENU_API_URL';
 /** Digits-only optional calories for owner forms; empty → null. */
 export function parseCaloriesManualInput(raw: string): number | null {
   const trimmed = raw.trim();
-  if (trimmed.includes('-')) return null;
+  if (/-\s*\d/.test(trimmed)) return null;
 
   const digits = trimmed.replace(/\D/g, '');
   if (!digits) return null;

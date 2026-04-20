@@ -1,11 +1,47 @@
 import {
+  DISH_INGREDIENT_ORIGIN_NOT_SPECIFIED,
   dishDbToIngredientFormRows,
   fallbackIngredientNamesFromDishName,
   ingredientNamesForLegacy,
   MAX_DISH_INGREDIENT_ORIGIN_LEN,
+  newIngredientFormRowId,
   normalizeIngredientItemsForPersist,
   parseIngredientItemsFromDb,
 } from '@/lib/restaurant-ingredient-items';
+
+// ---------------------------------------------------------------------------
+// US9 ingredient constants
+// ---------------------------------------------------------------------------
+
+describe('US9 ingredient constants', () => {
+  it('fixes max origin length at 100', () => {
+    expect(MAX_DISH_INGREDIENT_ORIGIN_LEN).toBe(100);
+  });
+
+  it('defines diner-facing copy when origin is omitted', () => {
+    expect(DISH_INGREDIENT_ORIGIN_NOT_SPECIFIED).toBe('Origin not specified');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// newIngredientFormRowId
+// ---------------------------------------------------------------------------
+
+describe('newIngredientFormRowId', () => {
+  it('generates unique ids across repeated calls', () => {
+    const iterations = 50;
+    const ids = Array.from({ length: iterations }, () => newIngredientFormRowId());
+    expect(new Set(ids).size).toBe(ids.length);
+    ids.forEach((id) => {
+      expect(typeof id).toBe('string');
+      expect(id.length).toBeGreaterThan(0);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseIngredientItemsFromDb
+// ---------------------------------------------------------------------------
 
 describe('parseIngredientItemsFromDb', () => {
   it('returns empty for non-array', () => {
@@ -52,6 +88,10 @@ describe('parseIngredientItemsFromDb', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// fallbackIngredientNamesFromDishName
+// ---------------------------------------------------------------------------
+
 describe('fallbackIngredientNamesFromDishName', () => {
   it('splits words for simple snacks', () => {
     expect(fallbackIngredientNamesFromDishName('Pop corn')).toEqual(['Pop', 'corn']);
@@ -61,6 +101,10 @@ describe('fallbackIngredientNamesFromDishName', () => {
     expect(fallbackIngredientNamesFromDishName('Fish and chips')).toEqual(['Fish', 'chips']);
   });
 });
+
+// ---------------------------------------------------------------------------
+// dishDbToIngredientFormRows
+// ---------------------------------------------------------------------------
 
 describe('dishDbToIngredientFormRows', () => {
   it('prefers ingredient_items over legacy ingredients', () => {
@@ -90,6 +134,10 @@ describe('dishDbToIngredientFormRows', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// normalizeIngredientItemsForPersist
+// ---------------------------------------------------------------------------
+
 describe('normalizeIngredientItemsForPersist', () => {
   it('trims, drops fully blank rows, coerces empty origin to null', () => {
     const r = normalizeIngredientItemsForPersist([
@@ -112,13 +160,30 @@ describe('normalizeIngredientItemsForPersist', () => {
     if (!r.ok) expect(r.error).toMatch(/name/i);
   });
 
-  it('rejects origin longer than max', () => {
-    const r = normalizeIngredientItemsForPersist([
-      { name: 'x', origin: 'a'.repeat(MAX_DISH_INGREDIENT_ORIGIN_LEN + 1) },
-    ]);
+  it('accepts origin trimmed to exactly max length', () => {
+    const origin = 'a'.repeat(MAX_DISH_INGREDIENT_ORIGIN_LEN);
+    const r = normalizeIngredientItemsForPersist([{ name: 'spice', origin }]);
+    expect(r).toEqual({
+      ok: true,
+      items: [{ name: 'spice', origin }],
+    });
+  });
+
+  it('rejects origin one character over max length (paired boundary)', () => {
+    const origin = 'a'.repeat(MAX_DISH_INGREDIENT_ORIGIN_LEN + 1);
+    const r = normalizeIngredientItemsForPersist([{ name: 'spice', origin }]);
     expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.error).toContain('spice');
+      expect(r.error).toMatch(/at most/);
+      expect(r.error).toContain(String(MAX_DISH_INGREDIENT_ORIGIN_LEN));
+    }
   });
 });
+
+// ---------------------------------------------------------------------------
+// ingredientNamesForLegacy
+// ---------------------------------------------------------------------------
 
 describe('ingredientNamesForLegacy', () => {
   it('maps names', () => {

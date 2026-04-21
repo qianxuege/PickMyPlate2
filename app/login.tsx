@@ -9,9 +9,8 @@ import {
   PrimaryButton,
   RegistrationCard,
   ScreenContainer,
-  SecondaryButton,
 } from '@/components';
-import { Colors, Dimensions, Spacing, Typography } from '@/constants/theme';
+import { Colors, Spacing, Typography } from '@/constants/theme';
 import { navigateAfterAuth } from '@/lib/auth-navigation';
 import { getErrorMessage } from '@/lib/error-message';
 import { supabase } from '@/lib/supabase';
@@ -103,17 +102,6 @@ export default function LoginScreen() {
 
       <View style={styles.buttons}>
         <PrimaryButton text="Log In" onPress={onLogin} loading={loading} disabled={loading} />
-        <SecondaryButton
-          text="Continue with Google"
-          onPress={() => {}}
-          icon={
-            <MaterialCommunityIcons
-              name="google"
-              size={Dimensions.iconSize}
-              color={Colors.text}
-            />
-          }
-        />
       </View>
 
       <Divider text="OR" />

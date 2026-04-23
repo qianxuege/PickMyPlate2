@@ -16,6 +16,7 @@ import {
   upsertRestaurantProfileFromForm,
   type RestaurantProfileUpdate,
 } from '@/lib/restaurant-profile';
+import { validateOptionalBusinessAddress, validateOptionalBusinessPhone } from '@/lib/venue-contact-validation';
 import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
 
 const t = restaurantRoleTheme;
@@ -105,9 +106,24 @@ export default function RestaurantProfileScreen() {
       Alert.alert('Restaurant name', 'Enter a restaurant name.');
       return;
     }
+    const addressCheck = validateOptionalBusinessAddress(form.address);
+    if (!addressCheck.ok) {
+      Alert.alert('Address', addressCheck.message);
+      return;
+    }
+    const phoneCheck = validateOptionalBusinessPhone(form.phone);
+    if (!phoneCheck.ok) {
+      Alert.alert('Phone', phoneCheck.message);
+      return;
+    }
+    const formToSave: RestaurantProfileUpdate = {
+      ...form,
+      address: addressCheck.value,
+      phone: phoneCheck.value,
+    };
     setSaving(true);
     try {
-      const { error } = await upsertRestaurantProfileFromForm(form);
+      const { error } = await upsertRestaurantProfileFromForm(formToSave);
       if (error) {
         Alert.alert('Could not save', error.message);
         return;

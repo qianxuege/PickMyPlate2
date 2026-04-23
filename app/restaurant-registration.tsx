@@ -8,6 +8,7 @@ import { useActiveRole } from '@/contexts/ActiveRoleContext';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import { isDuplicateEmailSignupError, linkRestaurantToExistingAccount } from '@/lib/link-account';
 import { supabase } from '@/lib/supabase';
+import { validateOptionalBusinessPhone, validateRequiredBusinessAddress } from '@/lib/venue-contact-validation';
 
 export default function RestaurantRegistrationScreen() {
   const router = useRouter();
@@ -33,6 +34,16 @@ export default function RestaurantRegistrationScreen() {
         'Missing info',
         'Please fill in restaurant name, business address, email, and password.',
       );
+      return;
+    }
+    const addressCheck = validateRequiredBusinessAddress(businessAddress);
+    if (!addressCheck.ok) {
+      Alert.alert('Business address', addressCheck.message);
+      return;
+    }
+    const phoneCheck = validateOptionalBusinessPhone(phone);
+    if (!phoneCheck.ok) {
+      Alert.alert('Phone number', phoneCheck.message);
       return;
     }
     setLoading(true);

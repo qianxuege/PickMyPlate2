@@ -7,6 +7,7 @@ import { BackButton, InputField, PrimaryButton, ScreenContainer } from '@/compon
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import { getPasswordRecoveryRedirectUrl } from '@/lib/auth-redirect';
 import { getErrorMessage } from '@/lib/error-message';
+import { isValidEmail } from '@/lib/is-valid-email';
 import { supabase } from '@/lib/supabase';
 
 export default function ForgotPasswordScreen() {
@@ -19,6 +20,10 @@ export default function ForgotPasswordScreen() {
     const trimmed = email.trim();
     if (!trimmed) {
       Alert.alert('Missing email', 'Enter the email you used to sign up.');
+      return;
+    }
+    if (!isValidEmail(trimmed)) {
+      Alert.alert('Invalid email', 'Enter a valid email address, for example name@example.com.');
       return;
     }
 

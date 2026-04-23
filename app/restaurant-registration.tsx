@@ -7,6 +7,7 @@ import { BackButton, InputField, PrimaryButton, ScreenContainer } from '@/compon
 import { useActiveRole } from '@/contexts/ActiveRoleContext';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import { isDuplicateEmailSignupError, linkRestaurantToExistingAccount } from '@/lib/link-account';
+import { isValidEmail } from '@/lib/is-valid-email';
 import { supabase } from '@/lib/supabase';
 
 export default function RestaurantRegistrationScreen() {
@@ -33,6 +34,10 @@ export default function RestaurantRegistrationScreen() {
         'Missing info',
         'Please fill in restaurant name, business address, email, and password.',
       );
+      return;
+    }
+    if (!isValidEmail(trimmedEmail)) {
+      Alert.alert('Invalid email', 'Enter a valid email address, for example name@example.com.');
       return;
     }
     setLoading(true);

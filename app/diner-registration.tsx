@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BackButton, InputField, PrimaryButton, ScreenContainer } from '@/components';
 import { useActiveRole } from '@/contexts/ActiveRoleContext';
 import { Colors, Spacing, Typography } from '@/constants/theme';
+import { clampDisplayName, DISPLAY_NAME_MAX_LENGTH } from '@/lib/display-name';
 import { isDuplicateEmailSignupError, linkDinerToExistingAccount } from '@/lib/link-account';
 import { supabase } from '@/lib/supabase';
 
@@ -32,7 +33,7 @@ export default function DinerRegistrationScreen() {
         options: {
           data: {
             role: 'diner',
-            display_name: name.trim(),
+            display_name: clampDisplayName(name.trim()),
           },
         },
       });
@@ -111,7 +112,13 @@ export default function DinerRegistrationScreen() {
         <Text style={styles.heading}>Join as a Diner</Text>
         <Text style={styles.subtitle}>Create an account to explore menus and discover dishes.</Text>
 
-        <InputField label="Name" placeholder="Your name" value={name} onChangeText={setName} />
+        <InputField
+          label="Name"
+          placeholder="Your name"
+          value={name}
+          onChangeText={(t) => setName(clampDisplayName(t))}
+          maxLength={DISPLAY_NAME_MAX_LENGTH}
+        />
         <InputField
           label="Email"
           placeholder="your@email.com"

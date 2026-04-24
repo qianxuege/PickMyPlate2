@@ -32,6 +32,27 @@ function phoneDigits(s: string): string {
   return s.replace(/\D/g, '');
 }
 
+/** 10-digit US/Canada NANP (area + exchange rules), no country code. */
+function isNanp10(d: string): boolean {
+  if (d.length !== 10) return false;
+  const a0 = d[0]!; // 2-9
+  const a1 = d[1]!; // 0-9
+  const a2 = d[2]!; // 0-9
+  const e0 = d[3]!; // 2-9
+  if (a0 < '2' || a0 > '9') return false;
+  if (a1 < '0' || a1 > '9') return false;
+  if (a2 < '0' || a2 > '9') return false;
+  if (e0 < '2' || e0 > '9') return false;
+  for (let i = 4; i < 10; i += 1) {
+    const c = d[i]!;
+    if (c < '0' || c > '9') return false;
+  }
+  return true;
+}
+
+const NANP_10_INVALID =
+  'US and Canada numbers must use a real area code: the first digit cannot be 0 or 1 (so 123… is invalid). The fourth digit also cannot be 0 or 1. Example: 234-555-0123. For other countries, enter 8–15 digits including your country code.';
+
 /**
  * US-style local number or international (E.164 up to 15 digits when formatted without +).
  * Empty input is not allowed here; use `validateOptionalBusinessPhone` for optional fields.
@@ -53,6 +74,22 @@ export function validateNonEmptyPhone(raw: string): { ok: true; value: string } 
   }
   if (ALL_SAME_RE.test(digits)) {
     return { ok: false, message: 'That does not look like a valid phone number.' };
+  }
+  if (digits.length === 10) {
+    if (!isNanp10(digits)) {
+      return { ok: false, message: NANP_10_INVALID };
+    }
+    return { ok: true, value };
+  }
+  if (digits.length === 11) {
+    if (digits[0]! === '1' && isNanp10(digits.slice(1))) {
+      return { ok: true, value };
+    }
+    return {
+      ok: false,
+      message:
+        'For 11 digits, use country code 1 followed by a valid US/Canada number (e.g. 1-234-555-0123). For other countries, use 8–15 digits without a leading 1 unless you mean +1.',
+    };
   }
   return { ok: true, value };
 }

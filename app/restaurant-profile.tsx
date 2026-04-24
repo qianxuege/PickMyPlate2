@@ -340,6 +340,7 @@ export default function RestaurantProfileScreen() {
             value={form.name}
             onChangeText={(v) => setField('name', v)}
             placeholder="Your restaurant name"
+            multiline
             containerStyle={styles.fieldGap}
           />
           <InputField
@@ -347,6 +348,7 @@ export default function RestaurantProfileScreen() {
             value={form.specialty}
             onChangeText={(v) => setField('specialty', v)}
             placeholder="e.g. Japanese · Ramen"
+            multiline
             containerStyle={styles.fieldGap}
           />
 
@@ -377,6 +379,7 @@ export default function RestaurantProfileScreen() {
             value={form.address}
             onChangeText={(v) => setField('address', v)}
             placeholder="Street, city"
+            multiline
             containerStyle={styles.fieldGap}
           />
           <InputField

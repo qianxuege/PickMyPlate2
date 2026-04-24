@@ -46,10 +46,29 @@ describe('validateOptionalBusinessPhone', () => {
     expect(validateOptionalBusinessPhone('')).toEqual({ ok: true, value: '' });
   });
 
-  it('accepts 10+ digit US-style numbers with formatting', () => {
-    const r = validateOptionalBusinessPhone('(555) 123-4567');
+  it('accepts 10+ digit US-style numbers with valid NANP', () => {
+    const r = validateOptionalBusinessPhone('(234) 567-8900');
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.value).toBe('(555) 123-4567');
+    if (r.ok) expect(r.value).toBe('(234) 567-8900');
+  });
+
+  it('rejects 10 digits with invalid area code (leading 0)', () => {
+    expect(validateOptionalBusinessPhone('(034) 567-8900').ok).toBe(false);
+  });
+
+  it('rejects 10 digits when area code starts with 1 (e.g. 1234567890)', () => {
+    const r = validateOptionalBusinessPhone('1234567890');
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.message).toContain('area code');
+  });
+
+  it('rejects 11 digits that are not 1 + NANP', () => {
+    expect(validateOptionalBusinessPhone('45685688992').ok).toBe(false);
+  });
+
+  it('accepts 1 + us number', () => {
+    const r = validateOptionalBusinessPhone('1 (234) 567-8900');
+    expect(r.ok).toBe(true);
   });
 
   it('rejects too few digits', () => {

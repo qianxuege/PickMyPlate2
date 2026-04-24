@@ -7,8 +7,19 @@ import { BackButton, InputField, PrimaryButton, ScreenContainer } from '@/compon
 import { useActiveRole } from '@/contexts/ActiveRoleContext';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import { isDuplicateEmailSignupError, linkRestaurantToExistingAccount } from '@/lib/link-account';
+import {
+  MAX_VENUE_DISPLAY_NAME_LEN,
+  validateSignUpEmail,
+  validateSignUpPassword,
+  validateVenueNameForSignUp,
+} from '@/lib/sign-up-form-validation';
 import { supabase } from '@/lib/supabase';
 import { validateOptionalBusinessPhone, validateRequiredBusinessAddress } from '@/lib/venue-contact-validation';
+
+type FieldKey = 'name' | 'address' | 'phone' | 'email' | 'password';
+type FieldErrors = Partial<Record<FieldKey, string>>;
+
+const emptyFieldErrors: FieldErrors = {};
 
 export default function RestaurantRegistrationScreen() {
   const router = useRouter();
@@ -20,41 +31,59 @@ export default function RestaurantRegistrationScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>(emptyFieldErrors);
 
-  const reg2Params = () => ({
-    restaurantName: restaurantName.trim(),
-    address: businessAddress.trim(),
-    phone: phone.trim(),
-  });
+  const clearError = (key: FieldKey) => {
+    setFieldErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev));
+  };
 
   const onCreate = async () => {
-    const trimmedEmail = email.trim();
-    if (!restaurantName.trim() || !businessAddress.trim() || !trimmedEmail || !password) {
-      Alert.alert(
-        'Missing info',
-        'Please fill in restaurant name, business address, email, and password.',
-      );
+    setFieldErrors(emptyFieldErrors);
+    const next: FieldErrors = {};
+    const nameR = validateVenueNameForSignUp(restaurantName);
+    if (!nameR.ok) next.name = nameR.message;
+    if (!businessAddress.trim()) {
+      next.address = 'Enter your business address (street, city, state, or region).';
+    } else {
+      const addressCheck = validateRequiredBusinessAddress(businessAddress);
+      if (!addressCheck.ok) next.address = addressCheck.message;
+    }
+    const phoneR = validateOptionalBusinessPhone(phone);
+    if (!phoneR.ok) next.phone = phoneR.message;
+    const emailR = validateSignUpEmail(email);
+    if (!emailR.ok) next.email = emailR.message;
+    const passR = validateSignUpPassword(password);
+    if (!passR.ok) next.password = passR.message;
+    if (Object.keys(next).length > 0) {
+      setFieldErrors(next);
       return;
     }
-    const addressCheck = validateRequiredBusinessAddress(businessAddress);
-    if (!addressCheck.ok) {
-      Alert.alert('Business address', addressCheck.message);
+    if (!nameR.ok || !emailR.ok || !passR.ok || !phoneR.ok) {
       return;
     }
-    const phoneCheck = validateOptionalBusinessPhone(phone);
-    if (!phoneCheck.ok) {
-      Alert.alert('Phone number', phoneCheck.message);
+    const addressFinal = validateRequiredBusinessAddress(businessAddress);
+    if (!addressFinal.ok) {
       return;
     }
+    const nameValue = nameR.value;
+    const addressValue = addressFinal.value;
+    const emailValue = emailR.value;
+    const passwordValue = passR.value;
+    const phoneValue = phoneR.value;
+    const reg2Params = {
+      restaurantName: nameValue,
+      address: addressValue,
+      phone: phoneValue,
+    };
     setLoading(true);
     try {
       const { data, error } = await supabase.auth.signUp({
-        email: trimmedEmail,
-        password,
+        email: emailValue,
+        password: passwordValue,
         options: {
           data: {
             role: 'restaurant',
-            display_name: restaurantName.trim(),
+            display_name: nameValue,
           },
         },
       });
@@ -70,7 +99,7 @@ export default function RestaurantRegistrationScreen() {
                 onPress: async () => {
                   setLoading(true);
                   try {
-                    const result = await linkRestaurantToExistingAccount(trimmedEmail, password);
+                    const result = await linkRestaurantToExistingAccount(emailValue, passwordValue);
                     if (result.status === 'auth_failed') {
                       Alert.alert(
                         'Could not sign in',
@@ -94,7 +123,7 @@ export default function RestaurantRegistrationScreen() {
                     await setActiveRole('restaurant');
                     router.replace({
                       pathname: '/restaurant-registration-2',
-                      params: reg2Params(),
+                      params: reg2Params,
                     });
                   } catch (e) {
                     Alert.alert('Error', e instanceof Error ? e.message : 'Unknown error');
@@ -113,7 +142,7 @@ export default function RestaurantRegistrationScreen() {
       if (data.session) {
         await refreshRoles();
         await setActiveRole('restaurant');
-        router.push({ pathname: '/restaurant-registration-2', params: reg2Params() });
+        router.push({ pathname: '/restaurant-registration-2', params: reg2Params });
       } else {
         Alert.alert(
           'Confirm your email',
@@ -144,20 +173,33 @@ export default function RestaurantRegistrationScreen() {
           label="Restaurant Name"
           placeholder="Your restaurant name"
           value={restaurantName}
-          onChangeText={setRestaurantName}
+          onChangeText={(t) => {
+            setRestaurantName(t);
+            clearError('name');
+          }}
+          error={fieldErrors.name}
+          maxLength={MAX_VENUE_DISPLAY_NAME_LEN}
         />
         <InputField
           label="Business address"
           placeholder="Street, city, state (customers and maps use this)"
           value={businessAddress}
-          onChangeText={setBusinessAddress}
+          onChangeText={(t) => {
+            setBusinessAddress(t);
+            clearError('address');
+          }}
+          error={fieldErrors.address}
         />
         <InputField
           label="Phone (optional)"
-          placeholder="Business phone"
+          placeholder="e.g. 234-567-8900 or 1-234-567-8900"
           keyboardType="phone-pad"
           value={phone}
-          onChangeText={setPhone}
+          onChangeText={(t) => {
+            setPhone(t);
+            clearError('phone');
+          }}
+          error={fieldErrors.phone}
         />
         <InputField
           label="Email"
@@ -166,15 +208,23 @@ export default function RestaurantRegistrationScreen() {
           autoCapitalize="none"
           autoComplete="email"
           value={email}
-          onChangeText={setEmail}
+          onChangeText={(t) => {
+            setEmail(t);
+            clearError('email');
+          }}
+          error={fieldErrors.email}
         />
         <InputField
           label="Password"
-          placeholder="Create a password"
+          placeholder="At least 6 characters"
           secureTextEntry
           autoComplete="password"
           value={password}
-          onChangeText={setPassword}
+          onChangeText={(t) => {
+            setPassword(t);
+            clearError('password');
+          }}
+          error={fieldErrors.password}
         />
 
         <PrimaryButton

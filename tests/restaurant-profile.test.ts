@@ -24,7 +24,7 @@ const mockFrom    = supabase.from as jest.Mock;
 
 function makeChain(result: unknown) {
   const chain: Record<string, unknown> = {};
-  ['select', 'insert', 'update', 'eq', 'in'].forEach((m) => {
+  ['select', 'insert', 'update', 'delete', 'eq', 'in'].forEach((m) => {
     chain[m] = jest.fn().mockReturnThis();
   });
   chain.maybeSingle = jest.fn().mockResolvedValue(result);
@@ -41,6 +41,7 @@ function validPayload(overrides: Partial<RestaurantProfileUpdate> = {}): Restaur
   return {
     name: 'Test Restaurant',
     specialty: 'Italian',
+    cuisine_names: [],
     address: '123 Main St',
     phone: '555-0100',
     hours_text: 'Mon-Fri 9-5',
@@ -90,6 +91,7 @@ describe('fetchRestaurantProfile', () => {
     expect(snapshot).not.toBeNull();
     expect(snapshot?.restaurant.name).toBe('Cafe');
     expect(snapshot?.cuisineLabels).toBe('Italian');
+    expect(snapshot?.cuisineNames).toEqual(['Italian']);
     expect(mockFrom).toHaveBeenNthCalledWith(1, 'restaurants');
     expect(lookupChain.eq as jest.Mock).toHaveBeenCalledWith('owner_id', 'uid-1');
   });
@@ -158,35 +160,35 @@ describe('upsertRestaurantProfileFromForm', () => {
 
   it('updates existing restaurant when one exists', async () => {
     const tablesSeen: string[] = [];
-    let callCount = 0;
     const lookupChain = makeChain({ data: { id: 'rest-1' }, error: null });
     mockFrom.mockImplementation((table: string) => {
       tablesSeen.push(table);
-      callCount++;
-      if (callCount === 1) return lookupChain;                       // existing lookup
-      return makeChain({ data: null, error: null });                  // update
+      if (table === 'restaurants' && tablesSeen.length === 1) return lookupChain; // existing lookup
+      return makeChain({ data: [], error: null });
     });
     const { error } = await upsertRestaurantProfileFromForm(validPayload());
     expect(error).toBeNull();
     expect(tablesSeen[0]).toBe('restaurants'); // lookup
-    expect(tablesSeen[1]).toBe('restaurants'); // update via updateRestaurantProfile
+    expect(tablesSeen).toContain('restaurants'); // update via updateRestaurantProfile
+    expect(tablesSeen).toContain('cuisines');
+    expect(tablesSeen).toContain('restaurant_cuisine_types');
     expect(lookupChain.eq as jest.Mock).toHaveBeenCalledWith('owner_id', 'uid-1');
   });
 
   it('inserts new restaurant when none exists', async () => {
     const tablesSeen: string[] = [];
-    let callCount = 0;
     const lookupChain = makeChain({ data: null, error: null });
     mockFrom.mockImplementation((table: string) => {
       tablesSeen.push(table);
-      callCount++;
-      if (callCount === 1) return lookupChain;                       // no existing
-      return makeChain({ data: null, error: null });                  // insert
+      if (table === 'restaurants' && tablesSeen.length === 1) return lookupChain; // no existing
+      if (table === 'restaurants') return makeChain({ data: { id: 'rest-1' }, error: null }); // insert + select
+      return makeChain({ data: [], error: null });
     });
     const { error } = await upsertRestaurantProfileFromForm(validPayload());
     expect(error).toBeNull();
     expect(tablesSeen[0]).toBe('restaurants');
-    expect(tablesSeen[1]).toBe('restaurants');
+    expect(tablesSeen).toContain('cuisines');
+    expect(tablesSeen).toContain('restaurant_cuisine_types');
     expect(lookupChain.eq as jest.Mock).toHaveBeenCalledWith('owner_id', 'uid-1');
   });
 
@@ -194,15 +196,16 @@ describe('upsertRestaurantProfileFromForm', () => {
     // The implementation uses `const { data: existing }` without destructuring the error,
     // so a lookup failure silently falls through to the insert path.
     let callCount = 0;
-    mockFrom.mockImplementation(() => {
+    mockFrom.mockImplementation((table: string) => {
       callCount++;
       if (callCount === 1) return makeChain({ data: null, error: { message: 'lookup error' } }); // erroring lookup
-      return makeChain({ data: null, error: null }); // insert proceeds anyway
+      if (table === 'restaurants') return makeChain({ data: { id: 'rest-1' }, error: null }); // insert proceeds anyway
+      return makeChain({ data: [], error: null });
     });
     const { error } = await upsertRestaurantProfileFromForm(validPayload());
     // Bug: lookup error is swallowed; insert runs and succeeds
     expect(error).toBeNull();
-    expect(callCount).toBe(2); // both lookup and insert were called
+    expect(callCount).toBeGreaterThanOrEqual(4); // lookup + insert + cuisine link sync calls
   });
 });
 

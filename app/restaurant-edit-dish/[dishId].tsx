@@ -2,7 +2,20 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Keyboard,
+  KeyboardEvent,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/PrimaryButton';
@@ -82,10 +95,30 @@ export default function RestaurantEditDishScreen() {
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [keyboardInset, setKeyboardInset] = useState(0);
+  const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     caloriesEstimatedRef.current = caloriesEstimated;
   }, [caloriesEstimated]);
+
+  useEffect(() => {
+    const onKeyboardShow = (event: KeyboardEvent) => {
+      const next = Math.max(0, event.endCoordinates.height - insets.bottom);
+      setKeyboardInset(next);
+    };
+    const onKeyboardHide = () => setKeyboardInset(0);
+
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSub = Keyboard.addListener(showEvent, onKeyboardShow);
+    const hideSub = Keyboard.addListener(hideEvent, onKeyboardHide);
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [insets.bottom]);
 
   useEffect(() => {
     if (!dishId) return;
@@ -409,19 +442,23 @@ export default function RestaurantEditDishScreen() {
         </View>
       </View>
 
-      {loading ? (
-        <View style={styles.centerBlock}>
-          <ActivityIndicator color={t.primary} />
-          <Text style={{ marginTop: 12, ...Typography.body, color: Colors.textSecondary }}>Loading dish…</Text>
-        </View>
-      ) : (
-        <>
-          <ScrollView
-            style={styles.scroll}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 120 }]}
-            showsVerticalScrollIndicator={false}
-          >
+      <View style={styles.contentWrap}>
+        {loading ? (
+          <View style={styles.centerBlock}>
+            <ActivityIndicator color={t.primary} />
+            <Text style={{ marginTop: 12, ...Typography.body, color: Colors.textSecondary }}>Loading dish…</Text>
+          </View>
+        ) : (
+          <>
+            <ScrollView
+              ref={scrollRef}
+              style={styles.scroll}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 120 + keyboardInset }]}
+              scrollIndicatorInsets={{ bottom: insets.bottom + keyboardInset }}
+              showsVerticalScrollIndicator={false}
+            >
             <View style={styles.section}>
               <Text style={styles.fieldLabel}>Dish Photo</Text>
               <View style={styles.photoPlaceholder}>
@@ -653,6 +690,11 @@ export default function RestaurantEditDishScreen() {
               <TextInput
                 value={tagsText}
                 onChangeText={setTagsText}
+                onFocus={() => {
+                  setTimeout(() => {
+                    scrollRef.current?.scrollToEnd({ animated: true });
+                  }, Platform.OS === 'ios' ? 120 : 60);
+                }}
                 placeholder="Comma-separated tags"
                 placeholderTextColor="#6A7282"
                 style={styles.input}
@@ -660,21 +702,22 @@ export default function RestaurantEditDishScreen() {
             </View>
 
             {imageError ? <Text style={styles.errorText}>{imageError}</Text> : null}
-          </ScrollView>
+            </ScrollView>
 
-          <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-            <PrimaryButton
-              text="Save Dish"
-              onPress={() => void onSaveDish()}
-              loading={saving}
-              disabled={saving}
-              accentColor={t.primary}
-              accentShadowRgb={t.shadowRgb}
-              style={styles.saveBtn}
-            />
-          </View>
-        </>
-      )}
+            <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+              <PrimaryButton
+                text="Save Dish"
+                onPress={() => void onSaveDish()}
+                loading={saving}
+                disabled={saving}
+                accentColor={t.primary}
+                accentShadowRgb={t.shadowRgb}
+                style={styles.saveBtn}
+              />
+            </View>
+          </>
+        )}
+      </View>
     </View>
   );
 }
@@ -719,6 +762,7 @@ const styles = StyleSheet.create({
   },
   headerRight: { width: 32 },
   centerBlock: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  contentWrap: { flex: 1 },
   scroll: { flex: 1 },
   scrollContent: {
     paddingHorizontal: 24,

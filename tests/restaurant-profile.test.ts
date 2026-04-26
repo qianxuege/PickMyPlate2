@@ -242,6 +242,49 @@ describe('upsertRestaurantProfileFromForm', () => {
       { restaurant_id: 'rest-1', cuisine_id: 'c-1' },
     ]);
   });
+
+  it('returns original insert error and logs when rollback insert also fails', async () => {
+    const errorLog = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const lookupChain = makeChain({ data: { id: 'rest-1' }, error: null });
+    const updateChain = makeChain({ data: null, error: null });
+    const cuisinesLookupChain = makeChain({ data: [{ id: 'c-2', name: 'Italian' }], error: null });
+    const existingLinksChain = makeChain({ data: [{ cuisine_id: 'c-1' }], error: null });
+    const deleteLinksChain = makeChain({ data: null, error: null });
+    const insertNewLinksChain = makeChain({ data: null, error: { message: 'insert failed' } });
+    const restoreLinksChain = makeChain({ data: null, error: { message: 'rollback failed' } });
+
+    let restaurantCallCount = 0;
+    let linkInsertCount = 0;
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'restaurants') {
+        restaurantCallCount++;
+        if (restaurantCallCount === 1) return lookupChain;
+        return updateChain;
+      }
+      if (table === 'cuisines') return cuisinesLookupChain;
+      if (table === 'restaurant_cuisine_types') {
+        if ((existingLinksChain.select as jest.Mock).mock.calls.length === 0) return existingLinksChain;
+        if ((deleteLinksChain.delete as jest.Mock).mock.calls.length === 0) return deleteLinksChain;
+        linkInsertCount++;
+        if (linkInsertCount === 1) return insertNewLinksChain;
+        return restoreLinksChain;
+      }
+      return makeChain({ data: null, error: null });
+    });
+
+    const { error } = await upsertRestaurantProfileFromForm(validPayload({ cuisine_names: ['Italian'] }));
+    expect(error?.message).toBe('insert failed');
+    expect(errorLog).toHaveBeenCalledWith(
+      '[restaurant-profile] cuisine link rollback failed after insert error',
+      expect.objectContaining({
+        restaurantId: 'rest-1',
+        insertError: expect.objectContaining({ message: 'insert failed' }),
+        rollbackError: expect.objectContaining({ message: 'rollback failed' }),
+      })
+    );
+    errorLog.mockRestore();
+  });
 });
 
 // ---------------------------------------------------------------------------

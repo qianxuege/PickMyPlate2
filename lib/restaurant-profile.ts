@@ -171,7 +171,22 @@ export async function upsertRestaurantProfileFromForm(
         .map((link) => (link?.cuisine_id ? { restaurant_id: restaurantId, cuisine_id: link.cuisine_id } : null))
         .filter(Boolean) as { restaurant_id: string; cuisine_id: string }[];
       if (fallbackRows.length > 0) {
-        await supabase.from('restaurant_cuisine_types').insert(fallbackRows);
+        try {
+          const { error: rollbackErr } = await supabase.from('restaurant_cuisine_types').insert(fallbackRows);
+          if (rollbackErr) {
+            console.error('[restaurant-profile] cuisine link rollback failed after insert error', {
+              restaurantId,
+              insertError: insertErr,
+              rollbackError: rollbackErr,
+            });
+          }
+        } catch (e) {
+          console.error('[restaurant-profile] cuisine link rollback threw after insert error', {
+            restaurantId,
+            insertError: insertErr,
+            thrown: e,
+          });
+        }
       }
       return { error: insertErr };
     }

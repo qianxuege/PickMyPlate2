@@ -8,6 +8,9 @@ import {
   Image,
   Keyboard,
   KeyboardEvent,
+  LayoutChangeEvent,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   Platform,
   Pressable,
   ScrollView,
@@ -97,6 +100,10 @@ export default function RestaurantEditDishScreen() {
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [keyboardInset, setKeyboardInset] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
+  const scrollMetricsRef = useRef({ y: 0, viewportHeight: 0 });
+  const footerHeightRef = useRef(0);
+  const tagsLayoutRef = useRef({ y: 0, height: 0 });
+  const tagsFocusedRef = useRef(false);
 
   useEffect(() => {
     caloriesEstimatedRef.current = caloriesEstimated;
@@ -119,6 +126,49 @@ export default function RestaurantEditDishScreen() {
       hideSub.remove();
     };
   }, [insets.bottom]);
+
+  const ensureTagsVisible = useCallback(() => {
+    const scroll = scrollRef.current;
+    if (!scroll || !tagsFocusedRef.current) return;
+
+    const { y: scrollY, viewportHeight } = scrollMetricsRef.current;
+    const { y: tagsY, height: tagsHeight } = tagsLayoutRef.current;
+    if (viewportHeight <= 0 || tagsHeight <= 0) return;
+
+    const visibilityMargin = 12;
+    const blockedBottom = keyboardInset + footerHeightRef.current + visibilityMargin;
+    const visibleBottom = scrollY + viewportHeight - blockedBottom;
+    const tagsBottom = tagsY + tagsHeight;
+    const delta = tagsBottom - visibleBottom;
+
+    if (delta > 0) {
+      scroll.scrollTo({ y: Math.max(0, scrollY + delta), animated: true });
+    }
+  }, [keyboardInset]);
+
+  useEffect(() => {
+    if (keyboardInset <= 0 || !tagsFocusedRef.current) return;
+    requestAnimationFrame(() => ensureTagsVisible());
+  }, [keyboardInset, ensureTagsVisible]);
+
+  const onScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    scrollMetricsRef.current.y = event.nativeEvent.contentOffset.y;
+  }, []);
+
+  const onScrollLayout = useCallback((event: LayoutChangeEvent) => {
+    scrollMetricsRef.current.viewportHeight = event.nativeEvent.layout.height;
+  }, []);
+
+  const onFooterLayout = useCallback((event: LayoutChangeEvent) => {
+    footerHeightRef.current = event.nativeEvent.layout.height;
+  }, []);
+
+  const onTagsSectionLayout = useCallback((event: LayoutChangeEvent) => {
+    tagsLayoutRef.current = {
+      y: event.nativeEvent.layout.y,
+      height: event.nativeEvent.layout.height,
+    };
+  }, []);
 
   useEffect(() => {
     if (!dishId) return;
@@ -453,6 +503,9 @@ export default function RestaurantEditDishScreen() {
             <ScrollView
               ref={scrollRef}
               style={styles.scroll}
+              onLayout={onScrollLayout}
+              onScroll={onScroll}
+              scrollEventThrottle={16}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
               contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 120 + keyboardInset }]}
@@ -685,15 +738,17 @@ export default function RestaurantEditDishScreen() {
               </Pressable>
             </View>
 
-            <View style={styles.section}>
+            <View style={styles.section} onLayout={onTagsSectionLayout}>
               <Text style={styles.fieldLabel}>AI Generated Tags (optional)</Text>
               <TextInput
                 value={tagsText}
                 onChangeText={setTagsText}
                 onFocus={() => {
-                  setTimeout(() => {
-                    scrollRef.current?.scrollToEnd({ animated: true });
-                  }, Platform.OS === 'ios' ? 120 : 60);
+                  tagsFocusedRef.current = true;
+                  ensureTagsVisible();
+                }}
+                onBlur={() => {
+                  tagsFocusedRef.current = false;
                 }}
                 placeholder="Comma-separated tags"
                 placeholderTextColor="#6A7282"
@@ -704,7 +759,7 @@ export default function RestaurantEditDishScreen() {
             {imageError ? <Text style={styles.errorText}>{imageError}</Text> : null}
             </ScrollView>
 
-            <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+            <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]} onLayout={onFooterLayout}>
               <PrimaryButton
                 text="Save Dish"
                 onPress={() => void onSaveDish()}

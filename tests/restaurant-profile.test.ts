@@ -192,20 +192,55 @@ describe('upsertRestaurantProfileFromForm', () => {
     expect(lookupChain.eq as jest.Mock).toHaveBeenCalledWith('owner_id', 'uid-1');
   });
 
-  it('falls through to insert when existing-restaurant lookup errors (documents bug: lookup error is ignored)', async () => {
-    // The implementation uses `const { data: existing }` without destructuring the error,
-    // so a lookup failure silently falls through to the insert path.
-    let callCount = 0;
+  it('returns lookup error and aborts when existing-restaurant lookup fails', async () => {
+    const lookupChain = makeChain({ data: null, error: { message: 'lookup error' } });
     mockFrom.mockImplementation((table: string) => {
-      callCount++;
-      if (callCount === 1) return makeChain({ data: null, error: { message: 'lookup error' } }); // erroring lookup
-      if (table === 'restaurants') return makeChain({ data: { id: 'rest-1' }, error: null }); // insert proceeds anyway
+      if (table === 'restaurants') return lookupChain;
       return makeChain({ data: [], error: null });
     });
     const { error } = await upsertRestaurantProfileFromForm(validPayload());
-    // Bug: lookup error is swallowed; insert runs and succeeds
-    expect(error).toBeNull();
-    expect(callCount).toBeGreaterThanOrEqual(4); // lookup + insert + cuisine link sync calls
+    expect(error?.message).toBe('lookup error');
+    expect(mockFrom).toHaveBeenCalledTimes(1);
+    expect(lookupChain.eq as jest.Mock).toHaveBeenCalledWith('owner_id', 'uid-1');
+  });
+
+  it('restores previous cuisine links when new insert fails', async () => {
+    const lookupChain = makeChain({ data: { id: 'rest-1' }, error: null });
+    const updateChain = makeChain({ data: null, error: null });
+    const cuisinesLookupChain = makeChain({ data: [{ id: 'c-2', name: 'Italian' }], error: null });
+    const existingLinksChain = makeChain({ data: [{ cuisine_id: 'c-1' }], error: null });
+    const deleteLinksChain = makeChain({ data: null, error: null });
+    const insertNewLinksChain = makeChain({ data: null, error: { message: 'insert failed' } });
+    const restoreLinksChain = makeChain({ data: null, error: null });
+
+    let restaurantCallCount = 0;
+    let linkInsertCount = 0;
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'restaurants') {
+        restaurantCallCount++;
+        if (restaurantCallCount === 1) return lookupChain; // existing lookup
+        return updateChain; // update existing
+      }
+      if (table === 'cuisines') return cuisinesLookupChain;
+      if (table === 'restaurant_cuisine_types') {
+        if ((existingLinksChain.select as jest.Mock).mock.calls.length === 0) return existingLinksChain; // snapshot existing
+        if ((deleteLinksChain.delete as jest.Mock).mock.calls.length === 0) return deleteLinksChain; // delete existing
+        linkInsertCount++;
+        if (linkInsertCount === 1) return insertNewLinksChain; // insert new fails
+        return restoreLinksChain; // rollback restore
+      }
+      return makeChain({ data: null, error: null });
+    });
+
+    const { error } = await upsertRestaurantProfileFromForm(validPayload({ cuisine_names: ['Italian'] }));
+    expect(error?.message).toBe('insert failed');
+    expect(mockFrom).toHaveBeenCalledWith('restaurant_cuisine_types');
+    expect(insertNewLinksChain.insert as jest.Mock).toHaveBeenCalledWith([
+      { restaurant_id: 'rest-1', cuisine_id: 'c-2' },
+    ]);
+    expect(restoreLinksChain.insert as jest.Mock).toHaveBeenCalledWith([
+      { restaurant_id: 'rest-1', cuisine_id: 'c-1' },
+    ]);
   });
 });
 

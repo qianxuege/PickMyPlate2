@@ -113,7 +113,12 @@ export async function upsertRestaurantProfileFromForm(
   const user = userData?.user;
   if (userError || !user) return { error: userError ?? new Error('Not signed in') };
 
-  const { data: existing } = await supabase.from('restaurants').select('id').eq('owner_id', user.id).maybeSingle();
+  const { data: existing, error: lookupError } = await supabase
+    .from('restaurants')
+    .select('id')
+    .eq('owner_id', user.id)
+    .maybeSingle();
+  if (lookupError) return { error: lookupError };
 
   let restaurantId: string;
   if (existing?.id) {
@@ -145,6 +150,12 @@ export async function upsertRestaurantProfileFromForm(
   const { data: cuisines, error: cuisineErr } = await supabase.from('cuisines').select('id, name').in('name', cuisineNames);
   if (cuisineErr) return { error: cuisineErr };
 
+  const { data: previousCuisineLinks, error: previousLinksErr } = await supabase
+    .from('restaurant_cuisine_types')
+    .select('cuisine_id')
+    .eq('restaurant_id', restaurantId);
+  if (previousLinksErr) return { error: previousLinksErr };
+
   const { error: deleteErr } = await supabase
     .from('restaurant_cuisine_types')
     .delete()
@@ -155,7 +166,15 @@ export async function upsertRestaurantProfileFromForm(
   if (cuisineIds.length > 0) {
     const rows = cuisineIds.map((cuisine_id) => ({ restaurant_id: restaurantId, cuisine_id }));
     const { error: insertErr } = await supabase.from('restaurant_cuisine_types').insert(rows);
-    if (insertErr) return { error: insertErr };
+    if (insertErr) {
+      const fallbackRows = (previousCuisineLinks ?? [])
+        .map((link) => (link?.cuisine_id ? { restaurant_id: restaurantId, cuisine_id: link.cuisine_id } : null))
+        .filter(Boolean) as { restaurant_id: string; cuisine_id: string }[];
+      if (fallbackRows.length > 0) {
+        await supabase.from('restaurant_cuisine_types').insert(fallbackRows);
+      }
+      return { error: insertErr };
+    }
   }
 
   return { error: null };

@@ -1,6 +1,10 @@
 import { Stack } from "expo-router";
+import { LogBox } from "react-native";
 
 import { AuthDeepLinkHandler } from "@/components/AuthDeepLinkHandler";
+
+// GoTrue logs before returning; we clear bad tokens in ActiveRoleContext.
+LogBox.ignoreLogs(["Invalid Refresh Token", "Refresh Token Not Found"]);
 import { ActiveRoleProvider } from "@/contexts/ActiveRoleContext";
 import { DinerActiveMenuScanProvider } from "@/contexts/DinerActiveMenuScanContext";
 import { RestaurantActiveMenuScanProvider } from "@/contexts/RestaurantActiveMenuScanContext";

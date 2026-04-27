@@ -35,7 +35,12 @@ export type RestaurantMenuDishRow = {
 };
 
 export type FetchRestaurantMenuForScanResult =
-  | { ok: true; scan: { id: string; restaurant_name: string | null }; sections: RestaurantMenuSectionRow[]; dishes: RestaurantMenuDishRow[] }
+  | {
+      ok: true;
+      scan: { id: string; restaurant_name: string | null; is_published: boolean };
+      sections: RestaurantMenuSectionRow[];
+      dishes: RestaurantMenuDishRow[];
+    }
   | { ok: false; error: string };
 
 function coerceSpiceLevel(v: unknown): 0 | 1 | 2 | 3 {
@@ -51,7 +56,7 @@ export async function fetchRestaurantMenuForScan(scanId: string): Promise<FetchR
   try {
     const { data: scanRow, error: scanErr } = await supabase
       .from('restaurant_menu_scans')
-      .select('id, restaurant_name')
+      .select('id, restaurant_name, is_published')
       .eq('id', scanId)
       .maybeSingle();
 
@@ -108,7 +113,11 @@ export async function fetchRestaurantMenuForScan(scanId: string): Promise<FetchR
 
     return {
       ok: true,
-      scan: { id: String(scanRow.id), restaurant_name: scanRow.restaurant_name ? String(scanRow.restaurant_name) : null },
+      scan: {
+        id: String(scanRow.id),
+        restaurant_name: scanRow.restaurant_name ? String(scanRow.restaurant_name) : null,
+        is_published: Boolean((scanRow as { is_published?: boolean | null }).is_published),
+      },
       sections: (sections ?? []) as RestaurantMenuSectionRow[],
       dishes,
     };

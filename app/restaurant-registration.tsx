@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BackButton, InputField, PrimaryButton, ScreenContainer } from '@/components';
 import { useActiveRole } from '@/contexts/ActiveRoleContext';
 import { Colors, Spacing, Typography } from '@/constants/theme';
+import { clampDisplayName, DISPLAY_NAME_MAX_LENGTH } from '@/lib/display-name';
 import { isDuplicateEmailSignupError, linkRestaurantToExistingAccount } from '@/lib/link-account';
 import { supabase } from '@/lib/supabase';
 
@@ -43,7 +44,7 @@ export default function RestaurantRegistrationScreen() {
         options: {
           data: {
             role: 'restaurant',
-            display_name: restaurantName.trim(),
+            display_name: clampDisplayName(restaurantName.trim()),
           },
         },
       });
@@ -133,7 +134,8 @@ export default function RestaurantRegistrationScreen() {
           label="Restaurant Name"
           placeholder="Your restaurant name"
           value={restaurantName}
-          onChangeText={setRestaurantName}
+          onChangeText={(t) => setRestaurantName(clampDisplayName(t))}
+          maxLength={DISPLAY_NAME_MAX_LENGTH}
         />
         <InputField
           label="Business address"

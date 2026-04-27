@@ -47,7 +47,7 @@ export function DinerMenuTitleBar({ title, scanId, restaurantName }: DinerMenuTi
         <MaterialCommunityIcons name="arrow-left" size={18} color={FG} />
       </Pressable>
       <View style={styles.titleSlot} pointerEvents="none">
-        <Text style={styles.title} numberOfLines={1}>
+        <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
           {title}
         </Text>
       </View>
@@ -119,5 +119,6 @@ const styles = StyleSheet.create({
     letterSpacing: -0.43,
     color: FG,
     textAlign: 'center',
+    alignSelf: 'stretch',
   },
 });

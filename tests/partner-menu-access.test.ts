@@ -130,17 +130,12 @@ describe('getOrCreateOwnerPartnerMenuToken', () => {
     queueFromResults([
       // restaurants query
       { data: { id: 'rest-1', name: 'Burger Place', published_menu_scan_id: 'scan-1' }, error: null },
-      // restaurant_menu_scans (published menu title)
-      { data: { restaurant_name: 'Lunch Menu' }, error: null },
       // partner_menu_qr_tokens query (existing token)
       { data: { token: 'existing-token-abc' }, error: null },
     ]);
     const result = await getOrCreateOwnerPartnerMenuToken();
     expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.token).toBe('existing-token-abc');
-      expect(result.publishedMenuTitle).toBe('Lunch Menu');
-    }
+    if (result.ok) expect(result.token).toBe('existing-token-abc');
   });
 
   it('returns ok:true with newly created token when none exists', async () => {
@@ -148,7 +143,6 @@ describe('getOrCreateOwnerPartnerMenuToken', () => {
     queueFromResults([
       // restaurants query
       { data: { id: 'rest-1', name: 'Burger Place', published_menu_scan_id: 'scan-1' }, error: null },
-      { data: { restaurant_name: 'Lunch Menu' }, error: null },
       // partner_menu_qr_tokens query (no existing token)
       { data: null, error: null },
       // insert new token
@@ -156,10 +150,7 @@ describe('getOrCreateOwnerPartnerMenuToken', () => {
     ]);
     const result = await getOrCreateOwnerPartnerMenuToken();
     expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(typeof result.token).toBe('string');
-      expect(result.publishedMenuTitle).toBe('Lunch Menu');
-    }
+    if (result.ok) expect(typeof result.token).toBe('string');
   });
 });
 
@@ -243,7 +234,7 @@ describe('resolvePartnerTokenToDinerScan', () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: 'uid-1' } }, error: null });
     mockFetchRestaurantMenu.mockResolvedValue({
       ok: true,
-      scan: { id: 'scan-1', restaurant_name: 'Test Restaurant', is_published: true },
+      scan: { id: 'scan-1', restaurant_name: 'Test Restaurant' },
       sections: [{ id: 'sec-1', title: 'Mains', sort_order: 0 }],
       dishes: [],
     });

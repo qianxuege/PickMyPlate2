@@ -103,8 +103,6 @@ export default function RestaurantReviewMenuScreen() {
   const [renameModalVisible, setRenameModalVisible] = useState(false);
   const [renameInput, setRenameInput] = useState('');
   const [renameSaving, setRenameSaving] = useState(false);
-  /** True when this scan is already published (live) in the database. */
-  const [scanIsPublished, setScanIsPublished] = useState(false);
 
   const load = useCallback(async () => {
     if (!scanId) return;
@@ -115,12 +113,10 @@ export default function RestaurantReviewMenuScreen() {
       setError(result.error);
       setDishes([]);
       setDefaultSectionId(null);
-      setScanIsPublished(false);
       setLoading(false);
       return;
     }
 
-    setScanIsPublished(result.scan.is_published);
     setRestaurantName(result.scan.restaurant_name?.trim() || 'Menu');
     const flat = [...result.dishes].sort((a, b) => a.sort_order - b.sort_order);
     setDishes(flat);
@@ -241,16 +237,6 @@ export default function RestaurantReviewMenuScreen() {
             </Text>
           </View>
         ) : null}
-
-        {!loading && !error && scanId && !scanIsPublished ? (
-          <View style={styles.publishCue}>
-            <MaterialCommunityIcons name="information-outline" size={16} color={t.primaryDark} />
-            <Text style={styles.publishCueText}>
-              Tap a dish to edit details. When everything looks right, use Publish for diners at the bottom to make
-              this menu live.
-            </Text>
-          </View>
-        ) : null}
       </View>
 
       {loading ? (
@@ -362,41 +348,14 @@ export default function RestaurantReviewMenuScreen() {
             <View style={styles.progressTrack}>
               <View style={[styles.progressFill, { width: `${Math.round(reviewProgress * 100)}%` }]} />
             </View>
-            {scanIsPublished ? (
-              <>
-                <View style={styles.footerLiveRow}>
-                  <MaterialCommunityIcons name="check-circle" size={22} color={t.primaryDark} />
-                  <Text style={styles.footerLiveText}>
-                    This menu is live for customers. Dish edits you save from here update what diners see.
-                  </Text>
-                </View>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Back to menu list"
-                  onPress={() => router.back()}
-                  style={({ pressed }) => [styles.doneBtn, pressed && { opacity: 0.9 }]}
-                >
-                  <Text style={styles.doneBtnText}>Done</Text>
-                </Pressable>
-              </>
-            ) : (
-              <>
-                <Text style={styles.publishHint}>
-                  Ready for customers? Publishing makes this the menu diners see (and replaces any previous live menu).
-                </Text>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Publish menu for diners"
-                  onPress={() => void onPublish()}
-                  style={({ pressed }) => [styles.publishBtn, pressed && { opacity: 0.92 }]}
-                >
-                  <View style={styles.publishBtnInner}>
-                    <MaterialCommunityIcons name="upload" size={20} color={Colors.white} />
-                    <Text style={styles.publishBtnText}>Publish for diners</Text>
-                  </View>
-                </Pressable>
-              </>
-            )}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Publish Menu"
+              onPress={() => void onPublish()}
+              style={({ pressed }) => [styles.publishBtn, pressed && { opacity: 0.92 }]}
+            >
+              <Text style={styles.publishBtnText}>Publish Menu</Text>
+            </Pressable>
           </View>
         </>
       )}
@@ -600,27 +559,6 @@ const styles = StyleSheet.create({
     color: t.primaryDark,
     fontWeight: '500',
   },
-  publishCue: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    marginTop: 4,
-    marginBottom: 2,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    backgroundColor: t.primaryLight,
-    borderWidth: 1,
-    borderColor: t.cardAccentBorder,
-  },
-  publishCueText: {
-    flex: 1,
-    fontSize: 13,
-    lineHeight: 19,
-    letterSpacing: -0.076,
-    color: t.primaryDark,
-    fontWeight: '500',
-  },
   scroll: { flex: 1 },
   scrollContent: {
     paddingHorizontal: 24,
@@ -809,51 +747,8 @@ const styles = StyleSheet.create({
     borderRadius: 9999,
     backgroundColor: t.primary,
   },
-  publishHint: {
-    fontSize: 12,
-    lineHeight: 17,
-    letterSpacing: -0.076,
-    color: '#6A7282',
-    textAlign: 'center',
-    marginTop: 4,
-    paddingHorizontal: 4,
-  },
-  footerLiveRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 14,
-    backgroundColor: t.primaryLight,
-    borderWidth: 1,
-    borderColor: t.cardAccentBorder,
-  },
-  footerLiveText: {
-    flex: 1,
-    fontSize: 13,
-    lineHeight: 19,
-    letterSpacing: -0.076,
-    color: t.primaryDark,
-    fontWeight: '500',
-  },
-  doneBtn: {
-    height: 46,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: t.primary,
-    backgroundColor: Colors.white,
-  },
-  doneBtnText: {
-    fontSize: 15,
-    lineHeight: 22,
-    fontWeight: '700',
-    color: t.primary,
-  },
   publishBtn: {
-    minHeight: 52,
+    height: 46,
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
@@ -869,19 +764,11 @@ const styles = StyleSheet.create({
       default: {},
     }),
   },
-  publishBtnInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-  },
   publishBtnText: {
-    fontSize: 16,
+    fontSize: 15,
     lineHeight: 22,
     letterSpacing: -0.23,
-    fontWeight: '700',
+    fontWeight: '600',
     color: Colors.white,
   },
 });

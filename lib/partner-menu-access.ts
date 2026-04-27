@@ -6,7 +6,7 @@ import type { RestaurantMenuDishRow } from '@/lib/restaurant-fetch-menu-for-scan
 import { supabase } from '@/lib/supabase';
 
 type OwnerTokenResult =
-  | { ok: true; token: string; scanId: string; restaurantName: string; publishedMenuTitle: string }
+  | { ok: true; token: string; scanId: string; restaurantName: string }
   | { ok: false; error: string };
 
 function randomToken(length = 28): string {
@@ -51,16 +51,6 @@ export async function getOrCreateOwnerPartnerMenuToken(): Promise<OwnerTokenResu
   const restaurantName =
     typeof rest.name === 'string' && rest.name.trim() ? rest.name.trim() : 'Restaurant';
 
-  const { data: publishedScanRow, error: pubScanErr } = await supabase
-    .from('restaurant_menu_scans')
-    .select('restaurant_name')
-    .eq('id', scanId)
-    .maybeSingle();
-  if (pubScanErr) return { ok: false, error: pubScanErr.message };
-  const publishedMenuTitle =
-    (typeof publishedScanRow?.restaurant_name === 'string' && publishedScanRow.restaurant_name.trim()) ||
-    restaurantName;
-
   const { data: existing, error: exErr } = await supabase
     .from('partner_menu_qr_tokens')
     .select('token')
@@ -72,7 +62,7 @@ export async function getOrCreateOwnerPartnerMenuToken(): Promise<OwnerTokenResu
     .maybeSingle();
   if (exErr) return { ok: false, error: exErr.message };
   if (existing?.token) {
-    return { ok: true, token: String(existing.token), scanId, restaurantName, publishedMenuTitle };
+    return { ok: true, token: String(existing.token), scanId, restaurantName };
   }
 
   // Retry on unlikely token collision.
@@ -89,7 +79,7 @@ export async function getOrCreateOwnerPartnerMenuToken(): Promise<OwnerTokenResu
       .select('token')
       .single();
     if (!insErr && inserted?.token) {
-      return { ok: true, token: String(inserted.token), scanId, restaurantName, publishedMenuTitle };
+      return { ok: true, token: String(inserted.token), scanId, restaurantName };
     }
     if (insErr && !insErr.message.toLowerCase().includes('duplicate')) {
       return { ok: false, error: insErr.message };

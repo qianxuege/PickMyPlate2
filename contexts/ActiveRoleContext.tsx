@@ -3,7 +3,6 @@ import type { Session } from '@supabase/supabase-js';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 import { ACTIVE_APP_ROLE_STORAGE_KEY, type AppRole, isAppRole } from '@/lib/app-role';
-import { isInvalidStoredSessionError } from '@/lib/supabase-auth-errors';
 import { supabase } from '@/lib/supabase';
 import { fetchUserRoles } from '@/lib/user-roles';
 
@@ -54,19 +53,8 @@ export function ActiveRoleProvider({ children }: { children: React.ReactNode }) 
     let cancelled = false;
 
     (async () => {
-      const { data, error } = await supabase.auth.getSession();
+      const { data } = await supabase.auth.getSession();
       if (cancelled) return;
-
-      if (error && isInvalidStoredSessionError(error)) {
-        await supabase.auth.signOut({ scope: 'local' });
-        if (cancelled) return;
-        setSession(null);
-        setRoles([]);
-        setActiveRoleState(null);
-        setBootstrapped(true);
-        return;
-      }
-
       const next = data.session ?? null;
       setSession(next);
       if (next?.user?.id) {
@@ -107,15 +95,7 @@ export function ActiveRoleProvider({ children }: { children: React.ReactNode }) 
   const refreshRoles = useCallback(async () => {
     // Read session from Supabase, not only React state — after signIn (e.g. link diner + restaurant)
     // the in-memory session can lag one tick behind; stale state would clear roles incorrectly.
-    const { data, error } = await supabase.auth.getSession();
-    if (error && isInvalidStoredSessionError(error)) {
-      await supabase.auth.signOut({ scope: 'local' });
-      setSession(null);
-      setRoles([]);
-      setActiveRoleState(null);
-      return [];
-    }
-
+    const { data } = await supabase.auth.getSession();
     const next = data.session ?? null;
     setSession(next);
     const userId = next?.user?.id;

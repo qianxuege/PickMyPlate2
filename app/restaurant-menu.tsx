@@ -47,8 +47,6 @@ export default function RestaurantMenuScreen() {
   const [qrVisible, setQrVisible] = useState(false);
   const [partnerLink, setPartnerLink] = useState<string | null>(null);
   const [partnerQrUrl, setPartnerQrUrl] = useState<string | null>(null);
-  const [livePublishedMenuTitle, setLivePublishedMenuTitle] = useState<string | null>(null);
-  const [qrModalPublishedTitle, setQrModalPublishedTitle] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -67,16 +65,6 @@ export default function RestaurantMenuScreen() {
           if (cancelled) return;
           const pubId = restRow?.published_menu_scan_id ? String(restRow.published_menu_scan_id) : null;
           setPublishedScanId(pubId);
-          if (pubId) {
-            const live = await fetchRestaurantMenuForScan(pubId);
-            if (!cancelled && live.ok) {
-              setLivePublishedMenuTitle(live.scan.restaurant_name?.trim() || 'Published menu');
-            } else if (!cancelled) {
-              setLivePublishedMenuTitle('Published menu');
-            }
-          } else if (!cancelled) {
-            setLivePublishedMenuTitle(null);
-          }
 
           const aid = activeScanId?.trim();
           if (aid && !(await scanBelongsToOwnerRestaurant(aid))) {
@@ -152,7 +140,6 @@ export default function RestaurantMenuScreen() {
       }
       setPartnerLink(buildPartnerMenuLink(res.token));
       setPartnerQrUrl(buildPartnerMenuQrUrl(res.token));
-      setQrModalPublishedTitle(res.publishedMenuTitle);
       setQrVisible(true);
     } finally {
       setQrBusy(false);
@@ -206,20 +193,17 @@ export default function RestaurantMenuScreen() {
     );
   }
 
-  const activeId = activeScanId?.trim() ?? '';
-  const viewingDraftWhileLiveExists =
-    Boolean(activeId) && Boolean(publishedScanId) && activeId !== publishedScanId;
   return (
     <RestaurantTabScreenLayout activeTab="menu">
       {/* Header */}
       <View style={styles.headerRow}>
         <Text style={styles.headerTitle} numberOfLines={1}>
-          {activeScanId?.trim() ? 'Menu' : 'My Menus'}
+          {activeScanId?.trim() ? menuTitle : 'My Menus'}
         </Text>
         <View style={styles.actionsRow}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Generate partner QR for your live published menu"
+            accessibilityLabel="Generate partner QR"
             onPress={() => void openQrModal()}
             disabled={qrBusy || !publishedScanId}
             style={({ pressed }) => [
@@ -259,50 +243,35 @@ export default function RestaurantMenuScreen() {
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
           <View style={styles.menuDetailHeader}>
-            <Text style={styles.sectionTitle} numberOfLines={1}>
-              {menuTitle}
-            </Text>
-            <View style={styles.menuDetailActions}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Edit menu, review dishes, and publish when ready"
-                onPress={() =>
-                  router.push({
-                    pathname: '/restaurant-review-menu',
-                    params: { scanId: activeId },
-                  })
-                }
-                style={({ pressed }) => [styles.editBtn, pressed && { opacity: 0.8 }]}
-              >
-                <MaterialCommunityIcons name="pencil-outline" size={14} color={t.primaryDark} />
-                <Text style={styles.editBtnText}>Edit</Text>
-              </Pressable>
-            </View>
+            <Text style={styles.sectionTitle}>{menuTitle}</Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() =>
+                router.push({
+                  pathname: '/restaurant-review-menu',
+                  params: { scanId: activeScanId?.trim() ?? '' },
+                })
+              }
+              style={({ pressed }) => [styles.editBtn, pressed && { opacity: 0.8 }]}
+            >
+              <MaterialCommunityIcons name="pencil-outline" size={14} color={t.primaryDark} />
+              <Text style={styles.editBtnText}>Edit</Text>
+            </Pressable>
           </View>
 
           {activeScanId?.trim() === publishedScanId ? (
             <View style={styles.liveBar}>
               <MaterialCommunityIcons name="check-circle" size={14} color={t.primaryDark} />
-              <Text style={styles.liveBarText}>
-                This menu is live for customers. Tap the QR icon in the header (top right) to share it.
-              </Text>
-            </View>
-          ) : viewingDraftWhileLiveExists ? (
-            <View style={styles.draftQrInfo}>
-              <MaterialCommunityIcons name="information-outline" size={16} color={Colors.textSecondary} />
-              <Text style={styles.draftQrInfoText}>
-                Partner QR always opens your live menu
-                {livePublishedMenuTitle ? ` ("${livePublishedMenuTitle}")` : ''}. Tap Edit above to review dishes,
-                then use Publish on the next screen when you are ready to replace what diners see.
-              </Text>
-            </View>
-          ) : activeId && !publishedScanId ? (
-            <View style={styles.draftQrInfo}>
-              <MaterialCommunityIcons name="qrcode" size={16} color={Colors.textSecondary} />
-              <Text style={styles.draftQrInfoText}>
-                Tap Edit above to review this menu, then use Publish on the next screen when ready. After that, use
-                the header QR icon so diners can open it.
-              </Text>
+              <Text style={styles.liveBarText}>This menu is currently live for customers</Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => void openQrModal()}
+                disabled={qrBusy}
+                style={({ pressed }) => [styles.qrInlineBtn, pressed && { opacity: 0.85 }]}
+              >
+                <MaterialCommunityIcons name="qrcode" size={14} color={Colors.white} />
+                <Text style={styles.qrInlineBtnText}>QR Code</Text>
+              </Pressable>
             </View>
           ) : null}
 
@@ -355,29 +324,12 @@ export default function RestaurantMenuScreen() {
       )}
 
       {/* QR Modal */}
-      <Modal
-        visible={qrVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {
-          setQrModalPublishedTitle(null);
-          setQrVisible(false);
-        }}
-      >
+      <Modal visible={qrVisible} transparent animationType="fade" onRequestClose={() => setQrVisible(false)}>
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Partner Menu QR</Text>
             {partnerQrUrl ? <Image source={{ uri: partnerQrUrl }} style={styles.qrPreview} accessibilityLabel="Partner menu QR code" /> : null}
-            <Text style={styles.modalHint}>
-              Diners scan this to open{' '}
-              {qrModalPublishedTitle ? `"${qrModalPublishedTitle}"` : 'your published menu'} - your current live menu.
-            </Text>
-            {viewingDraftWhileLiveExists ? (
-              <Text style={styles.modalHintSecondary}>
-                You are viewing a different menu on this screen; the QR still opens the live menu until you tap Edit,
-                then Publish for diners on the next screen.
-              </Text>
-            ) : null}
+            <Text style={styles.modalHint}>Scan this to open your published digital menu.</Text>
             {partnerLink ? (
               <Text style={styles.linkText} numberOfLines={3}>
                 {partnerLink}
@@ -391,13 +343,7 @@ export default function RestaurantMenuScreen() {
                 <Text style={styles.modalActionText}>Save PNG</Text>
               </Pressable>
             </View>
-            <Pressable
-              style={styles.modalCloseBtn}
-              onPress={() => {
-                setQrModalPublishedTitle(null);
-                setQrVisible(false);
-              }}
-            >
+            <Pressable style={styles.modalCloseBtn} onPress={() => setQrVisible(false)}>
               <Text style={styles.modalCloseText}>Close</Text>
             </Pressable>
           </View>
@@ -469,18 +415,8 @@ const styles = StyleSheet.create({
     color: Colors.white,
   },
 
-  sectionTitle: {
-    ...Typography.headingSmall,
-    fontSize: 15,
-    fontWeight: '700',
-    color: Colors.text,
-    marginTop: 4,
-    flex: 1,
-    minWidth: 0,
-    marginRight: 4,
-  },
-  menuDetailHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  menuDetailActions: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 },
+  sectionTitle: { ...Typography.headingSmall, fontSize: 15, fontWeight: '700', color: Colors.text, marginTop: 4 },
+  menuDetailHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   editBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -503,23 +439,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: t.cardAccentBorder,
   },
-  liveBarText: { ...Typography.caption, color: t.primaryDark, flex: 1, lineHeight: 18 },
-  draftQrInfo: {
+  liveBarText: { ...Typography.caption, color: t.primaryDark, flex: 1 },
+  qrInlineBtn: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    backgroundColor: '#F8FAFC',
-    borderRadius: BorderRadius.base,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#E4E7EC',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: t.primaryDark,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
   },
-  draftQrInfoText: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-    flex: 1,
-    lineHeight: 18,
-  },
+  qrInlineBtnText: { fontSize: 12, fontWeight: '700', color: Colors.white },
 
   // Dish cards
   dishCard: {
@@ -566,14 +496,6 @@ const styles = StyleSheet.create({
   modalTitle: { ...Typography.headingSmall, fontWeight: '800', color: Colors.text },
   qrPreview: { width: 220, height: 220, borderRadius: 12, backgroundColor: '#F3F4F6' },
   modalHint: { ...Typography.caption, color: Colors.textSecondary, textAlign: 'center' as const },
-  modalHintSecondary: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-    textAlign: 'center' as const,
-    fontSize: 12,
-    lineHeight: 17,
-    opacity: 0.95,
-  },
   linkText: { ...Typography.caption, color: Colors.textSecondary, textAlign: 'center' as const },
   modalActions: { flexDirection: 'row', gap: 10, marginTop: 6 },
   modalActionBtn: {

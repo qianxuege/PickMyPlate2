@@ -17,6 +17,7 @@ export type RestaurantProfileRow = {
 export type RestaurantProfileSnapshot = {
   restaurant: RestaurantProfileRow;
   cuisineLabels: string;
+  cuisineNames: string[];
 };
 
 /**
@@ -53,20 +54,25 @@ export async function fetchRestaurantProfile(): Promise<RestaurantProfileSnapsho
 
   const ids = (links ?? []).map((l) => l.cuisine_id).filter(Boolean);
   let cuisineLabels = '';
+  let cuisineNames: string[] = [];
   if (ids.length > 0) {
     const { data: cuisines } = await supabase.from('cuisines').select('name').in('id', ids);
-    cuisineLabels = (cuisines ?? []).map((c) => c.name).filter(Boolean).join(' • ');
+    cuisineNames = (cuisines ?? [])
+      .map((c) => (typeof c.name === 'string' ? c.name.trim() : ''))
+      .filter(Boolean);
+    cuisineLabels = cuisineNames.join(' • ');
   }
   if (!cuisineLabels && row.specialty) {
     cuisineLabels = row.specialty;
   }
 
-  return { restaurant: row, cuisineLabels };
+  return { restaurant: row, cuisineLabels, cuisineNames };
 }
 
 export type RestaurantProfileUpdate = {
   name: string;
   specialty: string;
+  cuisine_names: string[];
   address: string;
   phone: string;
   hours_text: string;
@@ -107,25 +113,86 @@ export async function upsertRestaurantProfileFromForm(
   const user = userData?.user;
   if (userError || !user) return { error: userError ?? new Error('Not signed in') };
 
-  const { data: existing } = await supabase.from('restaurants').select('id').eq('owner_id', user.id).maybeSingle();
+  const { data: existing, error: lookupError } = await supabase
+    .from('restaurants')
+    .select('id')
+    .eq('owner_id', user.id)
+    .maybeSingle();
+  if (lookupError) return { error: lookupError };
 
+  let restaurantId: string;
   if (existing?.id) {
-    return updateRestaurantProfile(existing.id, payload);
+    const result = await updateRestaurantProfile(existing.id, payload);
+    if (result.error) return result;
+    restaurantId = existing.id;
+  } else {
+    const { data: created, error } = await supabase
+      .from('restaurants')
+      .insert({
+        owner_id: user.id,
+        name: payload.name.trim() || 'My restaurant',
+        specialty: payload.specialty.trim() || null,
+        address: payload.address.trim() || null,
+        phone: payload.phone.trim() || null,
+        hours_text: payload.hours_text.trim() || null,
+        website: payload.website.trim() || null,
+        price_range: payload.price_range.trim() || null,
+        logo_url: payload.logo_url?.trim() || null,
+      })
+      .select('id')
+      .single();
+    if (error) return { error };
+    if (!created?.id) return { error: new Error('Missing restaurant id') };
+    restaurantId = String(created.id);
   }
 
-  const { error } = await supabase.from('restaurants').insert({
-    owner_id: user.id,
-    name: payload.name.trim() || 'My restaurant',
-    specialty: payload.specialty.trim() || null,
-    address: payload.address.trim() || null,
-    phone: payload.phone.trim() || null,
-    hours_text: payload.hours_text.trim() || null,
-    website: payload.website.trim() || null,
-    price_range: payload.price_range.trim() || null,
-    logo_url: payload.logo_url?.trim() || null,
-  });
+  const cuisineNames = payload.cuisine_names.map((n) => n.trim()).filter(Boolean);
+  const { data: cuisines, error: cuisineErr } = await supabase.from('cuisines').select('id, name').in('name', cuisineNames);
+  if (cuisineErr) return { error: cuisineErr };
 
-  return { error: error ?? null };
+  const { data: previousCuisineLinks, error: previousLinksErr } = await supabase
+    .from('restaurant_cuisine_types')
+    .select('cuisine_id')
+    .eq('restaurant_id', restaurantId);
+  if (previousLinksErr) return { error: previousLinksErr };
+
+  const { error: deleteErr } = await supabase
+    .from('restaurant_cuisine_types')
+    .delete()
+    .eq('restaurant_id', restaurantId);
+  if (deleteErr) return { error: deleteErr };
+
+  const cuisineIds = (cuisines ?? []).map((c) => c.id);
+  if (cuisineIds.length > 0) {
+    const rows = cuisineIds.map((cuisine_id) => ({ restaurant_id: restaurantId, cuisine_id }));
+    const { error: insertErr } = await supabase.from('restaurant_cuisine_types').insert(rows);
+    if (insertErr) {
+      const fallbackRows = (previousCuisineLinks ?? [])
+        .map((link) => (link?.cuisine_id ? { restaurant_id: restaurantId, cuisine_id: link.cuisine_id } : null))
+        .filter(Boolean) as { restaurant_id: string; cuisine_id: string }[];
+      if (fallbackRows.length > 0) {
+        try {
+          const { error: rollbackErr } = await supabase.from('restaurant_cuisine_types').insert(fallbackRows);
+          if (rollbackErr) {
+            console.error('[restaurant-profile] cuisine link rollback failed after insert error', {
+              restaurantId,
+              insertError: insertErr,
+              rollbackError: rollbackErr,
+            });
+          }
+        } catch (e) {
+          console.error('[restaurant-profile] cuisine link rollback threw after insert error', {
+            restaurantId,
+            insertError: insertErr,
+            thrown: e,
+          });
+        }
+      }
+      return { error: insertErr };
+    }
+  }
+
+  return { error: null };
 }
 
 /**

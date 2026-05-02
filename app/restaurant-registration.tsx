@@ -17,12 +17,10 @@ import {
   linkRestaurantToExistingAccount,
 } from "@/lib/link-account";
 import {
-  MAX_VENUE_DISPLAY_NAME_LEN,
   validateSignUpEmail,
   validateSignUpPassword,
   validateVenueNameForSignUp,
 } from "@/lib/sign-up-form-validation";
-import { isValidEmail } from '@/lib/is-valid-email';
 import { supabase } from "@/lib/supabase";
 import {
   validateOptionalBusinessPhone,
@@ -57,13 +55,10 @@ export default function RestaurantRegistrationScreen() {
     const next: FieldErrors = {};
     const nameR = validateVenueNameForSignUp(restaurantName);
     if (!nameR.ok) next.name = nameR.message;
-    if (!businessAddress.trim()) {
-      next.address =
-        "Enter your business address (street, city, state, or region).";
-    } else {
-      const addressCheck = validateRequiredBusinessAddress(businessAddress);
-      if (!addressCheck.ok) next.address = addressCheck.message;
-    }
+    const addressR = businessAddress.trim()
+      ? validateRequiredBusinessAddress(businessAddress)
+      : { ok: false as const, message: "Enter your business address (street, city, state, or region)." };
+    if (!addressR.ok) next.address = addressR.message;
     const phoneR = validateOptionalBusinessPhone(phone);
     if (!phoneR.ok) next.phone = phoneR.message;
     const emailR = validateSignUpEmail(email);
@@ -74,27 +69,17 @@ export default function RestaurantRegistrationScreen() {
       setFieldErrors(next);
       return;
     }
-    if (!nameR.ok || !emailR.ok || !passR.ok || !phoneR.ok) {
-      return;
-    }
-    const addressFinal = validateRequiredBusinessAddress(businessAddress);
-    if (!addressFinal.ok) {
-      return;
-    }
-    const nameValue = nameR.value;
-    const addressValue = addressFinal.value;
-    const emailValue = emailR.value;
-    const passwordValue = passR.value;
-    const phoneValue = phoneR.value;
+    if (!addressR.ok) return;
+    const nameValue = (nameR as { ok: true; value: string }).value;
+    const addressValue = (addressR as { ok: true; value: string }).value;
+    const emailValue = (emailR as { ok: true; value: string }).value;
+    const passwordValue = (passR as { ok: true; value: string }).value;
+    const phoneValue = (phoneR as { ok: true; value: string }).value;
     const reg2Params = {
       restaurantName: nameValue,
       address: addressValue,
       phone: phoneValue,
     };
-    if (!isValidEmail(trimmedEmail)) {
-      Alert.alert('Invalid email', 'Enter a valid email address, for example name@example.com.');
-      return;
-    }
     setLoading(true);
     try {
       const { data, error } = await supabase.auth.signUp({
@@ -211,12 +196,10 @@ export default function RestaurantRegistrationScreen() {
           placeholder="Your restaurant name"
           value={restaurantName}
           onChangeText={(t) => {
-            setRestaurantName(t);
+            setRestaurantName(clampDisplayName(t));
             clearError("name");
           }}
           error={fieldErrors.name}
-          maxLength={MAX_VENUE_DISPLAY_NAME_LEN}
-          onChangeText={(t) => setRestaurantName(clampDisplayName(t))}
           maxLength={DISPLAY_NAME_MAX_LENGTH}
         />
         <InputField

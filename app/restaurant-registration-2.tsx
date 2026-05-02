@@ -8,6 +8,7 @@ import { BackButton, PreferencePill, PrimaryButton, ScreenContainer } from '@/co
 import { useActiveRole } from '@/contexts/ActiveRoleContext';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 import { navigateAfterAuth } from '@/lib/auth-navigation';
+import { clampDisplayName } from '@/lib/display-name';
 import { upsertRestaurantForOwner } from '@/lib/restaurant-setup';
 import { supabase } from '@/lib/supabase';
 import { validateOptionalBusinessPhone, validateRequiredBusinessAddress } from '@/lib/venue-contact-validation';
@@ -97,10 +98,11 @@ export default function RestaurantRegistration2Screen() {
           : Array.isArray(paramName) && typeof paramName[0] === 'string'
             ? paramName[0].trim()
             : '';
-      const name =
+      const name = clampDisplayName(
         fromParam ||
-        (typeof user.user_metadata?.display_name === 'string' && user.user_metadata.display_name) ||
-        'My Restaurant';
+          (typeof user.user_metadata?.display_name === 'string' && user.user_metadata.display_name) ||
+          'My Restaurant',
+      );
 
       const { error } = await upsertRestaurantForOwner({
         name,

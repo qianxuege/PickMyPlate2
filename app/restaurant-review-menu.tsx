@@ -22,6 +22,7 @@ import { restaurantRoleTheme } from '@/constants/role-theme';
 import { Colors, Typography } from '@/constants/theme';
 import { useRestaurantActiveMenuScan } from '@/contexts/RestaurantActiveMenuScanContext';
 import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
+import { clampDisplayName, DISPLAY_NAME_MAX_LENGTH } from '@/lib/display-name';
 import { fetchRestaurantMenuForScan, type RestaurantMenuDishRow } from '@/lib/restaurant-fetch-menu-for-scan';
 import { publishRestaurantMenu } from '@/lib/restaurant-publish-menu';
 import { updateRestaurantMenuScanName } from '@/lib/restaurant-rename-menu-scan';
@@ -184,12 +185,12 @@ export default function RestaurantReviewMenuScreen() {
     if (!scanId) return;
     setRenameSaving(true);
     try {
-      const res = await updateRestaurantMenuScanName(scanId, renameInput);
+      const res = await updateRestaurantMenuScanName(scanId, clampDisplayName(renameInput));
       if (!res.ok) {
         Alert.alert('Could not rename', res.error);
         return;
       }
-      const next = renameInput.trim() || 'Menu';
+      const next = clampDisplayName(renameInput.trim()) || 'Menu';
       setRestaurantName(next);
       Keyboard.dismiss();
       setRenameModalVisible(false);
@@ -379,14 +380,14 @@ export default function RestaurantReviewMenuScreen() {
             <Text style={styles.modalTitle}>Rename menu</Text>
             <TextInput
               value={renameInput}
-              onChangeText={setRenameInput}
+              onChangeText={(t) => setRenameInput(clampDisplayName(t))}
               placeholder="Menu name"
               placeholderTextColor="#6A7282"
               style={styles.modalInput}
               autoCapitalize="words"
               autoCorrect
               editable={!renameSaving}
-              maxLength={120}
+              maxLength={DISPLAY_NAME_MAX_LENGTH}
               returnKeyType="done"
               onSubmitEditing={() => void onConfirmRenameMenu()}
             />
@@ -466,14 +467,14 @@ const styles = StyleSheet.create({
     marginLeft: 2,
   },
   title: {
+    flex: 1,
+    minWidth: 0,
     fontSize: 20,
     fontWeight: '700',
     lineHeight: 30,
     letterSpacing: -0.45,
     color: Colors.text,
     textAlign: 'center',
-    flexShrink: 1,
-    maxWidth: 200,
   },
   modalRoot: {
     flex: 1,

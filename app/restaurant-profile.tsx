@@ -9,6 +9,7 @@ import { InputField, PrimaryButton, RestaurantTabScreenLayout, SecondaryButton }
 import { useActiveRole } from '@/contexts/ActiveRoleContext';
 import { restaurantRoleTheme } from '@/constants/role-theme';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
+import { clampDisplayName, DISPLAY_NAME_MAX_LENGTH } from '@/lib/display-name';
 import { pickAndUploadRestaurantLogo } from '@/lib/restaurant-logo-upload';
 import {
   fetchRestaurantProfile,
@@ -274,7 +275,9 @@ export default function RestaurantProfileScreen() {
           <View style={[styles.heroCard, { borderColor: t.cardAccentBorder }]}>
             <LogoPreview uri={form.logo_url} accent={t.primary} primaryLight={t.primaryLight} name={form.name} />
             <View style={styles.heroText}>
-              <Text style={styles.venueName}>{form.name.trim() || 'Your restaurant'}</Text>
+              <Text style={styles.venueName} numberOfLines={2} ellipsizeMode="tail">
+                {form.name.trim() || 'Your restaurant'}
+              </Text>
               <Text style={styles.venueMeta}>
                 {cuisineDisplay || form.specialty || '—'}
               </Text>
@@ -363,9 +366,9 @@ export default function RestaurantProfileScreen() {
           <InputField
             label="Restaurant name"
             value={form.name}
-            onChangeText={(v) => setField('name', v)}
+            onChangeText={(v) => setField('name', clampDisplayName(v))}
             placeholder="Your restaurant name"
-            multiline
+            maxLength={DISPLAY_NAME_MAX_LENGTH}
             containerStyle={styles.fieldGap}
           />
           <InputField
@@ -457,7 +460,9 @@ export default function RestaurantProfileScreen() {
           <Text style={[styles.sectionTitle, styles.accountTitle]}>Account</Text>
           <View style={[styles.readOnlyEmail, { borderColor: t.cardAccentBorder }]}>
             <Text style={styles.readOnlyLabel}>Email</Text>
-            <Text style={styles.readOnlyValue}>{email}</Text>
+            <Text style={styles.readOnlyValue} numberOfLines={2} ellipsizeMode="middle">
+              {email}
+            </Text>
           </View>
           <SecondaryButton
             text="Change password"
@@ -483,7 +488,9 @@ function ReadBlock({
     <>
       <View style={styles.readBlock}>
         <Text style={styles.readLabel}>{label}</Text>
-        <Text style={styles.readValue}>{value}</Text>
+        <Text style={styles.readValue} numberOfLines={4} ellipsizeMode="tail">
+          {value}
+        </Text>
       </View>
       {!last ? <View style={styles.readDivider} /> : null}
     </>
@@ -585,6 +592,7 @@ const styles = StyleSheet.create({
   },
   heroText: {
     flex: 1,
+    minWidth: 0,
   },
   venueName: {
     ...Typography.bodyMedium,
@@ -616,6 +624,7 @@ const styles = StyleSheet.create({
   readValue: {
     ...Typography.bodyMedium,
     color: Colors.text,
+    minWidth: 0,
   },
   readDivider: {
     height: StyleSheet.hairlineWidth,

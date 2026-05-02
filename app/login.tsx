@@ -13,6 +13,7 @@ import {
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import { navigateAfterAuth } from '@/lib/auth-navigation';
 import { getErrorMessage } from '@/lib/error-message';
+import { isValidEmail } from '@/lib/is-valid-email';
 import { supabase } from '@/lib/supabase';
 import { fetchUserRoles } from '@/lib/user-roles';
 
@@ -26,6 +27,10 @@ export default function LoginScreen() {
     const trimmed = email.trim();
     if (!trimmed || !password) {
       Alert.alert('Missing info', 'Enter email and password.');
+      return;
+    }
+    if (!isValidEmail(trimmed)) {
+      Alert.alert('Invalid email', 'Enter a valid email address, for example name@example.com.');
       return;
     }
     setLoading(true);

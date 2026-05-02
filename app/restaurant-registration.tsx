@@ -11,6 +11,7 @@ import {
 } from "@/components";
 import { Colors, Spacing, Typography } from "@/constants/theme";
 import { useActiveRole } from "@/contexts/ActiveRoleContext";
+import { clampDisplayName, DISPLAY_NAME_MAX_LENGTH } from '@/lib/display-name';
 import {
   isDuplicateEmailSignupError,
   linkRestaurantToExistingAccount,
@@ -21,6 +22,7 @@ import {
   validateSignUpPassword,
   validateVenueNameForSignUp,
 } from "@/lib/sign-up-form-validation";
+import { isValidEmail } from '@/lib/is-valid-email';
 import { supabase } from "@/lib/supabase";
 import {
   validateOptionalBusinessPhone,
@@ -89,6 +91,10 @@ export default function RestaurantRegistrationScreen() {
       address: addressValue,
       phone: phoneValue,
     };
+    if (!isValidEmail(trimmedEmail)) {
+      Alert.alert('Invalid email', 'Enter a valid email address, for example name@example.com.');
+      return;
+    }
     setLoading(true);
     try {
       const { data, error } = await supabase.auth.signUp({
@@ -96,8 +102,8 @@ export default function RestaurantRegistrationScreen() {
         password: passwordValue,
         options: {
           data: {
-            role: "restaurant",
-            display_name: nameValue,
+            role: 'restaurant',
+            display_name: clampDisplayName(restaurantName.trim()),
           },
         },
       });
@@ -210,6 +216,8 @@ export default function RestaurantRegistrationScreen() {
           }}
           error={fieldErrors.name}
           maxLength={MAX_VENUE_DISPLAY_NAME_LEN}
+          onChangeText={(t) => setRestaurantName(clampDisplayName(t))}
+          maxLength={DISPLAY_NAME_MAX_LENGTH}
         />
         <InputField
           label="Business address"

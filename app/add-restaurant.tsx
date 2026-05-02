@@ -13,6 +13,7 @@ import {
 } from '@/components';
 import { useActiveRole } from '@/contexts/ActiveRoleContext';
 import { Colors, Spacing, Typography } from '@/constants/theme';
+import { clampDisplayName, DISPLAY_NAME_MAX_LENGTH } from '@/lib/display-name';
 import { ensureRestaurantRole, upsertRestaurantForOwner } from '@/lib/restaurant-setup';
 
 const CUISINE_OPTIONS = [
@@ -59,7 +60,7 @@ export default function AddRestaurantScreen() {
       }
 
       const { error } = await upsertRestaurantForOwner({
-        name: name.trim(),
+        name: clampDisplayName(name.trim()),
         cuisineNames: cuisines,
         locationShort: location.trim() || undefined,
       });
@@ -94,7 +95,13 @@ export default function AddRestaurantScreen() {
           Use the same account as your diner profile. You can switch between diner and restaurant anytime.
         </Text>
 
-        <InputField label="Restaurant name" placeholder="Your restaurant name" value={name} onChangeText={setName} />
+        <InputField
+          label="Restaurant name"
+          placeholder="Your restaurant name"
+          value={name}
+          onChangeText={(t) => setName(clampDisplayName(t))}
+          maxLength={DISPLAY_NAME_MAX_LENGTH}
+        />
 
         <Text style={styles.sectionLabel}>Cuisine type</Text>
         <View style={styles.pillRow}>

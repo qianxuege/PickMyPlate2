@@ -6,7 +6,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BackButton, InputField, PrimaryButton, ScreenContainer } from '@/components';
 import { useActiveRole } from '@/contexts/ActiveRoleContext';
 import { Colors, Spacing, Typography } from '@/constants/theme';
+import { clampDisplayName, DISPLAY_NAME_MAX_LENGTH } from '@/lib/display-name';
 import { isDuplicateEmailSignupError, linkDinerToExistingAccount } from '@/lib/link-account';
+import { isValidEmail } from '@/lib/is-valid-email';
 import { supabase } from '@/lib/supabase';
 
 export default function DinerRegistrationScreen() {
@@ -24,6 +26,10 @@ export default function DinerRegistrationScreen() {
       Alert.alert('Missing info', 'Please fill in name, email, and password.');
       return;
     }
+    if (!isValidEmail(trimmedEmail)) {
+      Alert.alert('Invalid email', 'Enter a valid email address, for example name@example.com.');
+      return;
+    }
     setLoading(true);
     try {
       const { data, error } = await supabase.auth.signUp({
@@ -32,7 +38,7 @@ export default function DinerRegistrationScreen() {
         options: {
           data: {
             role: 'diner',
-            display_name: name.trim(),
+            display_name: clampDisplayName(name.trim()),
           },
         },
       });
@@ -111,7 +117,13 @@ export default function DinerRegistrationScreen() {
         <Text style={styles.heading}>Join as a Diner</Text>
         <Text style={styles.subtitle}>Create an account to explore menus and discover dishes.</Text>
 
-        <InputField label="Name" placeholder="Your name" value={name} onChangeText={setName} />
+        <InputField
+          label="Name"
+          placeholder="Your name"
+          value={name}
+          onChangeText={(t) => setName(clampDisplayName(t))}
+          maxLength={DISPLAY_NAME_MAX_LENGTH}
+        />
         <InputField
           label="Email"
           placeholder="your@email.com"

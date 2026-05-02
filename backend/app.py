@@ -297,7 +297,7 @@ def create_app() -> Flask:
                 _log_ocr_text(ocr_text)
 
         try:
-            from llm_menu_vertex import parse_menu_with_vertex
+            from llm_menu_vertex import NotAMenuError, parse_menu_with_vertex
             from parsed_menu_validate import (
                 assign_server_uuid_ids,
                 add_personalized_avoidance_tags,
@@ -316,6 +316,17 @@ def create_app() -> Flask:
                 image_bytes=image_bytes,
                 storage_path=path_clean,
                 debug_llm=_is_flask_debug(app),
+            )
+        except NotAMenuError:
+            return (
+                jsonify(
+                    {
+                        "ok": False,
+                        "error": "not_a_menu",
+                        "message": "The uploaded image does not appear to be a menu.",
+                    }
+                ),
+                400,
             )
         except Exception as e:
             return jsonify({"ok": False, "error": f"llm_failed: {e!s}"}), 502

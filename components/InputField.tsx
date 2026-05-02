@@ -26,26 +26,39 @@ export function InputField({
   style,
   inputStyle,
   containerStyle,
+  multiline,
   placeholderTextColor = Colors.textPlaceholder,
   editable = true,
   ...rest
 }: InputFieldProps) {
   const hasError = Boolean(error);
+  const isMultiline = Boolean(multiline);
 
   return (
     <View style={[styles.container, containerStyle, style]}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
-      <TextInput
+      <View
         style={[
-          styles.input,
-          hasError && styles.inputError,
-          !editable && styles.inputDisabled,
-          inputStyle,
+          styles.inputWrap,
+          hasError && styles.inputWrapError,
+          !editable && styles.inputWrapDisabled,
         ]}
-        placeholderTextColor={placeholderTextColor}
-        editable={editable}
-        {...rest}
-      />
+      >
+        <TextInput
+          style={[
+            isMultiline ? styles.inputMultiline : styles.inputSingle,
+            !editable && styles.inputTextDisabled,
+            inputStyle,
+          ]}
+          placeholderTextColor={placeholderTextColor}
+          editable={editable}
+          multiline={isMultiline}
+          scrollEnabled={isMultiline ? false : true}
+          textAlignVertical={isMultiline ? 'top' : 'center'}
+          numberOfLines={isMultiline ? undefined : 1}
+          {...rest}
+        />
+      </View>
       {error ? <ErrorText text={error} /> : null}
     </View>
   );
@@ -60,22 +73,36 @@ const styles = StyleSheet.create({
     color: Colors.text,
     marginBottom: Spacing.sm,
   },
-  input: {
-    height: Dimensions.inputHeight,
+  inputWrap: {
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: BorderRadius.base,
-    paddingHorizontal: Spacing.base,
     backgroundColor: Colors.background,
-    color: Colors.text,
-    ...Typography.body,
+    overflow: 'hidden',
   },
-  inputError: {
+  inputWrapError: {
     borderColor: Colors.error,
     backgroundColor: Colors.errorBackground,
   },
-  inputDisabled: {
+  inputWrapDisabled: {
     backgroundColor: Colors.borderLight,
+  },
+  inputSingle: {
+    height: Dimensions.inputHeight,
+    paddingHorizontal: Spacing.base,
+    color: Colors.text,
+    ...Typography.body,
+    width: '100%',
+  },
+  inputMultiline: {
+    minHeight: Dimensions.inputHeight,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.sm,
+    color: Colors.text,
+    ...Typography.body,
+    width: '100%',
+  },
+  inputTextDisabled: {
     color: Colors.textSecondary,
   },
 });

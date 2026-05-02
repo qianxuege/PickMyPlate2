@@ -78,6 +78,8 @@ function ModeBadge({ mode, theme }: { mode: AppRole; theme: RoleTheme }) {
             ? { color: theme.badgeOutlineText }
             : { color: theme.badgeFilledText },
         ]}
+        numberOfLines={1}
+        ellipsizeMode="tail"
       >
         {isDiner ? "Diner mode" : "Restaurant mode"}
       </Text>
@@ -115,6 +117,8 @@ function SegmentedRoleSwitch({
             },
           ]}
           numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.78}
         >
           Diner
         </Text>
@@ -140,6 +144,8 @@ function SegmentedRoleSwitch({
             },
           ]}
           numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.78}
         >
           Restaurant
         </Text>
@@ -160,9 +166,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     paddingVertical: 6,
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: Spacing.sm,
     borderRadius: BorderRadius.full,
-    maxWidth: "52%",
+    flexShrink: 1,
+    minWidth: 0,
+    maxWidth: "46%",
   },
   badgeEmoji: {
     fontSize: 14,
@@ -174,18 +182,20 @@ const styles = StyleSheet.create({
     textTransform: "capitalize",
   },
   segmentTrack: {
+    flex: 1,
     flexDirection: "row",
     borderRadius: BorderRadius.md,
     backgroundColor: "#F2F4F7",
     padding: 3,
-    gap: 3,
-    minWidth: 168,
-    flexShrink: 0,
+    gap: 2,
+    minWidth: 0,
+    minHeight: 38,
   },
   segmentCell: {
     flex: 1,
+    minWidth: 0,
     paddingVertical: 7,
-    paddingHorizontal: Spacing.sm,
+    paddingHorizontal: 6,
     borderRadius: BorderRadius.sm,
     alignItems: "center",
     justifyContent: "center",
@@ -196,5 +206,7 @@ const styles = StyleSheet.create({
   segmentLabel: {
     ...Typography.small,
     fontWeight: "700",
+    textAlign: "center",
+    width: "100%",
   },
 });

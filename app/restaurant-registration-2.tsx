@@ -8,8 +8,10 @@ import { BackButton, PreferencePill, PrimaryButton, ScreenContainer } from '@/co
 import { useActiveRole } from '@/contexts/ActiveRoleContext';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 import { navigateAfterAuth } from '@/lib/auth-navigation';
+import { clampDisplayName } from '@/lib/display-name';
 import { upsertRestaurantForOwner } from '@/lib/restaurant-setup';
 import { supabase } from '@/lib/supabase';
+import { validateOptionalBusinessPhone, validateRequiredBusinessAddress } from '@/lib/venue-contact-validation';
 
 const CUISINE_OPTIONS = [
   'Italian',
@@ -63,6 +65,21 @@ export default function RestaurantRegistration2Screen() {
       );
       return;
     }
+    const addressCheck = validateRequiredBusinessAddress(addressFromReg);
+    if (!addressCheck.ok) {
+      Alert.alert('Business address', addressCheck.message, [
+        { text: 'OK', onPress: () => router.replace('/restaurant-registration') },
+      ]);
+      return;
+    }
+    const phoneFromReg = paramString(params.phone);
+    const phoneCheck = validateOptionalBusinessPhone(phoneFromReg);
+    if (!phoneCheck.ok) {
+      Alert.alert('Phone number', phoneCheck.message, [
+        { text: 'OK', onPress: () => router.replace('/restaurant-registration') },
+      ]);
+      return;
+    }
     setLoading(true);
     try {
       const { data: userData, error: userErr } = await supabase.auth.getUser();
@@ -81,18 +98,17 @@ export default function RestaurantRegistration2Screen() {
           : Array.isArray(paramName) && typeof paramName[0] === 'string'
             ? paramName[0].trim()
             : '';
-      const name =
+      const name = clampDisplayName(
         fromParam ||
-        (typeof user.user_metadata?.display_name === 'string' && user.user_metadata.display_name) ||
-        'My Restaurant';
-
-      const phoneFromReg = paramString(params.phone).trim();
+          (typeof user.user_metadata?.display_name === 'string' && user.user_metadata.display_name) ||
+          'My Restaurant',
+      );
 
       const { error } = await upsertRestaurantForOwner({
         name,
         cuisineNames: cuisines,
-        address: addressFromReg,
-        phone: phoneFromReg || undefined,
+        address: addressCheck.value,
+        phone: phoneCheck.value || undefined,
         priceRange: priceRange.trim() || undefined,
       });
 

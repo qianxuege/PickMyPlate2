@@ -6,8 +6,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BackButton, InputField, PrimaryButton, ScreenContainer } from '@/components';
 import { useActiveRole } from '@/contexts/ActiveRoleContext';
 import { Colors, Spacing, Typography } from '@/constants/theme';
+import { clampDisplayName, DISPLAY_NAME_MAX_LENGTH } from '@/lib/display-name';
 import { isDuplicateEmailSignupError, linkDinerToExistingAccount } from '@/lib/link-account';
+import { isValidEmail } from '@/lib/is-valid-email';
+import { validateSignUpPassword } from '@/lib/sign-up-form-validation';
 import { supabase } from '@/lib/supabase';
+
+type FieldKey = 'name' | 'email' | 'password';
+type FieldErrors = Partial<Record<FieldKey, string>>;
+const emptyFieldErrors: FieldErrors = {};
 
 export default function DinerRegistrationScreen() {
   const router = useRouter();
@@ -17,22 +24,35 @@ export default function DinerRegistrationScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>(emptyFieldErrors);
+
+  const clearError = (key: FieldKey) => {
+    setFieldErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev));
+  };
 
   const onCreate = async () => {
+    setFieldErrors(emptyFieldErrors);
+    const next: FieldErrors = {};
     const trimmedEmail = email.trim();
-    if (!name.trim() || !trimmedEmail || !password) {
-      Alert.alert('Missing info', 'Please fill in name, email, and password.');
+    const trimmedName = name.trim();
+    if (trimmedName.length < 2) next.name = 'Enter your name (at least 2 characters).';
+    if (!isValidEmail(trimmedEmail)) next.email = 'Enter a valid email address, for example name@example.com.';
+    const passR = validateSignUpPassword(password);
+    if (!passR.ok) next.password = passR.message;
+    if (Object.keys(next).length > 0) {
+      setFieldErrors(next);
       return;
     }
+    const passwordValue = passR.value;
     setLoading(true);
     try {
       const { data, error } = await supabase.auth.signUp({
         email: trimmedEmail,
-        password,
+        password: passwordValue,
         options: {
           data: {
             role: 'diner',
-            display_name: name.trim(),
+            display_name: clampDisplayName(trimmedName),
           },
         },
       });
@@ -48,7 +68,7 @@ export default function DinerRegistrationScreen() {
                 onPress: async () => {
                   setLoading(true);
                   try {
-                    const result = await linkDinerToExistingAccount(trimmedEmail, password);
+                    const result = await linkDinerToExistingAccount(trimmedEmail, passwordValue);
                     if (result.status === 'auth_failed') {
                       Alert.alert(
                         'Could not sign in',
@@ -111,21 +131,34 @@ export default function DinerRegistrationScreen() {
         <Text style={styles.heading}>Join as a Diner</Text>
         <Text style={styles.subtitle}>Create an account to explore menus and discover dishes.</Text>
 
-        <InputField label="Name" placeholder="Your name" value={name} onChangeText={setName} />
+        <InputField
+          label="Name"
+          placeholder="Your name"
+          value={name}
+          onChangeText={(t) => {
+            setName(clampDisplayName(t.replace(/\r?\n/g, ' ')));
+            clearError('name');
+          }}
+          maxLength={DISPLAY_NAME_MAX_LENGTH}
+          error={fieldErrors.name}
+          multiline
+        />
         <InputField
           label="Email"
           placeholder="your@email.com"
           keyboardType="email-address"
           autoCapitalize="none"
           value={email}
-          onChangeText={setEmail}
+          onChangeText={(t) => { setEmail(t); clearError('email'); }}
+          error={fieldErrors.email}
         />
         <InputField
           label="Password"
           placeholder="Create a password"
           secureTextEntry
           value={password}
-          onChangeText={setPassword}
+          onChangeText={(t) => { setPassword(t); clearError('password'); }}
+          error={fieldErrors.password}
         />
 
         <PrimaryButton

@@ -435,13 +435,6 @@ export default function DinerPersonalizationScreen() {
             }
           }}
         />
-        <Pressable
-          onPress={() => router.replace('/diner-home')}
-          disabled={continueLoading}
-          style={styles.skipButton}
-        >
-          <Text style={styles.skipText}>Skip for now</Text>
-        </Pressable>
       </ScreenContainer>
     </View>
   );
@@ -595,14 +588,5 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: Spacing.xxl,
-  },
-  skipButton: {
-    alignSelf: 'center',
-    marginTop: Spacing.base,
-    marginBottom: Spacing.xxl,
-  },
-  skipText: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
   },
 });

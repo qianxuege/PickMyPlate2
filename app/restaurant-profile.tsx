@@ -9,6 +9,7 @@ import { InputField, PrimaryButton, RestaurantTabScreenLayout, SecondaryButton }
 import { useActiveRole } from '@/contexts/ActiveRoleContext';
 import { restaurantRoleTheme } from '@/constants/role-theme';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
+import { clampDisplayName, DISPLAY_NAME_MAX_LENGTH } from '@/lib/display-name';
 import { pickAndUploadRestaurantLogo } from '@/lib/restaurant-logo-upload';
 import {
   fetchRestaurantProfile,
@@ -16,15 +17,29 @@ import {
   upsertRestaurantProfileFromForm,
   type RestaurantProfileUpdate,
 } from '@/lib/restaurant-profile';
+import { validateOptionalBusinessAddress, validateOptionalBusinessPhone } from '@/lib/venue-contact-validation';
 import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
 
 const t = restaurantRoleTheme;
 const PRICE_OPTIONS = ['$', '$$', '$$$', '$$$$'] as const;
+const CUISINE_OPTIONS = [
+  'Italian',
+  'Chinese',
+  'Mexican',
+  'American',
+  'Japanese',
+  'Thai',
+  'Indian',
+  'Mediterranean',
+  'French',
+  'Korean',
+];
 
 function emptyForm(): RestaurantProfileUpdate {
   return {
     name: '',
     specialty: '',
+    cuisine_names: [],
     address: '',
     phone: '',
     hours_text: '',
@@ -38,10 +53,11 @@ function snapshotToForm(
   snap: Awaited<ReturnType<typeof fetchRestaurantProfile>>
 ): RestaurantProfileUpdate {
   if (!snap) return emptyForm();
-  const { restaurant, cuisineLabels } = snap;
+  const { restaurant, cuisineLabels, cuisineNames } = snap;
   return {
     name: restaurant.name,
     specialty: cuisineLabels || restaurant.specialty || '',
+    cuisine_names: cuisineNames,
     address: restaurant.address || '',
     phone: restaurant.phone || '',
     hours_text: restaurant.hours_text || '',
@@ -105,9 +121,25 @@ export default function RestaurantProfileScreen() {
       Alert.alert('Restaurant name', 'Enter a restaurant name.');
       return;
     }
+    const addressCheck = validateOptionalBusinessAddress(form.address);
+    if (!addressCheck.ok) {
+      Alert.alert('Address', addressCheck.message);
+      return;
+    }
+    const phoneCheck = validateOptionalBusinessPhone(form.phone);
+    if (!phoneCheck.ok) {
+      Alert.alert('Phone', phoneCheck.message);
+      return;
+    }
+    const formToSave: RestaurantProfileUpdate = {
+      ...form,
+      specialty: form.cuisine_names.join(' • '),
+      address: addressCheck.value,
+      phone: phoneCheck.value,
+    };
     setSaving(true);
     try {
-      const { error } = await upsertRestaurantProfileFromForm(form);
+      const { error } = await upsertRestaurantProfileFromForm(formToSave);
       if (error) {
         Alert.alert('Could not save', error.message);
         return;
@@ -176,6 +208,16 @@ export default function RestaurantProfileScreen() {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
+  const toggleCuisine = (value: string) => {
+    setForm((prev) => {
+      const has = prev.cuisine_names.includes(value);
+      return {
+        ...prev,
+        cuisine_names: has ? prev.cuisine_names.filter((c) => c !== value) : [...prev.cuisine_names, value],
+      };
+    });
+  };
+
   if (loading) {
     return (
       <RestaurantTabScreenLayout activeTab="profile">
@@ -233,7 +275,9 @@ export default function RestaurantProfileScreen() {
           <View style={[styles.heroCard, { borderColor: t.cardAccentBorder }]}>
             <LogoPreview uri={form.logo_url} accent={t.primary} primaryLight={t.primaryLight} name={form.name} />
             <View style={styles.heroText}>
-              <Text style={styles.venueName}>{form.name.trim() || 'Your restaurant'}</Text>
+              <Text style={styles.venueName} numberOfLines={2} ellipsizeMode="tail">
+                {form.name.trim() || 'Your restaurant'}
+              </Text>
               <Text style={styles.venueMeta}>
                 {cuisineDisplay || form.specialty || '—'}
               </Text>
@@ -322,17 +366,41 @@ export default function RestaurantProfileScreen() {
           <InputField
             label="Restaurant name"
             value={form.name}
-            onChangeText={(v) => setField('name', v)}
+            onChangeText={(v) => setField('name', clampDisplayName(v.replace(/\r?\n/g, ' ')))}
             placeholder="Your restaurant name"
+            maxLength={DISPLAY_NAME_MAX_LENGTH}
             containerStyle={styles.fieldGap}
+            multiline
           />
           <InputField
             label="Cuisine type"
-            value={form.specialty}
-            onChangeText={(v) => setField('specialty', v)}
-            placeholder="e.g. Japanese · Ramen"
+            value={form.cuisine_names.length ? form.cuisine_names.join(' • ') : ''}
+            editable={false}
+            placeholder="Select one or more cuisines below"
+            multiline
+            inputStyle={styles.cuisineSummaryInput}
             containerStyle={styles.fieldGap}
           />
+          <View style={styles.cuisineRow}>
+            {CUISINE_OPTIONS.map((opt) => {
+              const active = form.cuisine_names.includes(opt);
+              return (
+                <Pressable
+                  key={opt}
+                  accessibilityRole="button"
+                  accessibilityLabel={active ? `${opt}, selected` : opt}
+                  onPress={() => toggleCuisine(opt)}
+                  style={[
+                    styles.cuisinePill,
+                    { borderColor: t.cardAccentBorder },
+                    active && { backgroundColor: t.primary, borderColor: t.primary },
+                  ]}
+                >
+                  <Text style={[styles.cuisinePillText, active && { color: Colors.white }]}>{opt}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
 
           <Text style={styles.subLabel}>Price range</Text>
           <View style={styles.priceRow}>
@@ -359,8 +427,9 @@ export default function RestaurantProfileScreen() {
           <InputField
             label="Address"
             value={form.address}
-            onChangeText={(v) => setField('address', v)}
+            onChangeText={(v) => setField('address', v.replace(/\r?\n/g, ' '))}
             placeholder="Street, city"
+            multiline
             containerStyle={styles.fieldGap}
           />
           <InputField
@@ -382,17 +451,20 @@ export default function RestaurantProfileScreen() {
           <InputField
             label="Website"
             value={form.website}
-            onChangeText={(v) => setField('website', v)}
+            onChangeText={(v) => setField('website', v.replace(/\r?\n/g, ''))}
             placeholder="https://"
             autoCapitalize="none"
             keyboardType="url"
             containerStyle={styles.fieldGap}
+            multiline
           />
 
           <Text style={[styles.sectionTitle, styles.accountTitle]}>Account</Text>
           <View style={[styles.readOnlyEmail, { borderColor: t.cardAccentBorder }]}>
             <Text style={styles.readOnlyLabel}>Email</Text>
-            <Text style={styles.readOnlyValue}>{email}</Text>
+            <Text style={styles.readOnlyValue} numberOfLines={2} ellipsizeMode="middle">
+              {email}
+            </Text>
           </View>
           <SecondaryButton
             text="Change password"
@@ -418,7 +490,9 @@ function ReadBlock({
     <>
       <View style={styles.readBlock}>
         <Text style={styles.readLabel}>{label}</Text>
-        <Text style={styles.readValue}>{value}</Text>
+        <Text style={styles.readValue} numberOfLines={4} ellipsizeMode="tail">
+          {value}
+        </Text>
       </View>
       {!last ? <View style={styles.readDivider} /> : null}
     </>
@@ -520,6 +594,7 @@ const styles = StyleSheet.create({
   },
   heroText: {
     flex: 1,
+    minWidth: 0,
   },
   venueName: {
     ...Typography.bodyMedium,
@@ -551,6 +626,7 @@ const styles = StyleSheet.create({
   readValue: {
     ...Typography.bodyMedium,
     color: Colors.text,
+    minWidth: 0,
   },
   readDivider: {
     height: StyleSheet.hairlineWidth,
@@ -632,6 +708,28 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: Spacing.sm,
     marginBottom: Spacing.xl,
+  },
+  cuisineRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+    marginBottom: Spacing.xl,
+  },
+  cuisinePill: {
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.base,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    backgroundColor: Colors.white,
+  },
+  cuisinePillText: {
+    ...Typography.bodyMedium,
+    color: Colors.text,
+    fontWeight: '600',
+  },
+  cuisineSummaryInput: {
+    minHeight: 64,
+    lineHeight: 22,
   },
   pricePill: {
     paddingVertical: Spacing.sm,

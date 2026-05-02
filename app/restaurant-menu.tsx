@@ -243,7 +243,7 @@ export default function RestaurantMenuScreen() {
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
           <View style={styles.menuDetailHeader}>
-            <Text style={styles.sectionTitle}>{menuTitle}</Text>
+            <Text style={styles.menuDetailTitle}>{menuTitle}</Text>
             <Pressable
               accessibilityRole="button"
               onPress={() =>
@@ -417,6 +417,7 @@ const styles = StyleSheet.create({
 
   sectionTitle: { ...Typography.headingSmall, fontSize: 15, fontWeight: '700', color: Colors.text, marginTop: 4 },
   menuDetailHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  menuDetailTitle: { ...Typography.headingSmall, fontSize: 15, fontWeight: '700', color: Colors.text, marginTop: 4, flex: 1, flexShrink: 1, marginRight: 8 },
   editBtn: {
     flexDirection: 'row',
     alignItems: 'center',

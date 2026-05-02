@@ -53,8 +53,9 @@ export function InputField({
           placeholderTextColor={placeholderTextColor}
           editable={editable}
           multiline={isMultiline}
-          scrollEnabled
+          scrollEnabled={isMultiline ? false : true}
           textAlignVertical={isMultiline ? 'top' : 'center'}
+          numberOfLines={isMultiline ? undefined : 1}
           {...rest}
         />
       </View>
@@ -95,7 +96,6 @@ const styles = StyleSheet.create({
   },
   inputMultiline: {
     minHeight: Dimensions.inputHeight,
-    maxHeight: 120,
     paddingHorizontal: Spacing.base,
     paddingVertical: Spacing.sm,
     color: Colors.text,

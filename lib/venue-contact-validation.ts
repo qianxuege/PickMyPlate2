@@ -220,6 +220,13 @@ export function validateRequiredBusinessAddress(
         "Enter an address with street or place names, not only numbers and symbols.",
     };
   }
+  if (!value.includes(",")) {
+    return {
+      ok: false,
+      message:
+        "Enter a full business address in this format: street, city, state/region (for example: xxx street, Pittsburgh, PA 15213).",
+    };
+  }
   const commaParts = value
     .split(",")
     .map((p) => p.trim())

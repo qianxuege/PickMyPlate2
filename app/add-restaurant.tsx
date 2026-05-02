@@ -99,8 +99,9 @@ export default function AddRestaurantScreen() {
           label="Restaurant name"
           placeholder="Your restaurant name"
           value={name}
-          onChangeText={(t) => setName(clampDisplayName(t))}
+          onChangeText={(t) => setName(clampDisplayName(t.replace(/\r?\n/g, ' ')))}
           maxLength={DISPLAY_NAME_MAX_LENGTH}
+          multiline
         />
 
         <Text style={styles.sectionLabel}>Cuisine type</Text>
@@ -120,8 +121,9 @@ export default function AddRestaurantScreen() {
           <InputField
             placeholder="City, State"
             value={location}
-            onChangeText={setLocation}
+            onChangeText={(t) => setLocation(t.replace(/\r?\n/g, ' '))}
             containerStyle={styles.locationFieldNoLabel}
+            multiline
           />
         </View>
 

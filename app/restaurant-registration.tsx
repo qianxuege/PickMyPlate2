@@ -196,21 +196,23 @@ export default function RestaurantRegistrationScreen() {
           placeholder="Your restaurant name"
           value={restaurantName}
           onChangeText={(t) => {
-            setRestaurantName(clampDisplayName(t));
+            setRestaurantName(clampDisplayName(t.replace(/\r?\n/g, " ")));
             clearError("name");
           }}
           error={fieldErrors.name}
           maxLength={DISPLAY_NAME_MAX_LENGTH}
+          multiline
         />
         <InputField
           label="Business address"
           placeholder="Street, city, state zip"
           value={businessAddress}
           onChangeText={(t) => {
-            setBusinessAddress(t);
+            setBusinessAddress(t.replace(/\r?\n/g, " "));
             clearError("address");
           }}
           error={fieldErrors.address}
+          multiline
         />
         <InputField
           label="Phone (optional)"

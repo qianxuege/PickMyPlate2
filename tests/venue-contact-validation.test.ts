@@ -42,6 +42,22 @@ describe("validateRequiredBusinessAddress", () => {
     const r = validateRequiredBusinessAddress("123 Main St Boston MA 02101");
     expect(r.ok).toBe(false);
   });
+
+  it("rejects Pittsburgh-style address without commas (regression)", () => {
+    expect(
+      validateRequiredBusinessAddress("4500 Centre Ave Pittsburgh PA 15213").ok,
+    ).toBe(false);
+  });
+
+  it("accepts comma-separated Pittsburgh address", () => {
+    const r = validateRequiredBusinessAddress(
+      "4500 Centre Ave, Pittsburgh, PA 15213",
+    );
+    expect(r).toEqual({
+      ok: true,
+      value: "4500 Centre Ave, Pittsburgh, PA 15213",
+    });
+  });
 });
 
 describe("validateOptionalBusinessAddress", () => {

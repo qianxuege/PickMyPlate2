@@ -366,10 +366,11 @@ export default function RestaurantProfileScreen() {
           <InputField
             label="Restaurant name"
             value={form.name}
-            onChangeText={(v) => setField('name', clampDisplayName(v))}
+            onChangeText={(v) => setField('name', clampDisplayName(v.replace(/\r?\n/g, ' ')))}
             placeholder="Your restaurant name"
             maxLength={DISPLAY_NAME_MAX_LENGTH}
             containerStyle={styles.fieldGap}
+            multiline
           />
           <InputField
             label="Cuisine type"
@@ -426,7 +427,7 @@ export default function RestaurantProfileScreen() {
           <InputField
             label="Address"
             value={form.address}
-            onChangeText={(v) => setField('address', v)}
+            onChangeText={(v) => setField('address', v.replace(/\r?\n/g, ' '))}
             placeholder="Street, city"
             multiline
             containerStyle={styles.fieldGap}
@@ -450,11 +451,12 @@ export default function RestaurantProfileScreen() {
           <InputField
             label="Website"
             value={form.website}
-            onChangeText={(v) => setField('website', v)}
+            onChangeText={(v) => setField('website', v.replace(/\r?\n/g, ''))}
             placeholder="https://"
             autoCapitalize="none"
             keyboardType="url"
             containerStyle={styles.fieldGap}
+            multiline
           />
 
           <Text style={[styles.sectionTitle, styles.accountTitle]}>Account</Text>
@@ -727,7 +729,6 @@ const styles = StyleSheet.create({
   },
   cuisineSummaryInput: {
     minHeight: 64,
-    maxHeight: 180,
     lineHeight: 22,
   },
   pricePill: {

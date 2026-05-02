@@ -11,6 +11,7 @@ import { navigateAfterAuth } from '@/lib/auth-navigation';
 import { clampDisplayName } from '@/lib/display-name';
 import { upsertRestaurantForOwner } from '@/lib/restaurant-setup';
 import { supabase } from '@/lib/supabase';
+import { validateOptionalBusinessPhone, validateRequiredBusinessAddress } from '@/lib/venue-contact-validation';
 
 const CUISINE_OPTIONS = [
   'Italian',
@@ -64,6 +65,21 @@ export default function RestaurantRegistration2Screen() {
       );
       return;
     }
+    const addressCheck = validateRequiredBusinessAddress(addressFromReg);
+    if (!addressCheck.ok) {
+      Alert.alert('Business address', addressCheck.message, [
+        { text: 'OK', onPress: () => router.replace('/restaurant-registration') },
+      ]);
+      return;
+    }
+    const phoneFromReg = paramString(params.phone);
+    const phoneCheck = validateOptionalBusinessPhone(phoneFromReg);
+    if (!phoneCheck.ok) {
+      Alert.alert('Phone number', phoneCheck.message, [
+        { text: 'OK', onPress: () => router.replace('/restaurant-registration') },
+      ]);
+      return;
+    }
     setLoading(true);
     try {
       const { data: userData, error: userErr } = await supabase.auth.getUser();
@@ -88,13 +104,11 @@ export default function RestaurantRegistration2Screen() {
           'My Restaurant',
       );
 
-      const phoneFromReg = paramString(params.phone).trim();
-
       const { error } = await upsertRestaurantForOwner({
         name,
         cuisineNames: cuisines,
-        address: addressFromReg,
-        phone: phoneFromReg || undefined,
+        address: addressCheck.value,
+        phone: phoneCheck.value || undefined,
         priceRange: priceRange.trim() || undefined,
       });
 

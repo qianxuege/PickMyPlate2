@@ -17,15 +17,29 @@ import {
   upsertRestaurantProfileFromForm,
   type RestaurantProfileUpdate,
 } from '@/lib/restaurant-profile';
+import { validateOptionalBusinessAddress, validateOptionalBusinessPhone } from '@/lib/venue-contact-validation';
 import { useGuardActiveRole } from '@/hooks/use-guard-active-role';
 
 const t = restaurantRoleTheme;
 const PRICE_OPTIONS = ['$', '$$', '$$$', '$$$$'] as const;
+const CUISINE_OPTIONS = [
+  'Italian',
+  'Chinese',
+  'Mexican',
+  'American',
+  'Japanese',
+  'Thai',
+  'Indian',
+  'Mediterranean',
+  'French',
+  'Korean',
+];
 
 function emptyForm(): RestaurantProfileUpdate {
   return {
     name: '',
     specialty: '',
+    cuisine_names: [],
     address: '',
     phone: '',
     hours_text: '',
@@ -39,10 +53,11 @@ function snapshotToForm(
   snap: Awaited<ReturnType<typeof fetchRestaurantProfile>>
 ): RestaurantProfileUpdate {
   if (!snap) return emptyForm();
-  const { restaurant, cuisineLabels } = snap;
+  const { restaurant, cuisineLabels, cuisineNames } = snap;
   return {
     name: restaurant.name,
     specialty: cuisineLabels || restaurant.specialty || '',
+    cuisine_names: cuisineNames,
     address: restaurant.address || '',
     phone: restaurant.phone || '',
     hours_text: restaurant.hours_text || '',
@@ -106,9 +121,25 @@ export default function RestaurantProfileScreen() {
       Alert.alert('Restaurant name', 'Enter a restaurant name.');
       return;
     }
+    const addressCheck = validateOptionalBusinessAddress(form.address);
+    if (!addressCheck.ok) {
+      Alert.alert('Address', addressCheck.message);
+      return;
+    }
+    const phoneCheck = validateOptionalBusinessPhone(form.phone);
+    if (!phoneCheck.ok) {
+      Alert.alert('Phone', phoneCheck.message);
+      return;
+    }
+    const formToSave: RestaurantProfileUpdate = {
+      ...form,
+      specialty: form.cuisine_names.join(' • '),
+      address: addressCheck.value,
+      phone: phoneCheck.value,
+    };
     setSaving(true);
     try {
-      const { error } = await upsertRestaurantProfileFromForm(form);
+      const { error } = await upsertRestaurantProfileFromForm(formToSave);
       if (error) {
         Alert.alert('Could not save', error.message);
         return;
@@ -175,6 +206,16 @@ export default function RestaurantProfileScreen() {
 
   const setField = <K extends keyof RestaurantProfileUpdate>(key: K, value: RestaurantProfileUpdate[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const toggleCuisine = (value: string) => {
+    setForm((prev) => {
+      const has = prev.cuisine_names.includes(value);
+      return {
+        ...prev,
+        cuisine_names: has ? prev.cuisine_names.filter((c) => c !== value) : [...prev.cuisine_names, value],
+      };
+    });
   };
 
   if (loading) {
@@ -325,18 +366,41 @@ export default function RestaurantProfileScreen() {
           <InputField
             label="Restaurant name"
             value={form.name}
-            onChangeText={(v) => setField('name', clampDisplayName(v))}
+            onChangeText={(v) => setField('name', clampDisplayName(v.replace(/\r?\n/g, ' ')))}
             placeholder="Your restaurant name"
             maxLength={DISPLAY_NAME_MAX_LENGTH}
             containerStyle={styles.fieldGap}
+            multiline
           />
           <InputField
             label="Cuisine type"
-            value={form.specialty}
-            onChangeText={(v) => setField('specialty', v)}
-            placeholder="e.g. Japanese · Ramen"
+            value={form.cuisine_names.length ? form.cuisine_names.join(' • ') : ''}
+            editable={false}
+            placeholder="Select one or more cuisines below"
+            multiline
+            inputStyle={styles.cuisineSummaryInput}
             containerStyle={styles.fieldGap}
           />
+          <View style={styles.cuisineRow}>
+            {CUISINE_OPTIONS.map((opt) => {
+              const active = form.cuisine_names.includes(opt);
+              return (
+                <Pressable
+                  key={opt}
+                  accessibilityRole="button"
+                  accessibilityLabel={active ? `${opt}, selected` : opt}
+                  onPress={() => toggleCuisine(opt)}
+                  style={[
+                    styles.cuisinePill,
+                    { borderColor: t.cardAccentBorder },
+                    active && { backgroundColor: t.primary, borderColor: t.primary },
+                  ]}
+                >
+                  <Text style={[styles.cuisinePillText, active && { color: Colors.white }]}>{opt}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
 
           <Text style={styles.subLabel}>Price range</Text>
           <View style={styles.priceRow}>
@@ -363,8 +427,9 @@ export default function RestaurantProfileScreen() {
           <InputField
             label="Address"
             value={form.address}
-            onChangeText={(v) => setField('address', v)}
+            onChangeText={(v) => setField('address', v.replace(/\r?\n/g, ' '))}
             placeholder="Street, city"
+            multiline
             containerStyle={styles.fieldGap}
           />
           <InputField
@@ -386,11 +451,12 @@ export default function RestaurantProfileScreen() {
           <InputField
             label="Website"
             value={form.website}
-            onChangeText={(v) => setField('website', v)}
+            onChangeText={(v) => setField('website', v.replace(/\r?\n/g, ''))}
             placeholder="https://"
             autoCapitalize="none"
             keyboardType="url"
             containerStyle={styles.fieldGap}
+            multiline
           />
 
           <Text style={[styles.sectionTitle, styles.accountTitle]}>Account</Text>
@@ -642,6 +708,28 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: Spacing.sm,
     marginBottom: Spacing.xl,
+  },
+  cuisineRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+    marginBottom: Spacing.xl,
+  },
+  cuisinePill: {
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.base,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    backgroundColor: Colors.white,
+  },
+  cuisinePillText: {
+    ...Typography.bodyMedium,
+    color: Colors.text,
+    fontWeight: '600',
+  },
+  cuisineSummaryInput: {
+    minHeight: 64,
+    lineHeight: 22,
   },
   pricePill: {
     paddingVertical: Spacing.sm,

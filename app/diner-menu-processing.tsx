@@ -165,7 +165,11 @@ export default function DinerMenuProcessingScreen() {
     });
 
     if (!api.ok) {
-      failAndHome('Could not parse menu', api.error);
+      if (api.error === 'not_a_menu') {
+        failAndHome('Not a menu', 'Please upload a menu photo.');
+      } else {
+        failAndHome('Could not parse menu', api.error);
+      }
       return;
     }
 

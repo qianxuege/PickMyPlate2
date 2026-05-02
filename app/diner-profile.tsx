@@ -98,8 +98,12 @@ export default function DinerProfileScreen() {
           <Text style={styles.avatarText}>{initialsFromUser(email, displayName)}</Text>
         </View>
         <View style={styles.profileText}>
-          <Text style={styles.name}>{name}</Text>
-          <Text style={styles.email}>{email || '—'}</Text>
+          <Text style={styles.name} numberOfLines={2} ellipsizeMode="tail">
+            {name}
+          </Text>
+          <Text style={styles.email} numberOfLines={1} ellipsizeMode="middle">
+            {email || '—'}
+          </Text>
         </View>
       </View>
 
@@ -179,6 +183,7 @@ const styles = StyleSheet.create({
   },
   profileText: {
     flex: 1,
+    minWidth: 0,
   },
   name: {
     ...Typography.bodyMedium,

@@ -38,11 +38,11 @@ import {
 
 const SPICE_OPTIONS = ['Mild', 'Medium', 'Spicy'];
 
-const BUDGET_TIERS: { tier: BudgetTier; hint: string }[] = [
-  { tier: '$', hint: 'Budget-friendly' },
-  { tier: '$$', hint: 'Moderate' },
-  { tier: '$$$', hint: 'Upscale' },
-  { tier: '$$$$', hint: 'Special occasion' },
+const BUDGET_TIERS: { tier: BudgetTier; hint: string; range: string }[] = [
+  { tier: '$', hint: 'Budget-friendly', range: '$0–20' },
+  { tier: '$$', hint: 'Moderate', range: '$20–40' },
+  { tier: '$$$', hint: 'Upscale', range: '$40–60' },
+  { tier: '$$$$', hint: 'Special occasion', range: '$60+' },
 ];
 
 type CuisineItem = { name: string; emoji: string };
@@ -272,7 +272,7 @@ export default function DinerPersonalizationScreen() {
           <Text style={styles.sectionTitle}>Typical budget when dining out? 💵</Text>
           <Text style={styles.sectionSubtitle}>Per person, including tax & tip</Text>
           <View style={styles.budgetGrid}>
-            {BUDGET_TIERS.map(({ tier, hint }) => (
+            {BUDGET_TIERS.map(({ tier, hint, range }) => (
               <View key={tier} style={styles.budgetCell}>
                 <PreferencePill
                   label={tier}
@@ -281,6 +281,7 @@ export default function DinerPersonalizationScreen() {
                   style={styles.budgetPill}
                 />
                 <Text style={styles.budgetHint}>{hint}</Text>
+                <Text style={styles.budgetRange}>{range}</Text>
               </View>
             ))}
           </View>
@@ -584,6 +585,11 @@ const styles = StyleSheet.create({
     ...Typography.small,
     color: Colors.textSecondary,
     marginTop: Spacing.xs,
+    textAlign: 'center',
+  },
+  budgetRange: {
+    ...Typography.small,
+    color: Colors.textPlaceholder,
     textAlign: 'center',
   },
   bottomSpacer: {

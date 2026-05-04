@@ -92,6 +92,24 @@ describe('ActiveRoleProvider — initial state', () => {
     expect(result.current.activeRole).toBeNull();
   });
 
+  it('clears corrupt session when getSession reports invalid refresh token', async () => {
+    mockGetSession.mockResolvedValue({
+      data: { session: null },
+      error: { message: 'Invalid Refresh Token: Refresh Token Not Found' },
+    });
+
+    const { result } = renderWithProvider(() => useActiveRole());
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mockSignOut).toHaveBeenCalledWith({ scope: 'local' });
+    expect(result.current.session).toBeNull();
+    expect(result.current.roles).toEqual([]);
+    expect(result.current.bootstrapped).toBe(true);
+  });
+
   it('sets single role as activeRole automatically', async () => {
     mockGetSession.mockResolvedValue({
       data: { session: { user: { id: 'uid-1' }, access_token: 'tok' } },
@@ -242,6 +260,37 @@ describe('refreshRoles', () => {
     });
 
     expect(roles).toEqual([]);
+    expect(result.current.roles).toEqual([]);
+  });
+
+  it('signs out locally and clears roles when refresh token is invalid', async () => {
+    mockGetSession.mockResolvedValue({
+      data: { session: { user: { id: 'uid-1' }, access_token: 'tok' } },
+      error: null,
+    });
+    mockFetchUserRoles.mockResolvedValue(['diner']);
+
+    const { result } = renderWithProvider(() => useActiveRole());
+    await act(async () => {
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    mockGetSession.mockResolvedValue({
+      data: { session: null },
+      error: { message: 'Invalid Refresh Token: Refresh Token Not Found' },
+    });
+
+    let roles: string[] = [];
+    await act(async () => {
+      roles = await result.current.refreshRoles();
+    });
+
+    expect(mockSignOut).toHaveBeenCalledWith({ scope: 'local' });
+    expect(roles).toEqual([]);
+    expect(result.current.session).toBeNull();
     expect(result.current.roles).toEqual([]);
   });
 

@@ -458,7 +458,7 @@ export default function RestaurantEditDishScreen() {
         Alert.alert('Save failed', result.error);
         return;
       }
-      router.replace({ pathname: '/restaurant-review-menu', params: { scanId } });
+      router.back();
     } catch (e) {
       Alert.alert('Save failed', e instanceof Error ? e.message : 'Unknown error');
     } finally {
